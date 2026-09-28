@@ -262,6 +262,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad})
             if (v instanceof PadView) ((PadView) v).setTheme(theme);
         emojiGrid.setTheme(theme);
+        if (calcDisplay instanceof CalcDisplay) ((CalcDisplay) calcDisplay).setTheme(theme);
         clipList.setTheme(theme);
         snipList.setTheme(theme);
         ViewGroup.LayoutParams lp = content.getLayoutParams();
@@ -908,43 +909,18 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // --- Calculator
         calcPanel = new LinearLayout(this);
         calcPanel.setOrientation(LinearLayout.VERTICAL);
-        calcDisplay = new View(this) {
-            final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            @Override protected void onDraw(Canvas c) {
-                gp.setOriginFromView(this);
-                android.graphics.RectF r = new android.graphics.RectF(7 * dp, 4 * dp, getWidth() - 7 * dp, getHeight() - 3 * dp);
-                gp.drawGlass(c, r, 16 * dp, GlassPainter.STYLE_FUNC, false, theme);
-                float pad = 14 * dp;
-                // history (last calculation), small, left
-                p.setTextAlign(Paint.Align.LEFT);
-                p.setTypeface(android.graphics.Typeface.DEFAULT);
-                p.setColor(theme.subText);
-                p.setTextSize(12 * dp);
-                if (!calcHistory.isEmpty()) {
-                    String hst = TextUtils.ellipsize(calcHistory, new android.text.TextPaint(p), r.width() - 2 * pad, TextUtils.TruncateAt.START).toString();
-                    c.drawText(hst, r.left + pad, r.top + 18 * dp, p);
-                }
-                // expression, right aligned
-                p.setTextAlign(Paint.Align.RIGHT);
-                String e = calcExpr.isEmpty() ? "0" : prettyExpr(calcExpr);
-                Double v = Calc.eval(calcExpr);
-                boolean showPreview = v != null && !calcJustEvaluated && calcExpr.matches(".*[+\\-*/×÷−%^].*");
-                p.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
-                p.setColor(theme.text);
-                float big = showPreview ? 22 * dp : 34 * dp;
-                p.setTextSize(big);
-                while (p.measureText(e) > r.width() - 2 * pad && p.getTextSize() > 14 * dp) p.setTextSize(p.getTextSize() - dp);
-                float ey = showPreview ? r.centerY() + 6 * dp : r.bottom - 14 * dp;
-                c.drawText(e, r.right - pad, ey, p);
-                if (showPreview) {
-                    p.setColor(theme.accent);
-                    p.setTextSize(20 * dp);
-                    c.drawText("= " + Calc.format(v, true), r.right - pad, r.bottom - 10 * dp, p);
-                }
-            }
-        };
+        CalcDisplay cd = new CalcDisplay(this, gp);
+        cd.feedback = () -> feedback(false);
+        cd.setModel(new CalcDisplay.Model() {
+            @Override public String expr() { return calcExpr; }
+            @Override public int cursor() { return Math.min(calcCursor, calcExpr.length()); }
+            @Override public void setCursor(int c) { calcCursor = c; calcJustEvaluated = false; updateStrip(); }
+            @Override public String history() { return calcHistory; }
+            @Override public boolean evaluated() { return calcJustEvaluated; }
+        });
+        calcDisplay = cd;
         calcDisplay.setWillNotDraw(false);
-        calcPanel.addView(calcDisplay, new LinearLayout.LayoutParams(-1, 0, 1.45f));
+        calcPanel.addView(calcDisplay, new LinearLayout.LayoutParams(-1, 0, 2.1f));
         calcPad = new PadView(this, gp);
         calcPad.feedback = () -> feedback(false);
         calcPad.setGaps(7, 6);
@@ -1144,62 +1120,89 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         res = Math.round(res * 100) / 100.0;
         calcHistory = Calc.format(v, true) + (add ? " + " : " − ") + "GST " + prefs.gstRate() + "% (" + Calc.format(Math.round(tax * 100) / 100.0, true) + ")";
         calcExpr = Calc.format(res, false);
+        calcCursor = calcExpr.length();
         calcJustEvaluated = true;
         feedback(false);
         calcDisplay.invalidate();
         updateStrip();
     }
 
+    private int calcCursor = 0;
+
+    /** Every key edits at the cursor, so you can fix the middle of a long sum. */
     private void calcPress(PadView.Btn b) {
         String e = calcExpr;
-        char lastCh = e.isEmpty() ? 0 : e.charAt(e.length() - 1);
+        int cur = Math.max(0, Math.min(e.length(), calcCursor));
+        String before = e.substring(0, cur), after = e.substring(cur);
+        char lastCh = before.isEmpty() ? 0 : before.charAt(before.length() - 1);
+        boolean atEnd = after.isEmpty();
         switch (b.id) {
-            case "C": calcExpr = ""; calcHistory = ""; calcJustEvaluated = false; break;
+            case "C": calcExpr = ""; calcHistory = ""; calcJustEvaluated = false; calcCursor = 0; break;
             case "bk":
-                if (calcJustEvaluated) { calcExpr = ""; calcJustEvaluated = false; }
-                else if (!e.isEmpty()) calcExpr = e.substring(0, e.length() - 1);
+                if (calcJustEvaluated && atEnd) { calcExpr = ""; calcCursor = 0; calcJustEvaluated = false; }
+                else if (!before.isEmpty()) {
+                    // delete an operator with its neighbouring char logic kept simple: one char
+                    before = before.substring(0, before.length() - 1);
+                    calcExpr = before + after; calcCursor = before.length();
+                }
                 break;
             case "=": {
                 Double v = Calc.eval(e);
                 if (v != null && !calcJustEvaluated) {
                     calcHistory = prettyExpr(e) + " =";
                     calcExpr = Calc.format(v, false);
+                    calcCursor = calcExpr.length();
                     calcJustEvaluated = true;
                 }
                 break;
             }
             case "()": {
+                if (calcJustEvaluated && atEnd) { before = ""; after = ""; lastCh = 0; calcJustEvaluated = false; }
                 int open = 0;
-                for (char ch : e.toCharArray()) { if (ch == '(') open++; else if (ch == ')') open--; }
+                for (char ch : before.toCharArray()) { if (ch == '(') open++; else if (ch == ')') open--; }
                 boolean close = open > 0 && (Character.isDigit(lastCh) || lastCh == ')' || lastCh == '%');
-                if (calcJustEvaluated && !close) { calcExpr = ""; calcJustEvaluated = false; }
-                calcExpr += close ? ")" : ((Character.isDigit(lastCh) || lastCh == ')') && !calcExpr.isEmpty() ? "×(" : "(");
+                String ins = close ? ")" : ((Character.isDigit(lastCh) || lastCh == ')') ? "×(" : "(");
+                before += ins;
+                calcExpr = before + after; calcCursor = before.length();
                 break;
             }
             case "+": case "−": case "×": case "÷":
                 calcJustEvaluated = false;
-                if (e.isEmpty()) { if (b.id.equals("−")) calcExpr = "−"; break; }
-                if (isOp(lastCh)) calcExpr = e.substring(0, e.length() - 1) + b.id;
-                else if (lastCh != '(') calcExpr = e + b.id;
+                if (before.isEmpty()) {
+                    if (b.id.equals("−")) { before = "−"; calcExpr = before + after; calcCursor = 1; }
+                    break;
+                }
+                if (isOp(lastCh)) before = before.substring(0, before.length() - 1) + b.id;
+                else if (lastCh != '(') before = before + b.id;
+                // avoid two operators in a row when inserting in the middle
+                if (!after.isEmpty() && isOp(after.charAt(0)) && isOp(before.charAt(before.length() - 1))) after = after.substring(1);
+                calcExpr = before + after; calcCursor = before.length();
                 break;
             case "%":
                 calcJustEvaluated = false;
-                if (Character.isDigit(lastCh) || lastCh == ')') calcExpr = e + "%";
+                if (Character.isDigit(lastCh) || lastCh == ')') { before += "%"; calcExpr = before + after; calcCursor = before.length(); }
                 break;
             case ".": {
-                if (calcJustEvaluated) { e = ""; calcJustEvaluated = false; }
-                int i = e.length() - 1;
-                while (i >= 0 && (Character.isDigit(e.charAt(i)))) i--;
-                if (i >= 0 && e.charAt(i) == '.') break; // already has a point
-                calcExpr = e + (Character.isDigit(e.isEmpty() ? 'x' : e.charAt(e.length() - 1)) ? "." : "0.");
+                if (calcJustEvaluated && atEnd) { before = ""; after = ""; calcJustEvaluated = false; }
+                // is there already a point in the number around the cursor?
+                int l = before.length() - 1;
+                while (l >= 0 && Character.isDigit(before.charAt(l))) l--;
+                boolean hasPoint = l >= 0 && before.charAt(l) == '.';
+                int r = 0;
+                while (r < after.length() && Character.isDigit(after.charAt(r))) r++;
+                if (r < after.length() && after.charAt(r) == '.') hasPoint = true;
+                if (hasPoint) break;
+                before += (before.isEmpty() || !Character.isDigit(before.charAt(before.length() - 1))) ? "0." : ".";
+                calcExpr = before + after; calcCursor = before.length();
                 break;
             }
             default: // digits
-                if (calcJustEvaluated) { calcExpr = ""; calcJustEvaluated = false; }
-                if (calcExpr.endsWith(")") || calcExpr.endsWith("%")) calcExpr += "×";
-                calcExpr += b.label;
+                if (calcJustEvaluated && atEnd) { before = ""; after = ""; calcJustEvaluated = false; }
+                if (before.endsWith(")") || before.endsWith("%")) before += "×";
+                before += b.label;
+                calcExpr = before + after; calcCursor = before.length();
         }
-        calcDisplay.invalidate();
+        ((CalcDisplay) calcDisplay).poke();
         updateStrip();
     }
 
