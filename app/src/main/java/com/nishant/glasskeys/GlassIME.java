@@ -43,7 +43,7 @@ import java.util.List;
 
 public class GlassIME extends InputMethodService implements KeyboardView.Listener {
 
-    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6;
+    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6, P_BIZ = 7, P_DETECT = 8;
 
     private Prefs prefs;
     private Dictionary dict;
@@ -71,6 +71,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private PadView calcPad;
     private String calcExpr = "";
     private PadView editPad;
+    private PadView bizPad;
+    private List<Business.Found> lastClipFound = new ArrayList<>();
+    private double requestedAmount = -1;
     private boolean selectMode;
 
     // typing state
@@ -272,7 +275,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.glideEnabled = prefs.bool("glide", true);
         keyboard.trailEnabled = prefs.bool("trail", true);
         strip.setTheme(theme);
-        for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad})
+        for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad, bizPad})
             if (v instanceof PadView) ((PadView) v).setTheme(theme);
         emojiGrid.setTheme(theme);
         if (calcDisplay instanceof CalcDisplay) ((CalcDisplay) calcDisplay).setTheme(theme);
@@ -583,6 +586,17 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         toolbarForced = false;
         ic.beginBatchEdit();
         long now = SystemClock.uptimeMillis();
+        // Business shortcuts: ";pay 1250", ";hours", ";qr"
+        if (bizShortcut() != null) {
+            if (composing.length() > 0) finishWord(ic, false, null);
+            String[] sc = bizShortcut();
+            ic.endBatchEdit();
+            if (sc != null) runBizShortcut(ic, sc);
+            lastSpaceTime = 0;
+            updateShift();
+            updateStrip();
+            return;
+        }
         // Quick-text shortcut expansion, e.g. ";upi" + space
         if (snippetForToken() != null) {
             if (composing.length() > 0) finishWord(ic, false, null);
@@ -805,6 +819,26 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return;
         }
 
+        // 1b. Business shortcut typed -> chip
+        String[] bs = bizShortcut();
+        if (bs != null) {
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            String label = bs[0].equals("pay") ? (bs[1].isEmpty() ? "UPI payment details" : "Payment request for ₹" + Calc.format(Double.parseDouble(bs[1]), true))
+                    : bs[0].equals("hours") ? "Shop hours & location" : "Payment QR code";
+            final String[] fs = bs;
+            StripView.Cell ch = StripView.Cell.chip(bs[0].equals("hours") ? GlassPainter.IC_CLOCK : GlassPainter.IC_RUPEE, label + " — tap or space", () -> {
+                InputConnection c2 = getCurrentInputConnection();
+                if (c2 == null) return;
+                if (composing.length() > 0) finishWord(c2, false, null);
+                runBizShortcut(c2, fs);
+                updateStrip();
+            });
+            ch.active = true;
+            cells.add(ch);
+            strip.setCells(cells);
+            return;
+        }
+
         // 2. Quick-text shortcut typed -> chip to expand
         Prefs.Snippet sn = snippetForToken();
         if (sn != null) {
@@ -824,12 +858,21 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (composing.length() == 0 && recentClip && !toolbarForced) {
             cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
             final String clip = lastClipText;
-            cells.add(StripView.Cell.chip(GlassPainter.IC_PASTE, clip.replace('\n', ' '), () -> {
+            StripView.Cell pc = StripView.Cell.chip(GlassPainter.IC_PASTE, clip.replace('\n', ' '), () -> {
                 InputConnection c2 = getCurrentInputConnection();
                 if (c2 != null) c2.commitText(clip, 1);
                 lastClipText = null;
                 updateStrip();
-            }));
+            });
+            cells.add(pc);
+            if (!lastClipFound.isEmpty()) {
+                // spotted a phone / GSTIN / pincode / UPI / amount in what you copied
+                Business.Found f = lastClipFound.get(0);
+                String more = lastClipFound.size() > 1 ? "  +" + (lastClipFound.size() - 1) : "";
+                StripView.Cell dc = StripView.Cell.chip(iconFor(f.type), f.shortLabel() + more, () -> showPanel(P_DETECT));
+                dc.active = true;
+                cells.add(dc);
+            }
             cells.add(StripView.Cell.icon(GlassPainter.IC_CLOSE, () -> { lastClipText = null; updateStrip(); }));
             strip.setCells(cells);
             return;
@@ -939,11 +982,191 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }));
         cells.add(StripView.Cell.icon(GlassPainter.IC_MIC, this::startVoice));
         cells.add(StripView.Cell.icon(GlassPainter.IC_GEAR, () -> openSettings(null)));
-        cells.add(StripView.Cell.icon(GlassPainter.IC_HIDE, this::requestHideSelf0));
+        cells.add(StripView.Cell.icon(GlassPainter.IC_SHOP, () -> showPanel(P_BIZ)));
         strip.setCells(cells);
     }
 
     private void requestHideSelf0() { requestHideSelf(0); }
+
+    // ================================================================= business tools
+
+    private boolean bizReady() {
+        if (Business.upi(prefs).isEmpty()) {
+            toast("Add your UPI ID and business name first");
+            openSettings("business");
+            return false;
+        }
+        return true;
+    }
+
+    private void requestPayment(double amount) {
+        if (!bizReady()) return;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        ic.commitText(Business.paymentText(prefs, amount), 1);
+        requestedAmount = amount;
+        updateStrip();
+    }
+
+    /** Makes the payment QR card and drops it into the chat (or opens the share sheet). */
+    private void sendPaymentQr(double amount) {
+        if (!bizReady()) return;
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "share");
+            dir.mkdirs();
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) f.delete();
+            String name = "upi_qr_" + System.currentTimeMillis() + ".png";
+            java.io.File out = new java.io.File(dir, name);
+            Bitmap card = Business.qrCard(prefs, amount, dp);
+            try (java.io.FileOutputStream fo = new java.io.FileOutputStream(out)) { card.compress(Bitmap.CompressFormat.PNG, 100, fo); }
+            android.net.Uri uri = ShareProvider.uriFor(name);
+            EditorInfo ei = getCurrentInputEditorInfo();
+            InputConnection ic = getCurrentInputConnection();
+            boolean accepts = false;
+            if (ei != null && ei.contentMimeTypes != null)
+                for (String mt : ei.contentMimeTypes) if (android.content.ClipDescription.compareMimeTypes("image/png", mt)) accepts = true;
+            if (accepts && ic != null) {
+                android.view.inputmethod.InputContentInfo info = new android.view.inputmethod.InputContentInfo(uri,
+                        new android.content.ClipDescription("Payment QR", new String[]{"image/png"}));
+                boolean ok = ic.commitContent(info, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
+                if (ok) return;
+            }
+            // this app doesn't take images from keyboards: open the share sheet instead
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("image/png");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(send, "Share payment QR");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(chooser);
+        } catch (Exception e) {
+            toast("Couldn't make the QR code");
+        }
+    }
+
+    /** ";pay 1250", ";pay", ";hours", ";qr" right before the cursor -> {kind, amount}. */
+    private String[] bizShortcut() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return null;
+        CharSequence before = ic.getTextBeforeCursor(30, 0);
+        if (before == null) return null;
+        String t = before.toString() + composing;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:^|\\s);(pay|hours|qr)(?:\\s*([\\d,]+(?:\\.\\d{1,2})?))?$",
+                java.util.regex.Pattern.CASE_INSENSITIVE).matcher(t);
+        if (!m.find()) return null;
+        String kind = m.group(1).toLowerCase(), amt = m.group(2) == null ? "" : m.group(2).replace(",", "");
+        if (kind.equals("hours") && !amt.isEmpty()) return null;
+        return new String[]{kind, amt, String.valueOf(t.length() - m.start() - (Character.isWhitespace(t.charAt(m.start())) ? 1 : 0))};
+    }
+
+    private void runBizShortcut(InputConnection ic, String[] sc) {
+        int len = Integer.parseInt(sc[2]);
+        if (sc[0].equals("hours")) {
+            ic.deleteSurroundingText(len, 0);
+            ic.commitText(Business.hoursText(prefs, java.util.Calendar.getInstance()), 1);
+            return;
+        }
+        if (!bizReady()) return;
+        double amt = sc[1].isEmpty() ? 0 : Double.parseDouble(sc[1]);
+        ic.deleteSurroundingText(len, 0);
+        if (sc[0].equals("qr")) { sendPaymentQr(amt); return; }
+        ic.commitText(Business.paymentText(prefs, amt), 1);
+    }
+
+    private static int iconFor(int type) {
+        switch (type) {
+            case Business.PHONE: return GlassPainter.IC_PHONE;
+            case Business.GSTIN: return GlassPainter.IC_CHECK;
+            case Business.PINCODE: return GlassPainter.IC_MAP;
+            case Business.UPI: return GlassPainter.IC_RUPEE;
+            case Business.AMOUNT: return GlassPainter.IC_CALC;
+            default: return GlassPainter.IC_SEND;
+        }
+    }
+
+    private void refreshDetected() {
+        List<CardList.Card> cards = new ArrayList<>();
+        for (Business.Found f : lastClipFound) {
+            CardList.Card c = new CardList.Card();
+            c.title = f.title();
+            c.tag = f;
+            switch (f.type) {
+                case Business.PHONE:
+                    c.body = "Call · WhatsApp chat · Save contact";
+                    c.icons = new int[]{GlassPainter.IC_PHONE, GlassPainter.IC_SEND, GlassPainter.IC_CONTACT};
+                    break;
+                case Business.GSTIN:
+                    c.body = f.note;
+                    c.icons = new int[]{GlassPainter.IC_COPY};
+                    break;
+                case Business.PINCODE:
+                    c.body = "Open this area in Maps";
+                    c.icons = new int[]{GlassPainter.IC_MAP};
+                    break;
+                case Business.UPI:
+                    c.body = "Pay this UPI ID from your UPI app";
+                    c.icons = new int[]{GlassPainter.IC_RUPEE};
+                    break;
+                case Business.AMOUNT:
+                    c.body = "Work with it in the calculator, or send a payment request";
+                    c.icons = new int[]{GlassPainter.IC_CALC, GlassPainter.IC_QR};
+                    break;
+                default:
+                    c.body = "Write an email";
+                    c.icons = new int[]{GlassPainter.IC_SEND};
+            }
+            cards.add(c);
+        }
+        clipList.setCards(cards, "Nothing useful found in the copied text");
+    }
+
+    private void launch(Intent i) {
+        try {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            toast("No app found for that");
+        }
+    }
+
+    private void detectedAction(Business.Found f, int icon) {
+        switch (f.type) {
+            case Business.PHONE:
+                if (icon == GlassPainter.IC_PHONE) launch(new Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:+91" + f.value)));
+                else if (icon == GlassPainter.IC_SEND) launch(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://wa.me/91" + f.value)));
+                else {
+                    Intent add = new Intent(android.provider.ContactsContract.Intents.Insert.ACTION);
+                    add.setType(android.provider.ContactsContract.RawContacts.CONTENT_TYPE);
+                    add.putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, "+91" + f.value);
+                    launch(add);
+                }
+                break;
+            case Business.GSTIN: {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) ic.commitText("PAN " + f.value.substring(2, 12), 1);
+                break;
+            }
+            case Business.PINCODE:
+                launch(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=" + f.value + ", India")));
+                break;
+            case Business.UPI:
+                launch(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("upi://pay?pa=" + android.net.Uri.encode(f.value, "@.") + "&cu=INR")));
+                break;
+            case Business.AMOUNT:
+                if (icon == GlassPainter.IC_CALC) {
+                    calcExpr = f.value; calcCursor = calcExpr.length(); calcHistory = "From copied text"; calcJustEvaluated = false;
+                    showPanel(P_CALC);
+                } else if (bizReady()) {
+                    requestPayment(Double.parseDouble(f.value));
+                    showPanel(P_NONE);
+                }
+                break;
+            default:
+                launch(new Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:" + f.value)));
+        }
+    }
 
     // ================================================================= typing XP (Shadow Realm HUD)
 
@@ -1085,10 +1308,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         clipList.setOnCard(new CardList.OnCard() {
             @Override public void tap(CardList.Card c) {
                 if (panel == P_STATS) return;
+                if (panel == P_DETECT) {
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null && c.tag instanceof Business.Found) { commitComposing(); ic.commitText(((Business.Found) c.tag).value, 1); }
+                    return;
+                }
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) { commitComposing(); ic.commitText(c.body, 1); }
             }
             @Override public void icon(CardList.Card c, int i) {
+                if (panel == P_DETECT && c.tag instanceof Business.Found) { detectedAction((Business.Found) c.tag, c.icons[i]); return; }
                 if (panel == P_STATS || c.tag == null) return;
                 List<Prefs.Clip> clips = prefs.clips();
                 int idx = (Integer) c.tag;
@@ -1149,7 +1378,38 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         editPad.setRows(editRows());
         editPad.setOnPress(this::editPress);
 
-        for (View v : new View[]{emojiPanel, clipScroll, snipScroll, calcPanel, editPad}) {
+        // --- Business
+        bizPad = new PadView(this, gp);
+        bizPad.feedback = () -> feedback(false);
+        bizPad.setGaps(8, 8);
+        {
+            List<List<PadView.Btn>> r = new ArrayList<>();
+            r.add(row(new PadView.Btn("req", "Request payment", GlassPainter.IC_RUPEE).style(GlassPainter.STYLE_ACTION),
+                    new PadView.Btn("qr", "Payment QR", GlassPainter.IC_QR)));
+            r.add(row(new PadView.Btn("hours", "Shop hours & location", GlassPainter.IC_CLOCK),
+                    new PadView.Btn("upi", "Send UPI ID", GlassPainter.IC_SEND)));
+            r.add(row(new PadView.Btn("setup", "Business details", GlassPainter.IC_SHOP).style(GlassPainter.STYLE_FUNC),
+                    new PadView.Btn("kb", "Keyboard", GlassPainter.IC_KEYBOARD).style(GlassPainter.STYLE_FUNC)));
+            bizPad.setRows(r);
+        }
+        bizPad.setOnPress(b -> {
+            InputConnection ic = getCurrentInputConnection();
+            switch (b.id) {
+                case "req":
+                    if (!bizReady()) return;
+                    calcExpr = ""; calcCursor = 0; calcHistory = "Amount to request"; calcJustEvaluated = false;
+                    showPanel(P_CALC);
+                    toast("Type the amount, then tap ₹ Request");
+                    break;
+                case "qr": if (bizReady()) sendPaymentQr(0); break;
+                case "hours": if (ic != null) { commitComposing(); ic.commitText(Business.hoursText(prefs, java.util.Calendar.getInstance()), 1); } break;
+                case "upi": if (bizReady() && ic != null) { commitComposing(); ic.commitText(Business.paymentText(prefs, 0), 1); } break;
+                case "setup": openSettings("business"); break;
+                case "kb": showPanel(P_NONE); break;
+            }
+        });
+
+        for (View v : new View[]{emojiPanel, clipScroll, snipScroll, calcPanel, editPad, bizPad}) {
             v.setVisibility(View.GONE);
             content.addView(v, new FrameLayout.LayoutParams(-1, -1));
         }
@@ -1198,19 +1458,21 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         panel = p;
         keyboard.setVisibility(p == P_NONE ? View.VISIBLE : View.GONE);
         emojiPanel.setVisibility(p == P_EMOJI ? View.VISIBLE : View.GONE);
-        clipScroll.setVisibility(p == P_CLIP || p == P_STATS ? View.VISIBLE : View.GONE);
+        clipScroll.setVisibility(p == P_CLIP || p == P_STATS || p == P_DETECT ? View.VISIBLE : View.GONE);
         snipScroll.setVisibility(p == P_SNIP ? View.VISIBLE : View.GONE);
         calcPanel.setVisibility(p == P_CALC ? View.VISIBLE : View.GONE);
         editPad.setVisibility(p == P_EDIT ? View.VISIBLE : View.GONE);
+        bizPad.setVisibility(p == P_BIZ ? View.VISIBLE : View.GONE);
         if (p == P_EMOJI) showEmojiTab(prefs.recentEmoji().isEmpty() ? 1 : 0);
         if (p == P_CLIP) { refreshClips(); clipScroll.scrollTo(0, 0); }
         if (p == P_STATS) { refreshStats(); clipScroll.scrollTo(0, 0); }
+        if (p == P_DETECT) { refreshDetected(); clipScroll.scrollTo(0, 0); }
         if (p == P_SNIP) { refreshSnippets(); snipScroll.scrollTo(0, 0); }
         if (p == P_CALC) calcDisplay.invalidate();
         if (p == P_EDIT) { selectMode = false; editPad.setRows(editRows()); }
         if (p == P_NONE) updateShift();
-        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS) ? clipScroll
-                : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : editPad;
+        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT) ? clipScroll
+                : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : p == P_BIZ ? bizPad : editPad;
         if (prefs.glassRipple()) {
             shown.setAlpha(0f);
             shown.setTranslationY(18 * dp);
@@ -1232,6 +1494,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             case P_STATS:
                 cells.add(StripView.Cell.title("Your typing level"));
                 break;
+            case P_BIZ:
+                cells.add(StripView.Cell.title(Business.name(prefs).isEmpty() ? "Business tools" : Business.name(prefs)));
+                break;
+            case P_DETECT:
+                cells.add(StripView.Cell.title("Found in what you copied · tap to insert"));
+                break;
             case P_CLIP:
                 cells.add(StripView.Cell.title("Clipboard · pinned items never expire"));
                 cells.add(StripView.Cell.icon(GlassPainter.IC_TRASH, () -> {
@@ -1248,17 +1516,26 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 break;
             case P_CALC: {
                 int rate = prefs.gstRate();
-                cells.add(StripView.Cell.chip(0, "+GST", () -> calcGst(true)));
-                cells.add(StripView.Cell.chip(0, "−GST", () -> calcGst(false)));
-                StripView.Cell rc = StripView.Cell.chip(0, rate + "%", () -> {
+                StripView.Cell g1 = StripView.Cell.chip(0, "+GST " + rate + "%", () -> calcGst(true));
+                g1.longAction = () -> {
                     int[] rates = {5, 12, 18, 28};
                     int cur = prefs.gstRate(), next = 18;
                     for (int i = 0; i < rates.length; i++) if (rates[i] == cur) next = rates[(i + 1) % rates.length];
                     prefs.setInt("gst", next);
+                    toast("GST rate " + next + "%");
                     updateStrip();
-                });
-                rc.weight = 0.7f;
-                cells.add(rc);
+                };
+                cells.add(g1);
+                cells.add(StripView.Cell.chip(0, "−GST", () -> calcGst(false)));
+                Double pv = Calc.eval(calcExpr);
+                if (pv != null && pv > 0) {
+                    final double amt = Math.round(pv * 100) / 100.0;
+                    if (requestedAmount == amt) {
+                        cells.add(StripView.Cell.chip(GlassPainter.IC_QR, "Send QR", () -> sendPaymentQr(amt)));
+                    } else {
+                        cells.add(StripView.Cell.chip(GlassPainter.IC_RUPEE, "Request", () -> requestPayment(amt)));
+                    }
+                }
                 Double v = Calc.eval(calcExpr);
                 if (v != null) {
                     final String res = Calc.format(v, false);
@@ -1421,6 +1698,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 before += b.label;
                 calcExpr = before + after; calcCursor = before.length();
         }
+        requestedAmount = -1;
         ((CalcDisplay) calcDisplay).poke();
         updateStrip();
     }
@@ -1559,6 +1837,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             prefs.addClip(s);
             lastClipText = s;
             lastClipTime = SystemClock.uptimeMillis();
+            lastClipFound = Business.detect(s);
             if (panel == P_CLIP) refreshClips();
             updateStrip();
         } catch (Exception ignored) { }

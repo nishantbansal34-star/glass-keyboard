@@ -41,7 +41,7 @@ public class SettingsActivity extends Activity {
     private float dp;
     private LinearLayout col;
     private ScrollView scroll;
-    private View snippetsAnchor;
+    private View snippetsAnchor, businessAnchor;
     private TextView step1, step2, step3;
 
     @Override
@@ -64,6 +64,8 @@ public class SettingsActivity extends Activity {
     private void handleIntent(Intent i) {
         String section = i == null ? null : i.getStringExtra("section");
         if ("mic".equals(section)) requestMic();
+        if ("business".equals(section) && businessAnchor != null)
+            scroll.post(() -> scroll.smoothScrollTo(0, businessAnchor.getTop()));
         if ("snippets".equals(section) && snippetsAnchor != null)
             scroll.post(() -> scroll.smoothScrollTo(0, snippetsAnchor.getTop()));
     }
@@ -126,6 +128,49 @@ public class SettingsActivity extends Activity {
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-1, -2);
         tlp.topMargin = (int) (10 * dp);
         setup.addView(test, tlp);
+
+        // --- Business
+        LinearLayout biz = card("Business");
+        businessAnchor = biz;
+        TextView bh = text("Used by the ₹ Business button: payment requests, payment QR codes and your shop-hours reply. Shortcuts: ;pay 1250  ·  ;qr  ·  ;hours", 13, false);
+        bh.setAlpha(0.7f);
+        biz.addView(bh);
+        biz.addView(bizField("Business name (e.g. NRRL)", "bizName", false));
+        biz.addView(bizField("UPI ID (e.g. nrrl@okaxis)", "bizUpi", false));
+        biz.addView(bizField("Phone / WhatsApp number", "bizPhone", false));
+        biz.addView(bizField("Shop address", "bizAddress", true));
+        biz.addView(bizField("Google Maps link (optional)", "bizMaps", false));
+        LinearLayout times = new LinearLayout(this);
+        EditText op = bizField("Opens (10:00)", "bizOpen", false);
+        EditText cl = bizField("Closes (20:00)", "bizClose", false);
+        if (op.getText().length() == 0) op.setText("10:00");
+        if (cl.getText().length() == 0) cl.setText("20:00");
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, -2, 1);
+        half.rightMargin = (int) (6 * dp);
+        times.addView(op, half);
+        times.addView(cl, new LinearLayout.LayoutParams(0, -2, 1));
+        biz.addView(times);
+        biz.addView(label("Closed on  ·  tap to toggle"));
+        LinearLayout days = new LinearLayout(this);
+        String[] dn = {"S", "M", "T", "W", "T", "F", "S"};
+        int[] dow = {1, 2, 3, 4, 5, 6, 7};
+        for (int i = 0; i < 7; i++) {
+            final String d = String.valueOf(dow[i]);
+            TextView t = text(dn[i], 15, true);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, (int) (10 * dp), 0, (int) (10 * dp));
+            Runnable paint = () -> t.setBackground(pill(prefs.str("bizClosed", "1").contains(d) ? 0x99E0457B : 0x1AFFFFFF, 12));
+            paint.run();
+            t.setOnClickListener(v -> {
+                String c = prefs.str("bizClosed", "1");
+                prefs.setStr("bizClosed", c.contains(d) ? c.replace(d, "") : c + d);
+                paint.run();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+            lp.rightMargin = (int) (5 * dp);
+            days.addView(t, lp);
+        }
+        biz.addView(days);
 
         // --- Theme pack (kept separate from the clean Liquid Glass options)
         LinearLayout packCard = card("Theme pack");
@@ -265,7 +310,18 @@ public class SettingsActivity extends Activity {
         }));
 
         LinearLayout tips = card("Gestures");
-        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute", 14, false));
+        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute — with one-tap actions for phone numbers, GSTINs, pincodes, UPI IDs and amounts\n• ;pay 1250 + space types a UPI payment request · ;qr sends a payment QR · ;hours sends your shop timings", 14, false));
+    }
+
+    private EditText bizField(String hint, String key, boolean multi) {
+        EditText e = field(hint, multi);
+        e.setText(prefs.str(key, ""));
+        e.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(android.text.Editable ed) { prefs.setStr(key, ed.toString()); }
+        });
+        return e;
     }
 
     private void pickPhoto() {

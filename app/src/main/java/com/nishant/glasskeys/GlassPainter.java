@@ -629,7 +629,8 @@ public class GlassPainter {
             IC_GEAR = 14, IC_KEYBOARD = 15, IC_LEFT = 16, IC_RIGHT = 17, IC_UP = 18, IC_DOWN = 19, IC_SWAP = 20,
             IC_EXPAND = 21, IC_PIN = 22, IC_CLOSE = 23, IC_CHECK = 24, IC_UNDO = 25, IC_REDO = 26, IC_COPY = 27,
             IC_CUT = 28, IC_PASTE = 29, IC_SELECT = 30, IC_TRASH = 31, IC_PLUS = 32, IC_ONEHAND = 33,
-            IC_GLOBE = 34, IC_HIDE = 35, IC_GRID = 36, IC_ARROW_RIGHT = 37, IC_TEXT_CASE = 38, IC_PIN_ON = 39, IC_SPARKLE = 40;
+            IC_GLOBE = 34, IC_HIDE = 35, IC_GRID = 36, IC_ARROW_RIGHT = 37, IC_TEXT_CASE = 38, IC_PIN_ON = 39, IC_SPARKLE = 40,
+            IC_PHONE = 41, IC_MAP = 42, IC_RUPEE = 43, IC_SHOP = 44, IC_QR = 45, IC_CLOCK = 46, IC_CONTACT = 47;
 
     /** Draws an outline icon designed on a 24x24 grid, centred on (cx, cy). */
     public void drawIcon(Canvas c, int id, float cx, float cy, float size, int color) {
@@ -814,6 +815,55 @@ public class GlassPainter {
                     tmp.set(4 + xx * 9, 4 + yy * 9, 11 + xx * 9, 11 + yy * 9);
                     c.drawRoundRect(tmp, 2, 2, icon);
                 }
+                break;
+            case IC_PHONE:
+                p.moveTo(6.5f, 3.5f); p.lineTo(9.5f, 3.5f); p.lineTo(11, 8); p.lineTo(8.8f, 9.6f);
+                p.cubicTo(9.9f, 12.1f, 11.9f, 14.1f, 14.4f, 15.2f); p.lineTo(16, 13); p.lineTo(20.5f, 14.5f);
+                p.lineTo(20.5f, 17.5f); p.cubicTo(20.5f, 19.2f, 19.2f, 20.5f, 17.5f, 20.5f);
+                p.cubicTo(10.3f, 20.1f, 3.9f, 13.7f, 3.5f, 6.5f); p.cubicTo(3.5f, 4.8f, 4.8f, 3.5f, 6.5f, 3.5f); p.close();
+                c.drawPath(p, icon);
+                break;
+            case IC_MAP:
+                p.moveTo(12, 21); p.cubicTo(7, 15.5f, 5, 12.5f, 5, 9.5f);
+                p.cubicTo(5, 5.6f, 8.1f, 2.5f, 12, 2.5f); p.cubicTo(15.9f, 2.5f, 19, 5.6f, 19, 9.5f);
+                p.cubicTo(19, 12.5f, 17, 15.5f, 12, 21); p.close();
+                c.drawPath(p, icon);
+                c.drawCircle(12, 9.5f, 2.6f, icon);
+                break;
+            case IC_RUPEE:
+                c.drawLine(6.5f, 4, 17.5f, 4, icon);
+                c.drawLine(6.5f, 8.5f, 17.5f, 8.5f, icon);
+                p.moveTo(6.5f, 4); p.lineTo(10, 4); p.cubicTo(13.5f, 4, 14.5f, 6.2f, 14.5f, 7.5f);
+                p.cubicTo(14.5f, 10.5f, 12, 13, 8.5f, 13); p.lineTo(6.5f, 13); p.lineTo(15, 21);
+                c.drawPath(p, icon);
+                break;
+            case IC_SHOP:
+                p.moveTo(3.5f, 9); p.lineTo(5, 4); p.lineTo(19, 4); p.lineTo(20.5f, 9); p.close();
+                c.drawPath(p, icon);
+                p.reset(); p.moveTo(5, 9); p.lineTo(5, 20); p.lineTo(19, 20); p.lineTo(19, 9);
+                c.drawPath(p, icon);
+                tmp.set(9.5f, 13.5f, 14.5f, 20); c.drawRect(tmp, icon);
+                break;
+            case IC_QR:
+                for (int qy = 0; qy < 2; qy++) for (int qx = 0; qx < 2; qx++) {
+                    if (qx == 1 && qy == 1) continue;
+                    tmp.set(3.5f + qx * 10, 3.5f + qy * 10, 10.5f + qx * 10, 10.5f + qy * 10);
+                    c.drawRoundRect(tmp, 1.5f, 1.5f, icon);
+                    c.drawRect(5.8f + qx * 10, 5.8f + qy * 10, 8.2f + qx * 10, 8.2f + qy * 10, iconFill);
+                }
+                c.drawRect(14, 14, 16.2f, 16.2f, iconFill); c.drawRect(18, 18, 20.5f, 20.5f, iconFill);
+                c.drawRect(18, 14, 20.5f, 16.2f, iconFill); c.drawRect(14, 18, 16.2f, 20.5f, iconFill);
+                break;
+            case IC_CLOCK:
+                c.drawCircle(12, 12, 8.5f, icon);
+                c.drawLine(12, 12, 12, 7, icon);
+                c.drawLine(12, 12, 15.5f, 14, icon);
+                break;
+            case IC_CONTACT:
+                c.drawCircle(10, 8.5f, 3.5f, icon);
+                p.moveTo(3.5f, 19.5f); p.cubicTo(3.5f, 15.5f, 6.5f, 14, 10, 14); p.cubicTo(12, 14, 13.5f, 14.4f, 14.5f, 15.2f);
+                c.drawPath(p, icon);
+                c.drawLine(18, 13.5f, 18, 20.5f, icon); c.drawLine(14.5f, 17, 21.5f, 17, icon);
                 break;
             case IC_SPARKLE:
                 p.moveTo(10, 2.5f); p.quadTo(10.8f, 9.2f, 17.5f, 10); p.quadTo(10.8f, 10.8f, 10, 17.5f);
