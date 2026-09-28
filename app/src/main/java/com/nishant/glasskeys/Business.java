@@ -40,13 +40,13 @@ public class Business {
 
     /** The message typed into the chat for a payment request. */
     public static String paymentText(Prefs p, double amount) {
-        String nm = name(p).isEmpty() ? "us" : name(p);
+        String nm = name(p);
         StringBuilder sb = new StringBuilder();
-        if (amount > 0) sb.append("Payment request: ₹").append(Calc.format(amount, true)).append(" to ").append(nm).append("\n");
-        else sb.append("Pay ").append(nm).append(" by UPI\n");
-        sb.append("UPI ID: ").append(upi(p)).append("\n");
-        sb.append("Pay link: ").append(upiLink(upi(p), name(p), amount, "")).append("\n");
-        sb.append("(Or pay to the UPI ID above from GPay, PhonePe or Paytm.)");
+        // WhatsApp formatting: *bold*, `code` (code also stops the number being turned into a phone link)
+        sb.append("*Payment request").append(nm.isEmpty() ? "" : " · " + nm).append("*\n");
+        if (amount > 0) sb.append("Amount: *₹").append(Calc.format(amount, true)).append("*\n");
+        sb.append("UPI ID: `").append(upi(p)).append("`\n");
+        sb.append("Scan the QR or pay to this UPI ID from GPay, PhonePe, Paytm or any UPI app.");
         return sb.toString();
     }
 

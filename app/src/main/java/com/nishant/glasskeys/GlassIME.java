@@ -1006,7 +1006,15 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         commitComposing();
         ic.commitText(Business.paymentText(prefs, amount), 1);
         requestedAmount = amount;
+        if (acceptsImages()) sendPaymentQr(amount);   // attach the scannable QR right away
         updateStrip();
+    }
+
+    private boolean acceptsImages() {
+        EditorInfo ei = getCurrentInputEditorInfo();
+        if (ei == null || ei.contentMimeTypes == null) return false;
+        for (String mt : ei.contentMimeTypes) if (android.content.ClipDescription.compareMimeTypes("image/png", mt)) return true;
+        return false;
     }
 
     /** Makes the payment QR card and drops it into the chat (or opens the share sheet). */
@@ -1073,6 +1081,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         ic.deleteSurroundingText(len, 0);
         if (sc[0].equals("qr")) { sendPaymentQr(amt); return; }
         ic.commitText(Business.paymentText(prefs, amt), 1);
+        if (acceptsImages()) sendPaymentQr(amt);
     }
 
     private static int iconFor(int type) {

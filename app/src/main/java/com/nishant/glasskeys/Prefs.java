@@ -54,7 +54,7 @@ public class Prefs {
     public boolean darkGlass() { return bool("darkglass", true); }
     public int photoDim() { return integer("photodim", 55); }  // percent
     public int photoBlur() { return integer("photoblur", 1); }
-    public boolean capsLabels() { return bool("capslabels", true); }
+    public boolean capsLabels() { return bool("capslabels2", false); }
     /** 0 = Liquid Glass (clean), 1 = Shadow Realm */
     public int pack() { return integer("pack", 0); }
     public String voiceLang() { return str("voicelang", "en-IN"); }

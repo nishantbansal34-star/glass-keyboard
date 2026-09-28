@@ -235,7 +235,7 @@ public class SettingsActivity extends Activity {
             @Override public void onStopTrackingTouch(SeekBar s) { }
         });
         look.addView(dim);
-        look.addView(toggle("Capital letters on keys", "capslabels", true));
+        look.addView(toggle("Always show capital letters on keys", "capslabels2", false));
 
         look.addView(toggle("Live blur of the app behind (experimental, Android 12+)", "liveblur", false));
         if (prefs.bool("liveblurUnsupported", false)) {
