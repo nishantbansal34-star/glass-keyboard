@@ -128,6 +128,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         RootView(Context c) { super(c); setWillNotDraw(false); setClipChildren(false); }
         void refresh() { backdrop = null; invalidate(); }
         @Override protected void onSizeChanged(int w, int h, int ow, int oh) { backdrop = null; }
+        /** Size ourselves to the keyboard column only — never stretch to the full-height IME window. */
+        @Override protected void onMeasure(int wSpec, int hSpec) {
+            View col = getChildAt(0);
+            int w = MeasureSpec.getSize(wSpec);
+            col.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            int h = col.getMeasuredHeight();
+            int ew = MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), eh = MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY);
+            for (int i = 1; i < getChildCount(); i++) getChildAt(i).measure(ew, eh);
+            setMeasuredDimension(w, h);
+        }
         @Override protected void onDraw(Canvas c) {
             if (backdrop == null) backdrop = gp.renderBackdrop(getWidth(), getHeight(), theme, loadCustomBackdrop(), liveBlurActive);
             if (backdrop != null) c.drawBitmap(backdrop, 0, 0, p);

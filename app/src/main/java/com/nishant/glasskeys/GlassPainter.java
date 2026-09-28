@@ -34,6 +34,7 @@ public class GlassPainter {
     private final RectF tmp = new RectF();
 
     private LinearGradient bodyDark, bodyLight, rimGrad, glossGrad;
+    private RadialGradient specGrad;
     private Bitmap noise;
 
     public GlassPainter(float density) {
@@ -46,13 +47,17 @@ public class GlassPainter {
         iconFill.setStyle(Paint.Style.FILL);
         // Unit gradients (0..1 on Y) re-used for every key via a local matrix: no per-frame allocation.
         bodyDark = new LinearGradient(0, 0, 0, 1,
-                new int[]{0x3DFFFFFF, 0x1FFFFFFF, 0x14FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+                new int[]{0x2BFFFFFF, 0x12FFFFFF, 0x0AFFFFFF}, new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP);
         bodyLight = new LinearGradient(0, 0, 0, 1,
-                new int[]{0xB3FFFFFF, 0x80FFFFFF, 0x66FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
-        rimGrad = new LinearGradient(0, 0, 0, 1,
-                new int[]{0xB3FFFFFF, 0x1AFFFFFF, 0x0DFFFFFF, 0x4DFFFFFF}, new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP);
+                new int[]{0x8CFFFFFF, 0x59FFFFFF, 0x40FFFFFF}, new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP);
+        // diagonal: bright top-left, clear middle, glowing bottom-right
+        rimGrad = new LinearGradient(0, 0, 1, 1,
+                new int[]{0xE6FFFFFF, 0x33FFFFFF, 0x0DFFFFFF, 0x26FFFFFF, 0x99FFFFFF},
+                new float[]{0f, 0.25f, 0.5f, 0.75f, 1f}, Shader.TileMode.CLAMP);
         glossGrad = new LinearGradient(0, 0, 0, 1,
                 new int[]{0x40FFFFFF, 0x00FFFFFF}, null, Shader.TileMode.CLAMP);
+        specGrad = new RadialGradient(0.22f, 0.05f, 0.75f,
+                new int[]{0x2EFFFFFF, 0x0DFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
     }
 
     // ------------------------------------------------------------------ backdrop
@@ -75,20 +80,20 @@ public class GlassPainter {
             c.drawColor(t.dark ? 0x59000000 : 0x40FFFFFF);
         } else {
             c.drawColor(t.base);
-            float[][] pos = {{0.12f, 0.15f, 0.75f}, {0.85f, 0.35f, 0.7f}, {0.45f, 1.05f, 0.8f}};
+            float[][] pos = {{0.08f, 0.25f, 0.7f}, {0.9f, 0.2f, 0.65f}, {0.5f, 1.0f, 0.75f}};
             for (int i = 0; i < 3; i++) {
                 float cx = pos[i][0] * w, cy = pos[i][1] * h, r = pos[i][2] * Math.max(w, h) * 0.6f;
                 int col = t.blobs[i];
                 p.setShader(new RadialGradient(cx, cy, r,
-                        new int[]{(col & 0x00FFFFFF) | (t.dark ? 0xB3000000 : 0xCC000000),
-                                  (col & 0x00FFFFFF) | 0x40000000,
+                        new int[]{(col & 0x00FFFFFF) | (t.dark ? 0xE6000000 : 0xCC000000),
+                                  (col & 0x00FFFFFF) | 0x59000000,
                                   col & 0x00FFFFFF},
                         new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
                 c.drawRect(0, 0, w, h, p);
             }
             p.setShader(null);
             // Milky frost wash
-            c.drawColor(t.dark ? 0x1AFFFFFF : 0x4DFFFFFF);
+            c.drawColor(t.dark ? 0x0FFFFFFF : 0x40FFFFFF);
         }
 
         // Fine grain so it reads as frosted glass rather than a flat gradient.
@@ -161,56 +166,84 @@ public class GlassPainter {
         s.setLocalMatrix(m);
     }
 
-    /** Draws one liquid-glass key or button. */
-    public void drawGlass(Canvas c, RectF r, float radius, int style, boolean pressed, Theme t) {
-        // Soft contact shadow
-        shadow.setColor(t.dark ? 0x40000000 : 0x1F1B2A4A);
-        tmp.set(r.left, r.top + 1.5f * dp, r.right, r.bottom + 1.5f * dp);
-        c.drawRoundRect(tmp, radius, radius, shadow);
+    private void unitBox(Shader sh, RectF r) {
+        m.reset();
+        m.setScale(r.width(), r.height());
+        m.postTranslate(r.left, r.top);
+        sh.setLocalMatrix(m);
+    }
 
-        // Body
+    /**
+     * Draws one liquid-glass key: an almost clear body that lets the backdrop show through,
+     * a thin refracting rim that is bright on the top-left and bottom-right edges (where light
+     * bends through a real glass lens), a soft specular spot, and a gentle contact shadow.
+     */
+    public void drawGlass(Canvas c, RectF r, float radius, int style, boolean pressed, Theme t) {
+        boolean dark = t.dark;
+
+        // 1. Soft contact shadow (two layers = blurred look without a blur filter)
+        shadow.setColor(dark ? 0x1F000000 : 0x141B2A4A);
+        tmp.set(r.left + 1 * dp, r.top + 2.5f * dp, r.right - 1 * dp, r.bottom + 2.5f * dp);
+        c.drawRoundRect(tmp, radius, radius, shadow);
+        shadow.setColor(dark ? 0x14000000 : 0x0D1B2A4A);
+        tmp.set(r.left - 0.5f * dp, r.top + 1 * dp, r.right + 0.5f * dp, r.bottom + 4 * dp);
+        c.drawRoundRect(tmp, radius + 2 * dp, radius + 2 * dp, shadow);
+
+        // 2. Body: nearly transparent, slightly brighter at the top
         if (style == STYLE_ACTION || style == STYLE_ACTIVE) {
-            int a = t.accent;
-            int top = (a & 0x00FFFFFF) | (pressed ? 0xFF000000 : 0xE6000000);
-            int bot = (a & 0x00FFFFFF) | (pressed ? 0xCC000000 : 0x99000000);
-            if (style == STYLE_ACTIVE) { top = (a & 0x00FFFFFF) | 0x8C000000; bot = (a & 0x00FFFFFF) | 0x59000000; }
+            int a = t.accent & 0x00FFFFFF;
+            int top = a | (style == STYLE_ACTIVE ? 0x80000000 : (pressed ? 0xF2000000 : 0xCC000000));
+            int bot = a | (style == STYLE_ACTIVE ? 0x4D000000 : (pressed ? 0xCC000000 : 0x8C000000));
             fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, top, bot, Shader.TileMode.CLAMP));
             c.drawRoundRect(r, radius, radius, fill);
             fill.setShader(null);
         } else {
-            Shader body = t.dark ? bodyDark : bodyLight;
+            Shader body = dark ? bodyDark : bodyLight;
             unit(body, r);
             fill.setShader(body);
-            int alpha = 255;
-            if (style == STYLE_FUNC) alpha = t.dark ? 150 : 170;
-            fill.setAlpha(alpha);
+            fill.setAlpha(style == STYLE_FUNC ? 150 : 255);
             c.drawRoundRect(r, radius, radius, fill);
             fill.setShader(null);
             fill.setAlpha(255);
             if (style == STYLE_FUNC) {
-                fill.setColor(t.dark ? 0x14000000 : 0x0D1B2A4A);
-                c.drawRoundRect(r, radius, radius, fill);
-            }
-            if (pressed) {
-                fill.setColor(t.dark ? 0x38FFFFFF : 0x66FFFFFF);
+                // function keys: a touch of tinted frost so they read as a different group
+                fill.setColor(dark ? 0x1A000000 : 0x0F1B2A4A);
                 c.drawRoundRect(r, radius, radius, fill);
             }
         }
+        if (pressed && style != STYLE_ACTION) {
+            fill.setColor(dark ? 0x33FFFFFF : 0x59FFFFFF);
+            c.drawRoundRect(r, radius, radius, fill);
+        }
 
-        // Specular gloss on the upper half (the "liquid" lens highlight)
-        tmp.set(r.left + 2 * dp, r.top + 1.5f * dp, r.right - 2 * dp, r.top + r.height() * 0.5f);
-        unit(glossGrad, tmp);
-        gloss.setShader(glossGrad);
-        c.drawRoundRect(tmp, radius * 0.8f, radius * 0.8f, gloss);
+        // 3. Specular spot: soft light pooled in the upper-left of the lens
+        c.save();
+        path.reset();
+        path.addRoundRect(r, radius, radius, Path.Direction.CW);
+        c.clipPath(path);
+        unitBox(specGrad, r);
+        gloss.setShader(specGrad);
+        c.drawRect(r, gloss);
         gloss.setShader(null);
+        c.restore();
 
-        // Refracting rim: bright at the top, faint on the sides, glowing again at the bottom
-        tmp.set(r.left + 0.5f * dp, r.top + 0.5f * dp, r.right - 0.5f * dp, r.bottom - 0.5f * dp);
-        unit(rimGrad, tmp);
+        // 4. Refracting rim
+        tmp.set(r.left + 0.6f * dp, r.top + 0.6f * dp, r.right - 0.6f * dp, r.bottom - 0.6f * dp);
+        unitBox(rimGrad, tmp);
         rim.setShader(rimGrad);
-        rim.setAlpha(t.dark ? 255 : 230);
-        c.drawRoundRect(tmp, radius, radius, rim);
+        rim.setStrokeWidth(1.2f * dp);
+        rim.setAlpha(dark ? 255 : 235);
+        c.drawRoundRect(tmp, radius - 0.6f * dp, radius - 0.6f * dp, rim);
         rim.setShader(null);
+
+        // 5. Hair-thin inner highlight just under the top edge (the "wet" liquid look)
+        rim.setStrokeWidth(0.8f * dp);
+        rim.setColor(dark ? 0x40FFFFFF : 0x80FFFFFF);
+        tmp.set(r.left + 2.2f * dp, r.top + 1.8f * dp, r.right - 2.2f * dp, r.bottom - 1.8f * dp);
+        c.save();
+        c.clipRect(r.left, r.top, r.right, r.top + r.height() * 0.35f);
+        c.drawRoundRect(tmp, radius - 1.8f * dp, radius - 1.8f * dp, rim);
+        c.restore();
     }
 
     /** A large glass bubble used for key previews and long-press menus. */
@@ -218,7 +251,7 @@ public class GlassPainter {
         shadow.setColor(t.dark ? 0x66000000 : 0x331B2A4A);
         tmp.set(r.left, r.top + 3 * dp, r.right, r.bottom + 4 * dp);
         c.drawRoundRect(tmp, radius, radius, shadow);
-        fill.setColor(t.dark ? 0xE6262A40 : 0xF2F4F7FC);
+        fill.setColor(t.dark ? 0xCC2A2E48 : 0xE6F4F7FC);
         c.drawRoundRect(r, radius, radius, fill);
         drawGlass(c, r, radius, STYLE_KEY, false, t);
     }
