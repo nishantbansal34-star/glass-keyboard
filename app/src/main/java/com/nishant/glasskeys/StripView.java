@@ -161,7 +161,11 @@ public class StripView extends View {
                 new float[]{0f, 0.45f, 1f}, android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(o.centerX(), o.centerY(), o.width() / 2 - 1, orbPaint);
         orbPaint.setShader(null);
-        gp.drawIcon(c, GlassPainter.IC_SPARKLE, o.centerX() + 1 * dp, o.centerY() + 1 * dp, 17 * dp,
+        orbPaint.setShader(new android.graphics.RadialGradient(o.centerX(), o.centerY(), 9 * dp * expand,
+                ((int) (70 * breath) << 24) | 0xFFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(o.centerX(), o.centerY(), 9 * dp * expand, orbPaint);
+        orbPaint.setShader(null);
+        gp.drawIcon(c, GlassPainter.IC_SPARKLE, o.centerX() + 1 * dp, o.centerY() + 1 * dp, 16 * dp,
                 theme.dark ? 0xF2FFFFFF : 0xE615181E);
         c.restore();
         if (tap < 1f) {

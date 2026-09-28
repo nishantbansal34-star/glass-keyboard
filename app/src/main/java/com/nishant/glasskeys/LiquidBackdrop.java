@@ -34,9 +34,51 @@ public class LiquidBackdrop {
     private Bitmap ambient;          // near-black ambient light (refraction source in black mode)
     public float photoLuma = 0f;     // average brightness of the photo (drives light/dark glass)
 
+    /**
+     * Soft atmospheric light in the wallpaper's own colours: a deep base from the main colour,
+     * a warm/cool glow rising from below (secondary colour), a second glow from the upper left
+     * (tertiary), and a whisper of cool blue for the glass to catch.
+     */
+    private Bitmap wallpaperAmbient() {
+        int aw = 64, ah = 40;
+        int[] a = new int[aw * ah];
+        int c0 = wallColors[0], c1 = wallColors.length > 1 && wallColors[1] != 0 ? wallColors[1] : c0,
+                c2 = wallColors.length > 2 && wallColors[2] != 0 ? wallColors[2] : c1;
+        int base = darken(c0, 0.42f);
+        int g1 = darken(c1, 0.95f), g2 = darken(c2, 0.8f);
+        for (int y = 0; y < ah; y++) for (int x = 0; x < aw; x++) {
+            float nx = x / (float) (aw - 1), ny = y / (float) (ah - 1);
+            float r = ((base >> 16) & 255) * (0.75f + 0.25f * (1 - ny)), g = ((base >> 8) & 255) * (0.75f + 0.25f * (1 - ny)), b = (base & 255) * (0.75f + 0.25f * (1 - ny));
+            float d1 = (float) Math.sqrt(Math.pow((nx - 0.55f) * 1.3f, 2) + Math.pow(ny - 1.1f, 2));
+            float w1 = (float) Math.pow(Math.max(0, 1 - d1 / 1.45f), 1.5f) * 0.9f;
+            float d2 = (float) Math.sqrt(Math.pow((nx - 0.12f) * 1.4f, 2) + Math.pow(ny + 0.1f, 2));
+            float w2 = (float) Math.pow(Math.max(0, 1 - d2 / 1.1f), 1.8f) * 0.7f;
+            float d3 = (float) Math.sqrt(Math.pow((nx - 0.4f) * 1.6f, 2) + Math.pow(ny + 0.3f, 2));
+            float w3 = (float) Math.pow(Math.max(0, 1 - d3 / 1.1f), 2f) * 0.22f;
+            r += (((g1 >> 16) & 255) - r) * w1; g += (((g1 >> 8) & 255) - g) * w1; b += ((g1 & 255) - b) * w1;
+            r += (((g2 >> 16) & 255) - r) * w2; g += (((g2 >> 8) & 255) - g) * w2; b += ((g2 & 255) - b) * w2;
+            r += (0x6E - r) * w3; g += (0x86 - g) * w3; b += (0xA8 - b) * w3;
+            a[y * aw + x] = 0xFF000000 | (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
+        }
+        return Bitmap.createBitmap(a, aw, ah, Bitmap.Config.ARGB_8888);
+    }
+
     /** Near-black with a faint cool light from above: gives the glass something to catch. */
+    private int[] wallColors;   // primary / secondary / tertiary colours of the user's wallpaper
+
+    /** Rebuild the atmosphere from the wallpaper's colours (null = neutral graphite). */
+    public void setWallpaperColors(int[] cols) {
+        wallColors = cols;
+        ambient = null;
+    }
+
+    private static int darken(int c, float f) {
+        return 0xFF000000 | ((int) (((c >> 16) & 255) * f) << 16) | ((int) (((c >> 8) & 255) * f) << 8) | (int) ((c & 255) * f);
+    }
+
     private Bitmap ambient() {
         if (ambient != null) return ambient;
+        if (wallColors != null) return ambient = wallpaperAmbient();
         int aw = 64, ah = 40;
         int[] a = new int[aw * ah];
         for (int y = 0; y < ah; y++) for (int x = 0; x < aw; x++) {
@@ -131,8 +173,12 @@ public class LiquidBackdrop {
 
         if (black && !liveBlur) {
             c.drawBitmap(ambient(), null, new RectF(0, 0, w, h), bmpPaint);
-            // keyboard glass surface: hairline at the top edge
-            p.setColor(0x1AFFFFFF);
+            // the keyboard's own sheet of glass: faint frost + a soft light along its top edge
+            c.drawColor(0x0FFFFFFF);
+            p.setShader(new LinearGradient(0, 0, 0, 14 * dp, 0x14FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, 14 * dp, p);
+            p.setShader(null);
+            p.setColor(0x26FFFFFF);
             c.drawRect(0, 0, w, Math.max(1, 0.7f * dp), p);
             if (lightPower > 0.01f) {
                 float r = Math.max(w, h) * 0.4f;

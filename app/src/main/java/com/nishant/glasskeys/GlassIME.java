@@ -103,6 +103,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
+        if (!prefs.bool("wallMigrated", false)) {
+            // new default: glass lit by your wallpaper's colours
+            if (prefs.bgMode() == 3) prefs.setInt("bgmode", 4);
+            prefs.setBool("wallMigrated", true);
+        }
         if (!prefs.bool("amoledMigrated", false)) {
             // one-time switch to the new dark AMOLED look
             prefs.setInt("bgmode", 3);
@@ -142,7 +147,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             boolean shadow = prefs.pack() == 1;
             if (liquid != null) {
                 liquid.setPhoto(loadCustomBackdrop(), shadow ? 0 : prefs.photoBlur());
-                liquid.black = !shadow && prefs.bgMode() == 3;
+                int mode = prefs.bgMode();
+                liquid.black = !shadow && (mode == 3 || mode == 4);
+                liquid.setWallpaperColors(!shadow && mode == 4 ? wallpaperColors() : null);
                 liquid.photoDim = shadow ? 8 : prefs.darkGlass() ? prefs.photoDim() : Math.min(prefs.photoDim(), 15);
             }
             gp.setPack(prefs.pack());
@@ -201,6 +208,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private boolean liveBlurActive;
 
+    /** The wallpaper's main colours (Android shares these without any permission). */
+    private int[] wallpaperColors() {
+        if (Build.VERSION.SDK_INT < 27) return null;
+        try {
+            android.app.WallpaperColors wc = android.app.WallpaperManager.getInstance(this)
+                    .getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM);
+            if (wc == null) return null;
+            int p = wc.getPrimaryColor().toArgb();
+            int s2 = wc.getSecondaryColor() != null ? wc.getSecondaryColor().toArgb() : p;
+            int t3 = wc.getTertiaryColor() != null ? wc.getTertiaryColor().toArgb() : s2;
+            return new int[]{p, s2, t3};
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Bitmap cachedPhoto;
     private String cachedPhotoKey;
 
@@ -214,7 +237,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return cachedPhoto;
         }
         int mode = prefs.bgMode();
-        if (mode == 0 || mode == 3) return null;
+        if (mode == 0 || mode == 3 || mode == 4) return null;
         File f = new File(getFilesDir(), "backdrop.jpg");
         String key = mode == 2 && f.exists() ? f.getAbsolutePath() + f.lastModified() : "bloom";
         if (key.equals(cachedPhotoKey) && cachedPhoto != null) return cachedPhoto;
@@ -928,13 +951,13 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             if (willCorrect) {
                 order.add("“" + typed + "”"); primary.add(false);
                 order.add(best); primary.add(true);
-                for (String s : sug) if (order.size() < 3 && !s.equals(best)) { order.add(s); primary.add(false); }
+                for (String s : sug) if (order.size() < 4 && !s.equals(best)) { order.add(s); primary.add(false); }
             } else {
                 String second = null;
                 for (String s : sug) if (!s.equals(typed)) { second = s; break; }
                 if (second != null) { order.add(second); primary.add(false); }
                 order.add(typed); primary.add(true);
-                for (String s : sug) if (order.size() < 3 && !s.equals(typed) && !s.equals(second)) { order.add(s); primary.add(false); }
+                for (String s : sug) if (order.size() < 4 && !s.equals(typed) && !s.equals(second)) { order.add(s); primary.add(false); }
             }
             for (int i = 0; i < order.size(); i++) {
                 String label = order.get(i);
@@ -950,6 +973,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 || Character.isWhitespace(before.charAt(before.length() - 1));
         if (!noSuggest && composing.length() == 0 && !toolbarForced && atGap) {
             List<String> pred = dict.predict(prevWord2, prevWord);
+            if (!pred.isEmpty() && pred.size() < 4) {
+                String[] fill = prevWord == null ? new String[]{"I", "The", "I'm", "I'll", "Hi", "Thank"}
+                        : new String[]{"the", "and", "to", "a", "is", "for"};
+                for (String f : fill) {
+                    if (pred.size() >= 4) break;
+                    boolean dup = false;
+                    for (String x : pred) if (x.equalsIgnoreCase(f)) dup = true;
+                    if (!dup) pred.add(f);
+                }
+            }
             if (!pred.isEmpty()) {
                 cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
                 for (int i = 0; i < pred.size(); i++) {

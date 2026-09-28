@@ -563,7 +563,8 @@ public class KeyboardView extends View {
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
         boolean premium = gp.pack == 0 && gp.amoled;
         text.setTypeface(premium ? (bold ? TF_MED : TF_REG) : TF_MED);
-        if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
+        if (premium && theme.dark) text.setShadowLayer(2.2f * dp, 0, 0.6f * dp, ((color >>> 24) * 0x73 / 255) << 24);
+        else if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
         else if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);

@@ -328,33 +328,35 @@ public class GlassPainter {
         int env = envSample(r);
         float L = luma(env);
 
-        // 1. depth: a whisper of shadow (only visible over lighter wallpapers)
-        if (L > 0.08f || !dark) {
-            Bitmap sh = premiumShadow(w, h, rad, dark);
-            float pad = 10 * dp;
-            spritePaint.setAlpha((int) (255 * Math.min(1f, 0.35f + L)));
-            c.drawBitmap(sh, r.left - pad, r.top - pad, spritePaint);
-            spritePaint.setAlpha(255);
-        }
+        // 1. float: a soft shadow under every key lifts it off the surface
+        Bitmap sh = premiumShadow(w, h, rad, dark);
+        float pad = 10 * dp;
+        c.drawBitmap(sh, r.left - pad, r.top - pad, spritePaint);
 
         shape.reset();
         shape.addRoundRect(r, rad, rad, Path.Direction.CW);
         c.save();
         c.clipPath(shape);
         // 2. refraction: the wallpaper seen through the glass, slightly magnified and softened
-        drawRefraction(c, r, wide ? 1.03f : 1.06f);
+        drawRefraction(c, r, wide ? 1.04f : 1.08f);
 
         // 3. glass body: charcoal tinted by the environment; deeper over bright areas for legibility
         int base;
         float alpha;
         if (dark) {
-            base = mix(0xFF1B1E24, env, 0.22f);
-            alpha = style == STYLE_FUNC ? 0.62f : wide ? 0.40f : 0.50f;
-            alpha += Math.max(0f, L - 0.35f) * 0.55f;           // bright wallpaper -> deeper glass
+            // clear glass: cool grey with a very faint blue, tinted by what is behind the key
+            base = mix(0xFF2B3139, env, 0.38f);
+            alpha = style == STYLE_FUNC ? 0.34f : wide ? 0.14f : 0.24f;
+            alpha += Math.max(0f, L - 0.45f) * 0.5f;            // only over bright spots: a little deeper
         } else {
-            base = mix(0xFFF4F6F9, env, 0.18f);
-            alpha = style == STYLE_FUNC ? 0.70f : wide ? 0.52f : 0.60f;
-            alpha += Math.max(0f, 0.55f - L) * 0.4f;            // dark wallpaper -> frostier glass
+            base = mix(0xFFF6F8FB, env, 0.25f);
+            alpha = style == STYLE_FUNC ? 0.55f : wide ? 0.34f : 0.44f;
+            alpha += Math.max(0f, 0.5f - L) * 0.3f;
+        }
+        if (wide && dark) {
+            // the space bar is the clearest, brightest piece of glass
+            envPaint.setColor(0x0DFFFFFF);
+            c.drawRect(r, envPaint);
         }
         envPaint.setColor(((int) (255 * Math.min(0.92f, alpha)) << 24) | (base & 0xFFFFFF));
         c.drawRect(r, envPaint);
@@ -410,9 +412,9 @@ public class GlassPainter {
         b = Bitmap.createBitmap(w + 2 * pad, h + 2 * pad, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(b);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(dark ? 0x59000000 : 0x2E1B2330);
-        p.setMaskFilter(new android.graphics.BlurMaskFilter(4.5f * dp, android.graphics.BlurMaskFilter.Blur.NORMAL));
-        cv.drawRoundRect(new RectF(pad + 1.5f * dp, pad + 2.5f * dp, pad + w - 1.5f * dp, pad + h + 2 * dp), rad, rad, p);
+        p.setColor(dark ? 0x4D000000 : 0x331B2330);
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(5f * dp, android.graphics.BlurMaskFilter.Blur.NORMAL));
+        cv.drawRoundRect(new RectF(pad + 2 * dp, pad + 3.5f * dp, pad + w - 2 * dp, pad + h + 3 * dp), rad, rad, p);
         shadowCache.put(k, b);
         return b;
     }
@@ -420,7 +422,7 @@ public class GlassPainter {
     /** Cached lighting for one key size / light bucket. */
     private Bitmap premiumOverlay(int w, int h, int rad, boolean dark, int bucket, boolean func, boolean wide) {
         long k = w | ((long) h << 16) | ((long) rad << 32) | ((long) bucket << 48) | ((dark ? 1L : 0L) << 52)
-                | ((func ? 1L : 0L) << 53) | (5L << 58);
+                | ((func ? 1L : 0L) << 53) | (6L << 58);
         Bitmap b = overlayCache.get(k);
         if (b != null) return b;
         if (overlayCache.size() > 120) overlayCache.clear();
@@ -430,46 +432,55 @@ public class GlassPainter {
         RectF all = new RectF(0, 0, w, h);
         Path pth = new Path();
         pth.addRoundRect(all, rad, rad, Path.Direction.CW);
-        float peak = 0.18f + bucket * 0.16f;          // where the light hits along the top edge
+        float peak = 0.18f + bucket * 0.16f;          // where the light strikes along the top edge
+        android.graphics.BlurMaskFilter soft = new android.graphics.BlurMaskFilter(Math.max(0.8f, 1.1f * dp), android.graphics.BlurMaskFilter.Blur.NORMAL);
         cv.save();
         cv.clipPath(pth);
-        // soft internal highlight near the lit side of the top
-        p.setShader(new RadialGradient(w * peak, -h * 0.15f, Math.max(w, h) * (wide ? 0.55f : 0.95f),
-                new int[]{dark ? 0x1CFFFFFF : 0x33FFFFFF, 0x06FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        cv.drawRect(all, p);
-        // glass thickness: slightly deeper toward the bottom
-        p.setShader(new LinearGradient(0, h * 0.45f, 0, h, 0x00000000, dark ? 0x1F000000 : 0x0F1B2330, Shader.TileMode.CLAMP));
+        // light entering the top of the glass (lit side brighter)
+        p.setShader(new RadialGradient(w * peak, -h * 0.2f, Math.max(w, h) * (wide ? 0.6f : 1.0f),
+                new int[]{dark ? 0x2EFFFFFF : 0x40FFFFFF, 0x0AFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         cv.drawRect(all, p);
         p.setShader(null);
-        // edge luminance: light gathering just inside the rim (thick-glass look, very soft)
+        // soft darker refractive band just inside the edge (light bending away at the thick rim)
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(3f * dp);
-        p.setColor(dark ? 0x0FFFFFFF : 0x26FFFFFF);
+        p.setStrokeWidth(2.4f * dp);
+        p.setShader(new LinearGradient(0, 0, 0, h, dark ? 0x08000000 : 0x061B2330, dark ? 0x21000000 : 0x141B2330, Shader.TileMode.CLAMP));
         p.setMaskFilter(new android.graphics.BlurMaskFilter(2.2f * dp, android.graphics.BlurMaskFilter.Blur.NORMAL));
-        cv.drawRoundRect(new RectF(1.2f * dp, 1.2f * dp, w - 1.2f * dp, h - 1.2f * dp), rad, rad, p);
+        float band = 2.6f * dp;
+        cv.drawRoundRect(new RectF(band, band, w - band, h - band), Math.max(1, rad - band), Math.max(1, rad - band), p);
         p.setMaskFilter(null);
+        p.setShader(null);
+        // return glow: light caught by the thickness of the glass along the bottom inside edge
+        p.setStrokeWidth(2f * dp);
+        p.setShader(new LinearGradient(0, h * 0.55f, 0, h, 0x00FFFFFF, dark ? 0x2EFFFFFF : 0x66FFFFFF, Shader.TileMode.CLAMP));
+        p.setMaskFilter(soft);
+        float in2 = 1.4f * dp;
+        cv.drawRoundRect(new RectF(in2, in2, w - in2, h - in2), rad - in2, rad - in2, p);
+        p.setMaskFilter(null);
+        p.setShader(null);
         cv.restore();
-        // hairline rim: faint all round, a little brighter on top and a soft return glow at the bottom
-        p.setStrokeWidth(0.8f * dp);
+        // faint rim so the silhouette reads, strongest top and bottom, almost gone on the sides
+        float in = 0.5f * dp;
+        p.setStrokeWidth(0.7f * dp);
         p.setShader(new LinearGradient(0, 0, 0, h,
-                dark ? new int[]{0x4DFFFFFF, 0x14FFFFFF, 0x0DFFFFFF, 0x21FFFFFF} : new int[]{0xCCFFFFFF, 0x4DFFFFFF, 0x33FFFFFF, 0x66FFFFFF},
-                new float[]{0f, 0.3f, 0.7f, 1f}, Shader.TileMode.CLAMP));
-        float in = 0.45f * dp;
+                dark ? new int[]{0x40FFFFFF, 0x0DFFFFFF, 0x0AFFFFFF, 0x26FFFFFF} : new int[]{0xB3FFFFFF, 0x40FFFFFF, 0x33FFFFFF, 0x59FFFFFF},
+                new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         cv.drawRoundRect(new RectF(in, in, w - in, h - in), rad - in, rad - in, p);
-        // specular edge: a short, very thin bright arc on the top edge where the light strikes
+        // soft specular edge where the light hits (blurred, never a hard outline)
         cv.save();
-        cv.clipRect(0, 0, w, Math.min(h * 0.5f, rad + 2 * dp));
-        p.setStrokeWidth(1.1f * dp);
-        float spread = wide ? 0.22f : 0.42f;
+        cv.clipRect(0, 0, w, Math.min(h * 0.55f, rad + 3 * dp));
+        p.setStrokeWidth(1.6f * dp);
+        p.setMaskFilter(soft);
+        float spread = wide ? 0.24f : 0.45f;
         p.setShader(new LinearGradient(w * (peak - spread), 0, w * (peak + spread), 0,
-                new int[]{0x00FFFFFF, dark ? 0x99FFFFFF : 0xE6FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
-        cv.drawRoundRect(new RectF(in, in, w - in, h - in), rad - in, rad - in, p);
+                new int[]{0x00FFFFFF, dark ? 0xB3FFFFFF : 0xF2FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        cv.drawRoundRect(new RectF(in + 0.4f * dp, in + 0.4f * dp, w - in - 0.4f * dp, h - in), rad - in, rad - in, p);
+        p.setMaskFilter(null);
         cv.restore();
         p.setShader(null);
         if (func) {
-            // modifiers: a touch more density
             p.setStyle(Paint.Style.FILL);
-            p.setColor(dark ? 0x0A000000 : 0x0A1B2330);
+            p.setColor(dark ? 0x0D000000 : 0x0A1B2330);
             cv.drawPath(pth, p);
         }
         overlayCache.put(k, b);

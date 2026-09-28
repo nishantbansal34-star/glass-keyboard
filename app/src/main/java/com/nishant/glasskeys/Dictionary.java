@@ -202,7 +202,7 @@ public class Dictionary {
         }
         Collections.sort(cands);
         for (Cand c : cands) {
-            if (out.size() >= 3) break;
+            if (out.size() >= 4) break;
             String shown = matchCase(typed, c.w);
             // typed in lowercase? use your usual capitalisation (NRRL, Nishant, WhatsApp)
             if (typed.equals(typed.toLowerCase()) && caseForms.containsKey(c.w)) shown = caseForms.get(c.w);
@@ -256,7 +256,7 @@ public class Dictionary {
         for (Map.Entry<String, Integer> e : score.entrySet()) c.add(new Cand(e.getKey(), e.getValue()));
         Collections.sort(c);
         for (Cand x : c) {
-            if (out.size() >= 3) break;
+            if (out.size() >= 4) break;
             String w = x.w.equals("i") ? "I" : form(x.w);
             if (p1.equals(START) && w.length() > 0) w = Character.toUpperCase(w.charAt(0)) + w.substring(1);
             out.add(w);
