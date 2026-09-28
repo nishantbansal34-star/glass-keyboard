@@ -147,6 +147,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             }
             gp.setPack(prefs.pack());
             gp.setAmoled(prefs.darkGlass());
+            // bright photo behind the glass -> frosted light glass with dark text, automatically
+            if (!shadow && prefs.bgMode() == 2 && liquid != null && liquid.photoLuma > 0.6f) {
+                theme = theme.lightVariant();
+                keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
+                strip.setTheme(theme);
+            }
             gp.clearSprites();
             invalidate();
         }
@@ -962,6 +968,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             cells.add(lu);
             strip.setCells(cells);
             return;
+        }
+        if (prefs.pack() == 0 && prefs.darkGlass()) {
+            // the AI orb stays at the start of the bar, even in toolbar mode
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, () -> { toolbarForced = false; updateStrip(); }));
         }
         if (prefs.pack() == 1) {
             int xp = prefs.integer("xp", 0), lv = level(xp);

@@ -23,6 +23,7 @@ public class Theme {
     }
 
     public static final Theme[] ALL = {
+        new Theme("Graphite", 0xFF0A0C10, new int[]{0xFF2A3342, 0xFF3A4556, 0xFF1C2230}, 0xFFF4F6FA, 0xFF9DB4D6, true),
         new Theme("Aurora", 0xFF0E1024, new int[]{0xFF6A3DF0, 0xFF10B6C9, 0xFFE0457B}, Color.WHITE, 0xFF7C5CFF, true),
         new Theme("Midnight", 0xFF05070D, new int[]{0xFF1B2A6B, 0xFF3A1670, 0xFF0B4A5A}, Color.WHITE, 0xFF4F8CFF, true),
         new Theme("Frost", 0xFFDCE6F2, new int[]{0xFF9DBDFF, 0xFFFFBCD9, 0xFFA8EEDF}, 0xFF1B1F2A, 0xFF3B6BFF, false),
@@ -35,6 +36,12 @@ public class Theme {
     /** Shadow Realm theme pack (kept separate from the Liquid Glass colour list). */
     public static final Theme SHADOW = new Theme("Shadow Realm", 0xFF07050F,
             new int[]{0xFF3A1A8C, 0xFF6A3DF0, 0xFF1A0F40}, 0xFFEFE8FF, 0xFF8B5CFF, true);
+
+    /** Same accent, frosted light glass with dark text (for bright wallpapers). */
+    public Theme lightVariant() {
+        if (!dark) return this;
+        return new Theme(name, 0xFFE9EDF2, blobs, 0xFF15181E, accent, false);
+    }
 
     public static Theme get(int i) {
         if (i < 0 || i >= ALL.length) i = 0;

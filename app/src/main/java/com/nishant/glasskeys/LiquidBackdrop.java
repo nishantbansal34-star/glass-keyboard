@@ -31,7 +31,26 @@ public class LiquidBackdrop {
     private int blur = 2;
     public boolean black;          // pure black AMOLED background
     public int photoDim = 55;      // percent darkening of photos
-    private final Bitmap blackPx = Bitmap.createBitmap(new int[]{0xFF000000}, 1, 1, Bitmap.Config.ARGB_8888);
+    private Bitmap ambient;          // near-black ambient light (refraction source in black mode)
+    public float photoLuma = 0f;     // average brightness of the photo (drives light/dark glass)
+
+    /** Near-black with a faint cool light from above: gives the glass something to catch. */
+    private Bitmap ambient() {
+        if (ambient != null) return ambient;
+        int aw = 64, ah = 40;
+        int[] a = new int[aw * ah];
+        for (int y = 0; y < ah; y++) for (int x = 0; x < aw; x++) {
+            float ny = y / (float) (ah - 1), nx = x / (float) (aw - 1);
+            float dx = (nx - 0.38f) * 1.6f, dy = ny + 0.25f;
+            float glow = (float) Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 1.05f);
+            glow = glow * glow;
+            float base = 1f - ny;                              // lighter at the top, black at the bottom
+            int r = (int) (4 + 9 * base + 26 * glow), g = (int) (5 + 10 * base + 31 * glow), b = (int) (7 + 14 * base + 42 * glow);
+            a[y * aw + x] = 0xFF000000 | (Math.min(255, r) << 16) | (Math.min(255, g) << 8) | Math.min(255, b);
+        }
+        ambient = Bitmap.createBitmap(a, aw, ah, Bitmap.Config.ARGB_8888);
+        return ambient;
+    }
     private float clock = 3f;       // animation time; only advances while awake so nothing jumps
     private long lastDraw;
 
@@ -47,6 +66,19 @@ public class LiquidBackdrop {
         photo = b;
         blur = blurLevel;
         photoFit = null;
+        photoLuma = 0f;
+        if (b != null) {
+            // average brightness of the lower-middle of the picture (roughly what sits behind the keys)
+            Bitmap s = Bitmap.createScaledBitmap(b, 16, 16, true);
+            float sum = 0;
+            int n = 0;
+            for (int y = 6; y < 16; y++) for (int x = 2; x < 14; x++) {
+                int c = s.getPixel(x, y);
+                sum += (0.2126f * ((c >> 16) & 255) + 0.7152f * ((c >> 8) & 255) + 0.0722f * (c & 255)) / 255f;
+                n++;
+            }
+            photoLuma = sum / n;
+        }
     }
 
     private void fitPhoto(int w, int h) {
@@ -68,7 +100,7 @@ public class LiquidBackdrop {
     }
 
     /** The picture behind the keys, for refraction. */
-    public Bitmap source() { return black ? blackPx : photoFit != null ? photoFit : grid; }
+    public Bitmap source() { return black ? ambient() : photoFit != null ? photoFit : grid; }
 
     public float sourceScaleX(int w) { Bitmap s = source(); return s.getWidth() / (float) Math.max(1, w); }
     public float sourceScaleY(int h) { Bitmap s = source(); return s.getHeight() / (float) Math.max(1, h); }
@@ -98,7 +130,10 @@ public class LiquidBackdrop {
         lightPower += (wantPower - lightPower) * 0.08f;
 
         if (black && !liveBlur) {
-            c.drawColor(0xFF000000);
+            c.drawBitmap(ambient(), null, new RectF(0, 0, w, h), bmpPaint);
+            // keyboard glass surface: hairline at the top edge
+            p.setColor(0x1AFFFFFF);
+            c.drawRect(0, 0, w, Math.max(1, 0.7f * dp), p);
             if (lightPower > 0.01f) {
                 float r = Math.max(w, h) * 0.4f;
                 p.setShader(new android.graphics.RadialGradient(lightX * w, lightY * h, r,

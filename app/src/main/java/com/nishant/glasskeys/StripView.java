@@ -80,7 +80,19 @@ public class StripView extends View {
             animate().alpha(1f).translationY(0f).setDuration(200)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
         }
+        boolean sameShape = sig.toString().equals(lastSig);
         lastSig = sig.toString();
+        oldTexts.clear();
+        if (sameShape) {
+            boolean changed = false;
+            for (int i = 0; i < cells.size() && i < list.size(); i++) {
+                String o = cells.get(i).text, n = list.get(i).text;
+                oldTexts.add(o);
+                if (o != null && !o.equals(n)) changed = true;
+            }
+            if (changed) transStart = android.os.SystemClock.uptimeMillis(); else oldTexts.clear();
+        }
+        orbAwakeUntil = android.os.SystemClock.uptimeMillis() + 9000;
         cells.clear();
         cells.addAll(list);
         pressed = null;
@@ -94,7 +106,7 @@ public class StripView extends View {
     private void layoutCells() {
         float W = getWidth(), H = getHeight();
         if (W == 0) return;
-        float iconW = 42 * dp, fixed = 0, weights = 0;
+        float iconW = (premium() ? 38 : 42) * dp, fixed = 0, weights = 0;
         for (Cell c : cells) { if (c.fixedW > 0) fixed += c.fixedW; else if (c.weight == 0) fixed += iconW; else weights += c.weight; }
         float pad = 10 * dp;
         if (!cells.isEmpty() && (cells.get(0).icon == GlassPainter.IC_SPARKLE || cells.get(0).icon == GlassPainter.IC_KEYBOARD)) {
@@ -117,12 +129,56 @@ public class StripView extends View {
     }
 
     private final RectF capsule = new RectF(), circle = new RectF();
+    private final List<String> oldTexts = new ArrayList<>();
+    private long transStart = -1, orbAwakeUntil, orbTapAt = -1;
+    private final long born = android.os.SystemClock.uptimeMillis();
+    private final Paint orbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private static final Typeface TF_REG = Typeface.create("sans-serif", Typeface.NORMAL);
+    private static final Typeface TF_MED = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+
+    private boolean premium() { return gp.amoled && gp.pack == 0; }
+
+    /**
+     * The AI orb: a small glass sphere with a softly drifting luminous core and a four-point sparkle.
+     * Tap: the glass compresses, the light expands and a ripple leaves the orb.
+     */
+    private void drawOrb(Canvas c, RectF o, boolean down) {
+        long now = android.os.SystemClock.uptimeMillis();
+        float t = (now - born) / 1000f;
+        float tap = orbTapAt < 0 ? 1f : Math.min(1f, (now - orbTapAt) / 420f);
+        float squeeze = down ? 0.92f : 1f - 0.08f * (float) Math.sin(Math.PI * Math.min(1f, tap * 1.4f)) * (tap < 1f ? 1f : 0f);
+        c.save();
+        c.scale(squeeze, squeeze, o.centerX(), o.centerY());
+        gp.variant = -1;
+        gp.drawGlass(c, o, o.height() / 2, GlassPainter.STYLE_KEY, false, theme);
+        // luminous core: drifts very slightly and breathes
+        float cx = o.centerX() + (float) Math.sin(t * 0.8) * 1.6f * dp, cy = o.centerY() + (float) Math.cos(t * 0.6) * 1.2f * dp;
+        float breath = 0.85f + 0.15f * (float) Math.sin(t * 1.3);
+        float expand = (down ? 1.5f : 1f) + (tap < 1f ? 0.6f * (1f - tap) : 0f);
+        int core = theme.dark ? 0xDCE6FF : 0xFFFFFF;
+        orbPaint.setShader(new android.graphics.RadialGradient(cx, cy, o.width() * 0.42f * expand,
+                new int[]{((int) (110 * breath) << 24) | core, ((int) (34 * breath) << 24) | (theme.accent & 0xFFFFFF), 0x00000000},
+                new float[]{0f, 0.45f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(o.centerX(), o.centerY(), o.width() / 2 - 1, orbPaint);
+        orbPaint.setShader(null);
+        gp.drawIcon(c, GlassPainter.IC_SPARKLE, o.centerX() + 1 * dp, o.centerY() + 1 * dp, 17 * dp,
+                theme.dark ? 0xF2FFFFFF : 0xE615181E);
+        c.restore();
+        if (tap < 1f) {
+            orbPaint.setStyle(Paint.Style.STROKE);
+            orbPaint.setStrokeWidth(1.2f * dp);
+            orbPaint.setColor(((int) (90 * (1f - tap)) << 24) | 0xFFFFFF);
+            c.drawCircle(o.centerX(), o.centerY(), o.width() / 2 + 10 * dp * tap, orbPaint);
+            orbPaint.setStyle(Paint.Style.FILL);
+        }
+        if (now < orbAwakeUntil || tap < 1f || down) postInvalidateDelayed(tap < 1f || down ? 16 : 40);
+    }
 
     @Override
     protected void onDraw(Canvas c) {
         float H = getHeight(), W = getWidth();
         gp.setOriginFromView(this);
-        div.setColor(theme.dark ? 0x40FFFFFF : 0x401B1F2A);
+        div.setColor(premium() ? (theme.dark ? 0x1FFFFFFF : 0x261B1F2A) : theme.dark ? 0x40FFFFFF : 0x401B1F2A);
         if (cells.isEmpty()) return;
 
         // Layout of the glass: a round button for the leading ✦ cell, a capsule for the rest.
@@ -130,7 +186,21 @@ public class StripView extends View {
         boolean lead = first.icon == GlassPainter.IC_SPARKLE || first.icon == GlassPainter.IC_KEYBOARD;
         float m = 6 * dp, top = 5 * dp, bot = H - 5 * dp, d = bot - top;
         float capLeft = m;
-        if (lead) {
+        if (premium()) {
+            capsule.set(m, top, W - m, bot);
+            gp.variant = -1;
+            gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
+            gp.variant = 0;
+            if (lead) {
+                float in = 4 * dp;
+                circle.set(m + in, top + in, m + in + (d - 2 * in), bot - in);
+                if (first.icon == GlassPainter.IC_SPARKLE) drawOrb(c, circle, first == pressed);
+                else {
+                    gp.drawGlass(c, circle, circle.height() / 2, GlassPainter.STYLE_KEY, first == pressed, theme);
+                    gp.drawIcon(c, first.icon, circle.centerX(), circle.centerY(), 18 * dp, theme.text);
+                }
+            }
+        } else if (lead) {
             circle.set(m, top, m + d, bot);
             gp.variant = -1;
             gp.drawGlass(c, circle, d / 2, GlassPainter.STYLE_KEY, first == pressed, theme,
@@ -138,10 +208,16 @@ public class StripView extends View {
             gp.drawIcon(c, first.icon, circle.centerX(), circle.centerY(), 20 * dp, theme.text);
             capLeft = circle.right + 6 * dp;
         }
-        capsule.set(capLeft, top, W - m, bot);
-        gp.variant = -1;
-        gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
-        gp.variant = 0;
+        if (!premium()) {
+            capsule.set(capLeft, top, W - m, bot);
+            gp.variant = -1;
+            gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
+            gp.variant = 0;
+        }
+        long now = android.os.SystemClock.uptimeMillis();
+        float tt = transStart < 0 ? 1f : Math.min(1f, (now - transStart) / 170f);
+        if (tt < 1f) postInvalidateOnAnimation(); else { transStart = -1; oldTexts.clear(); }
+        tt = 1f - (1f - tt) * (1f - tt);   // ease-out
 
         Cell prevWord = null;
         for (int i = lead ? 1 : 0; i < cells.size(); i++) {
@@ -174,16 +250,28 @@ public class StripView extends View {
                 hudPaint.setStyle(Paint.Style.FILL);
             }
             if (cell.text != null) {
-                tp.setColor(cell.title ? theme.subText : col);
-                tp.setTextSize((cell.title ? 14 : 17) * dp);
-                tp.setTypeface(cell.primary ? Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                        : cell.title ? Typeface.DEFAULT : Typeface.create("sans-serif", Typeface.NORMAL));
-                if (theme.dark) tp.setShadowLayer(3 * dp, 0, 1 * dp, 0x59000000); else tp.clearShadowLayer();
+                boolean prem = premium();
+                int tc = cell.title ? theme.subText : col;
+                if (prem && !cell.title && !cell.chip && !cell.active && !cell.primary) tc = (tc & 0x00FFFFFF) | 0xB3000000;
+                tp.setColor(tc);
+                tp.setTextSize((cell.title ? 14 : prem ? 16.5f : 17) * dp);
+                tp.setTypeface(cell.primary ? TF_MED : cell.title ? Typeface.DEFAULT : TF_REG);
+                if (theme.dark && !prem) tp.setShadowLayer(3 * dp, 0, 1 * dp, 0x59000000); else tp.clearShadowLayer();
                 float avail = (cr - cl) - (cell.icon != 0 ? 36 * dp : 14 * dp);
                 String s = TextUtils.ellipsize(cell.text, tp, Math.max(avail, 10), TextUtils.TruncateAt.END).toString();
                 float tx = (cl + cr) / 2 + (cell.icon != 0 ? 11 * dp : 0);
                 Paint.FontMetrics fm = tp.getFontMetrics();
-                c.drawText(s, tx, cy - (fm.ascent + fm.descent) / 2, tp);
+                float base = cy - (fm.ascent + fm.descent) / 2;
+                String old = i < oldTexts.size() ? oldTexts.get(i) : null;
+                if (tt < 1f && old != null && !old.equals(cell.text)) {
+                    // gentle cross-fade: old word drifts up and out, new word settles in from below
+                    int a0 = tp.getAlpha();
+                    tp.setAlpha((int) (a0 * (1f - tt)));
+                    c.drawText(TextUtils.ellipsize(old, tp, Math.max(avail, 10), TextUtils.TruncateAt.END).toString(), tx, base - 5 * dp * tt, tp);
+                    tp.setAlpha((int) (a0 * tt));
+                    c.drawText(s, tx, base + 5 * dp * (1f - tt), tp);
+                    tp.setAlpha(a0);
+                } else c.drawText(s, tx, base, tp);
                 if (cell.icon != 0) {
                     float tw = tp.measureText(s);
                     gp.drawIcon(c, cell.icon, tx - tw / 2 - 12 * dp, cy, 17 * dp, col);
@@ -235,6 +323,7 @@ public class StripView extends View {
                 for (Cell c : cells) if (c.r.contains(e.getX(), e.getY()) && !c.title && c.action != null) pressed = c;
                 downX = e.getX(); downY = e.getY();
                 if (pressed != null) {
+                    if (pressed.icon == GlassPainter.IC_SPARKLE) { orbTapAt = android.os.SystemClock.uptimeMillis(); orbAwakeUntil = orbTapAt + 9000; }
                     if (feedback != null) feedback.run();
                     if (pressed.longAction != null) postDelayed(longPressCheck, 450);
                 }

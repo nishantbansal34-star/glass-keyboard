@@ -206,7 +206,7 @@ public class SettingsActivity extends Activity {
         look.addView(hs);
 
         look.addView(label("Glass style"));
-        look.addView(choice(new String[]{"Dark (AMOLED)", "Bright"}, new String[]{"1", "0"},
+        look.addView(choice(new String[]{"Premium dark", "Bright jelly"}, new String[]{"1", "0"},
                 prefs.darkGlass() ? "1" : "0", v -> prefs.setBool("darkglass", v.equals("1"))));
         look.addView(label("Background"));
         look.addView(choice(new String[]{"Black", "Bloom", "My photo", "Colours"}, new String[]{"3", "1", "2", "0"},

@@ -190,7 +190,8 @@ public class KeyboardView extends View {
                 sy[i] = (sy[i - 1] + 2 * sy[i] + sy[i + 1]) / 4f;
             }
         // 2. width per point: full at the head, tapering to nothing at the tail
-        float maxW = 5.5f * dp;
+        boolean prem = gp.amoled && gp.pack == 0;
+        float maxW = (prem ? 2.8f : 5.5f) * dp;
         for (int i = 0; i < m; i++) {
             float age = Math.max(0f, (now - sw[i]) / life);
             float byAge = (float) Math.pow(Math.max(0f, 1f - age), 0.7);
@@ -202,19 +203,21 @@ public class KeyboardView extends View {
         if (glowBlur == null) glowBlur = new android.graphics.BlurMaskFilter(7 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
         ribbonPaint.setStyle(Paint.Style.FILL);
 
+        int glowCol = prem ? (theme.dark ? 0xC8D6F0 : 0x5A6B85) : accent;
+        int coreCol = prem ? (theme.dark ? 0xF4F8FF : 0x2A3342) : 0xFFFFFF;
         // outer glow
-        buildRibbon(m, 3.4f);
+        buildRibbon(m, prem ? 3.6f : 3.4f);
         ribbonPaint.setMaskFilter(glowBlur);
-        ribbonPaint.setColor(((int) (120 * global) << 24) | accent);
+        ribbonPaint.setColor(((int) ((prem ? 46 : 120) * global) << 24) | glowCol);
         c.drawPath(ribbon, ribbonPaint);
         ribbonPaint.setMaskFilter(null);
         // inner glow
-        buildRibbon(m, 1.9f);
-        ribbonPaint.setColor(((int) (150 * global) << 24) | accent);
+        buildRibbon(m, prem ? 1.8f : 1.9f);
+        ribbonPaint.setColor(((int) ((prem ? 70 : 150) * global) << 24) | glowCol);
         c.drawPath(ribbon, ribbonPaint);
-        // bright core
+        // luminous core
         buildRibbon(m, 1f);
-        ribbonPaint.setColor(((int) (245 * global) << 24) | 0xFFFFFF);
+        ribbonPaint.setColor(((int) ((prem ? 200 : 245) * global) << 24) | coreCol);
         c.drawPath(ribbon, ribbonPaint);
     }
 
@@ -250,9 +253,15 @@ public class KeyboardView extends View {
         }
     }
 
+    private final Map<Key, float[]> touchInfo = new IdentityHashMap<>();   // {x, y, startMillis}
+
+    private void markTouch(Key k, float x, float y) {
+        touchInfo.put(k, new float[]{x - k.rect.left, y - k.rect.top, SystemClock.uptimeMillis() % 1000000});
+    }
+
     private Spring pressOf(Key k) {
         Spring sp = pressSpring.get(k);
-        if (sp == null) { sp = new Spring(1100f, 0.42f); pressSpring.put(k, sp); }
+        if (sp == null) { sp = gp.amoled && gp.pack == 0 ? new Spring(1500f, 1.0f) : new Spring(1100f, 0.42f); pressSpring.put(k, sp); }
         return sp;
     }
 
@@ -263,7 +272,7 @@ public class KeyboardView extends View {
             List<Key> row = rows.get(r);
             for (int i = 0; i < row.size(); i++) {
                 Key k = row.get(i);
-                Spring sp = new Spring(420f, 0.6f).set(0f);
+                Spring sp = (gp.amoled && gp.pack == 0 ? new Spring(360f, 0.9f) : new Spring(420f, 0.6f)).set(0f);
                 sp.target = 1f;
                 appear.put(k, sp);
                 appearAt.put(k, now + r * 32L + Math.abs(i - row.size() / 2) * 14L);
@@ -409,9 +418,11 @@ public class KeyboardView extends View {
             lp = backdrop.lightPower;
             if (lp > 0.01f) animating = true;
         }
-        float radius = 13 * dp;
+        float radius = 10 * dp;
         float reach = 130 * dp;
         gp.setOriginFromView(this);
+        gp.rootWidth = (int) rootW;
+        gp.lightX = rootW * 0.38f;
 
         for (List<Key> row : rows) for (Key k : row) {
             if (k.code == 0) continue;
@@ -441,15 +452,33 @@ public class KeyboardView extends View {
                 glow = lp * Math.max(0f, 1f - d / reach);
             }
             glow = Math.min(1f, glow + pv * 0.7f);
-            // liquid swell on press (+ springy overshoot), rise-in on entrance
-            float sc = (1f + 0.07f * pv) * (0.72f + 0.28f * a);
+            boolean premium = gp.amoled && gp.pack == 0;
+            // premium glass compresses slightly; other styles swell like liquid
+            float sc = (premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
             float ty = (1f - a) * 14 * dp;
             c.save();
             c.translate(r.centerX(), r.centerY() + ty);
             c.scale(sc, sc);
             c.translate(-r.centerX(), -r.centerY());
             gp.variant = System.identityHashCode(k);
-            gp.drawGlass(c, r, radius, style, pressed, theme, glow);
+            float kr = k.code == Key.SPACE && premium ? r.height() / 2f : radius;   // space bar = glass capsule
+            if (premium) {
+                gp.pressAmt = pv;
+                float[] ti = touchInfo.get(k);
+                if (ti != null) {
+                    float age = ((SystemClock.uptimeMillis() % 1000000) - ti[2]) / 380f;
+                    if (age < 0) age = 1f;
+                    gp.touchX = r.left + ti[0];
+                    gp.touchY = r.top + ti[1];
+                    gp.ripple = age < 1f ? age : -1f;
+                    if (age < 1f) animating = true;
+                    else if (pv < 0.01f) touchInfo.remove(k);
+                }
+                gp.drawGlass(c, r, kr, style, pressed, theme, glow * 0.6f);
+                gp.pressAmt = 0; gp.touchX = -1; gp.touchY = -1; gp.ripple = -1;
+            } else {
+                gp.drawGlass(c, r, kr, style, pressed, theme, glow);
+            }
             gp.variant = 0;
             drawKeyContent(c, k);
             c.restore();
@@ -505,7 +534,8 @@ public class KeyboardView extends View {
                 if (sp != null && sp.spaceSwipe) {
                     gp.drawIcon(c, GlassPainter.IC_LEFT, cx - 22 * dp, cy, icon * 0.8f, theme.subText);
                     gp.drawIcon(c, GlassPainter.IC_RIGHT, cx + 22 * dp, cy, icon * 0.8f, theme.subText);
-                } else label(c, spaceLabel, cx, cy, r.height() * 0.26f, theme.subText, false);
+                } else label(c, spaceLabel, cx, cy, r.height() * 0.25f,
+                        gp.amoled && gp.pack == 0 ? (theme.text & 0x00FFFFFF) | 0x66000000 : theme.subText, false);
                 return;
             case Key.SYMBOLS: case Key.ALPHA: case Key.SYMBOLS2:
                 label(c, k.label, cx, cy, r.height() * 0.3f, col, true);
@@ -527,13 +557,18 @@ public class KeyboardView extends View {
         return null;
     }
 
+    private static final Typeface TF_REG = Typeface.create("sans-serif", Typeface.NORMAL);
+    private static final Typeface TF_MED = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
+        boolean premium = gp.pack == 0 && gp.amoled;
+        text.setTypeface(premium ? (bold ? TF_MED : TF_REG) : TF_MED);
         if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
         else if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);
-        text.setFakeBoldText(bold);
+        text.setFakeBoldText(bold && !premium);
         Paint.FontMetrics fm = text.getFontMetrics();
         c.drawText(s, cx, cy - (fm.ascent + fm.descent) / 2, text);
         text.setFakeBoldText(false);
@@ -752,6 +787,7 @@ public class KeyboardView extends View {
                 if (ptrs.size() == 1) { gn = 0; glideEnd = -1; addGlidePoint(x, y, SystemClock.uptimeMillis()); }
                 listener.feedback(false);
                 pressOf(k).target = 1f;
+                markTouch(k, x, y);
                 startDrop(k);
                 if (rippleEnabled) listener.onTouchPoint(x, y);
                 h.removeCallbacks(longPress);
