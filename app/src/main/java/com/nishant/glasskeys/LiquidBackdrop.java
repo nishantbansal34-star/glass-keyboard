@@ -124,26 +124,49 @@ public class LiquidBackdrop {
         }
     }
 
+    /** Wallpaper mode: crop the exact strip of the wallpaper that sits behind the keyboard on screen. */
+    private boolean screenAlign;
+    private int screenW, screenH;
+    private Bitmap photoSoft;   // extra-soft copy for the refracting rim of each key
+
+    public void setScreenAlign(boolean on, int sw, int sh) {
+        if (on != screenAlign || sw != screenW || sh != screenH) photoFit = null;
+        screenAlign = on; screenW = sw; screenH = sh;
+    }
+
     private void fitPhoto(int w, int h) {
-        if (photo == null) { photoFit = null; return; }
+        if (photo == null) { photoFit = null; photoSoft = null; return; }
         if (photoFit != null && fitW == w && fitH == h && fitBlur == blur) return;
         // Softness comes from resolution: lower resolution + bilinear upscaling = smooth blur.
         float q = 1f / (1.3f + blur * 0.9f);
         int tw = Math.max(8, (int) (w * q)), th = Math.max(8, (int) (h * q));
-        float s = Math.max(tw / (float) photo.getWidth(), th / (float) photo.getHeight());
-        float sw = tw / s, sh = th / s;
-        float sx = (photo.getWidth() - sw) / 2f, sy = (photo.getHeight() - sh) / 2f;
+        float sx, sy, sw, sh;
+        if (screenAlign && screenW > 0 && screenH > h) {
+            // the wallpaper covers the whole screen; the keyboard occupies its bottom h pixels
+            float s = Math.max(screenW / (float) photo.getWidth(), screenH / (float) photo.getHeight());
+            float dx = (photo.getWidth() * s - screenW) / 2f, dy = (photo.getHeight() * s - screenH) / 2f;
+            sx = dx / s; sw = w / s;
+            sy = (screenH - h + dy) / s; sh = h / s;
+        } else {
+            float s = Math.max(tw / (float) photo.getWidth(), th / (float) photo.getHeight());
+            sw = tw / s; sh = th / s;
+            sx = (photo.getWidth() - sw) / 2f; sy = (photo.getHeight() - sh) / 2f;
+        }
         Bitmap out = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(out);
         Paint fp = new Paint(Paint.FILTER_BITMAP_FLAG);
         cv.drawBitmap(photo, new android.graphics.Rect((int) sx, (int) sy, (int) (sx + sw), (int) (sy + sh)),
                 new RectF(0, 0, tw, th), fp);
         photoFit = out;
+        photoSoft = Bitmap.createScaledBitmap(out, Math.max(4, tw / 4), Math.max(4, th / 4), true);
         fitW = w; fitH = h; fitBlur = blur;
     }
 
     /** The picture behind the keys, for refraction. */
     public Bitmap source() { return black ? ambient() : photoFit != null ? photoFit : grid; }
+
+    /** A softer (more blurred) copy of the same picture, for the refracting edge of the glass. */
+    public Bitmap softSource() { return black ? ambient() : photoSoft != null ? photoSoft : grid; }
 
     public float sourceScaleX(int w) { Bitmap s = source(); return s.getWidth() / (float) Math.max(1, w); }
     public float sourceScaleY(int h) { Bitmap s = source(); return s.getHeight() / (float) Math.max(1, h); }

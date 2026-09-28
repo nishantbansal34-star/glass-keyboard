@@ -209,11 +209,27 @@ public class SettingsActivity extends Activity {
         look.addView(choice(new String[]{"Premium dark", "Bright jelly"}, new String[]{"1", "0"},
                 prefs.darkGlass() ? "1" : "0", v -> prefs.setBool("darkglass", v.equals("1"))));
         look.addView(label("Background"));
-        look.addView(choice(new String[]{"Wallpaper", "Graphite", "Bloom", "My photo"}, new String[]{"4", "3", "1", "2"},
+        look.addView(choice(new String[]{"Wallpaper", "Graphite", "Bloom", "My photo"}, new String[]{"5", "3", "1", "2"},
                 String.valueOf(prefs.bgMode()), v -> {
                     if (v.equals("2") && !new File(getFilesDir(), "backdrop.jpg").exists()) { pickPhoto(); return; }
                     prefs.setInt("bgmode", Integer.parseInt(v));
                 }));
+        if (!GlassIME.canReadWallpaper(this)) {
+            TextView wh = text("To see your real wallpaper through the glass, Android needs \"All files access\" for Glass Keys (used only to read the wallpaper; the app has no internet). Without it, the glass uses your wallpaper's colours.", 13, false);
+            wh.setAlpha(0.7f);
+            look.addView(wh);
+            look.addView(button("Allow wallpaper access", v -> {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= 30) {
+                        Intent it = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName()));
+                        startActivity(it);
+                    } else requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 21);
+                } catch (Exception e) {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                }
+                prefs.setInt("bgmode", 5);
+            }));
+        }
         look.addView(button("Choose a photo from gallery", v -> pickPhoto()));
         look.addView(label("Photo softness"));
         SeekBar blur = new SeekBar(this);

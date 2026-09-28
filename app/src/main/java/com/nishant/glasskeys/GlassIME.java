@@ -103,6 +103,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
+        if (!prefs.bool("wallMigrated2", false)) {
+            // "Wallpaper" now means your real wallpaper image when allowed (colours otherwise)
+            if (prefs.bgMode() == 4 || prefs.bgMode() == 3) prefs.setInt("bgmode", 5);
+            prefs.setBool("wallMigrated2", true);
+            prefs.setBool("wallMigrated", true);
+        }
         if (!prefs.bool("wallMigrated", false)) {
             // new default: glass lit by your wallpaper's colours
             if (prefs.bgMode() == 3) prefs.setInt("bgmode", 4);
@@ -146,10 +152,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         void refresh() {
             boolean shadow = prefs.pack() == 1;
             if (liquid != null) {
-                liquid.setPhoto(loadCustomBackdrop(), shadow ? 0 : prefs.photoBlur());
+                liquid.setPhoto(loadCustomBackdrop(), shadow || prefs.bgMode() == 5 ? 0 : prefs.photoBlur());
                 int mode = prefs.bgMode();
-                liquid.black = !shadow && (mode == 3 || mode == 4);
-                liquid.setWallpaperColors(!shadow && mode == 4 ? wallpaperColors() : null);
+                boolean realWall = !shadow && mode == 5 && cachedPhoto != null && "wall".equals(cachedPhotoKey);
+                liquid.black = !shadow && (mode == 3 || mode == 4 || (mode == 5 && !realWall));
+                liquid.setWallpaperColors(!shadow && (mode == 4 || (mode == 5 && !realWall)) ? wallpaperColors() : null);
+                android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+                ((android.view.WindowManager) getSystemService(WINDOW_SERVICE)).getDefaultDisplay().getRealMetrics(dm);
+                liquid.setScreenAlign(realWall, dm.widthPixels, dm.heightPixels);
                 liquid.photoDim = shadow ? 8 : prefs.darkGlass() ? prefs.photoDim() : Math.min(prefs.photoDim(), 15);
             }
             gp.setPack(prefs.pack());
@@ -180,6 +190,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             boolean motion = prefs.glassRipple();
             liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
             gp.setSource(liquid.source(), liquid.sourceScaleX(getWidth()), liquid.sourceScaleY(getHeight()));
+            android.graphics.Bitmap soft = liquid.softSource();
+            gp.setSoftSource(soft, soft.getWidth() / (float) Math.max(1, getWidth()), soft.getHeight() / (float) Math.max(1, getHeight()));
             long now = SystemClock.uptimeMillis();
             if (now - lastNavTint > 900) { lastNavTint = now; tintNavBar(); }
             if (motion && (liquid.awake() || liquid.lightPower > 0.01f)) {
@@ -207,6 +219,45 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     private boolean liveBlurActive;
+
+    /** True when Android lets us read the wallpaper image (needs "All files access" on Android 11+). */
+    static boolean canReadWallpaper(Context c) {
+        if (Build.VERSION.SDK_INT >= 30) return android.os.Environment.isExternalStorageManager();
+        return c.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Your actual home-screen wallpaper image, or null (then the colour atmosphere is used). */
+    private Bitmap realWallpaper() {
+        if (!canReadWallpaper(this)) { cachedPhotoKey = null; return null; }
+        try {
+            android.app.WallpaperManager wm = android.app.WallpaperManager.getInstance(this);
+            int id = wm.getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM);
+            if ("wall".equals(cachedPhotoKey) && cachedPhoto != null && id == cachedWallId) return cachedPhoto;
+            android.graphics.drawable.Drawable d = wm.getDrawable();
+            if (d == null) return null;
+            Bitmap b;
+            if (d instanceof android.graphics.drawable.BitmapDrawable) b = ((android.graphics.drawable.BitmapDrawable) d).getBitmap();
+            else {
+                int iw = Math.max(1, Math.min(1440, d.getIntrinsicWidth() > 0 ? d.getIntrinsicWidth() : 1080));
+                int ih = Math.max(1, Math.min(3200, d.getIntrinsicHeight() > 0 ? d.getIntrinsicHeight() : 2400));
+                b = Bitmap.createBitmap(iw, ih, Bitmap.Config.ARGB_8888);
+                Canvas cv = new Canvas(b);
+                d.setBounds(0, 0, iw, ih);
+                d.draw(cv);
+            }
+            // keep memory modest: the keyboard only ever shows a soft strip of it
+            if (b.getWidth() > 1080) b = Bitmap.createScaledBitmap(b, 1080, Math.max(1, b.getHeight() * 1080 / b.getWidth()), true);
+            cachedPhoto = b;
+            cachedPhotoKey = "wall";
+            cachedWallId = id;
+            return b;
+        } catch (Exception e) {
+            cachedPhotoKey = null;
+            return null;
+        }
+    }
+
+    private int cachedWallId = -1;
 
     /** The wallpaper's main colours (Android shares these without any permission). */
     private int[] wallpaperColors() {
@@ -237,6 +288,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return cachedPhoto;
         }
         int mode = prefs.bgMode();
+        if (mode == 5) return realWallpaper();
         if (mode == 0 || mode == 3 || mode == 4) return null;
         File f = new File(getFilesDir(), "backdrop.jpg");
         String key = mode == 2 && f.exists() ? f.getAbsolutePath() + f.lastModified() : "bloom";
