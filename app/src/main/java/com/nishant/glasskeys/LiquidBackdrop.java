@@ -127,6 +127,7 @@ public class LiquidBackdrop {
     /** Wallpaper mode: crop the exact strip of the wallpaper that sits behind the keyboard on screen. */
     private boolean screenAlign;
     private int screenW, screenH;
+    private int fitDim = -1;
     private Bitmap photoSoft;   // extra-soft copy for the refracting rim of each key
 
     public void setScreenAlign(boolean on, int sw, int sh) {
@@ -136,7 +137,7 @@ public class LiquidBackdrop {
 
     private void fitPhoto(int w, int h) {
         if (photo == null) { photoFit = null; photoSoft = null; return; }
-        if (photoFit != null && fitW == w && fitH == h && fitBlur == blur) return;
+        if (photoFit != null && fitW == w && fitH == h && fitBlur == blur && (!screenAlign || fitDim == photoDim)) return;
         // Softness comes from resolution: lower resolution + bilinear upscaling = smooth blur.
         float q = 1f / (1.3f + blur * 0.9f);
         int tw = Math.max(8, (int) (w * q)), th = Math.max(8, (int) (h * q));
@@ -152,9 +153,32 @@ public class LiquidBackdrop {
             sw = tw / s; sh = th / s;
             sx = (photo.getWidth() - sw) / 2f; sy = (photo.getHeight() - sh) / 2f;
         }
+        Paint fp = new Paint(Paint.FILTER_BITMAP_FLAG);
+        if (screenAlign) {
+            // Wallpaper mode: the wallpaper is only ambient light behind frosted glass. Blur it hard
+            // (progressive halving = smooth, no aliasing) until no picture detail survives, then dim it
+            // the same amount as the backdrop, so the keys never show a brighter, sharper image.
+            int fw = Math.max(8, w / 2), fh = Math.max(8, h / 2);
+            Bitmap cur = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+            new Canvas(cur).drawBitmap(photo, new android.graphics.Rect((int) sx, (int) sy, (int) (sx + sw), (int) (sy + sh)),
+                    new RectF(0, 0, fw, fh), fp);
+            int target = Math.max(6, w / 36);
+            while (cur.getWidth() / 2 >= target) {
+                Bitmap nx = Bitmap.createScaledBitmap(cur, Math.max(2, cur.getWidth() / 2), Math.max(2, cur.getHeight() / 2), true);
+                if (nx != cur) cur.recycle();
+                cur = nx;
+            }
+            Bitmap small = cur.copy(Bitmap.Config.ARGB_8888, true);
+            new Canvas(small).drawColor(Color.argb(Math.round(255 * photoDim / 100f), 0, 0, 0));
+            // smooth it back up a little so bilinear sampling stays soft
+            Bitmap up = Bitmap.createScaledBitmap(small, small.getWidth() * 4, small.getHeight() * 4, true);
+            photoFit = up;
+            photoSoft = small;
+            fitW = w; fitH = h; fitBlur = blur; fitDim = photoDim;
+            return;
+        }
         Bitmap out = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(out);
-        Paint fp = new Paint(Paint.FILTER_BITMAP_FLAG);
         cv.drawBitmap(photo, new android.graphics.Rect((int) sx, (int) sy, (int) (sx + sw), (int) (sy + sh)),
                 new RectF(0, 0, tw, th), fp);
         photoFit = out;
@@ -218,7 +242,7 @@ public class LiquidBackdrop {
         } else if (photo != null) {
             fitPhoto(w, h);
             c.drawBitmap(photoFit, null, new RectF(0, 0, w, h), bmpPaint);
-            c.drawColor(Color.argb(Math.round(255 * photoDim / 100f), 0, 0, 0));
+            if (!screenAlign) c.drawColor(Color.argb(Math.round(255 * photoDim / 100f), 0, 0, 0));
         } else {
             renderGrid(t, time);
             c.drawBitmap(grid, null, new RectF(0, 0, w, h), bmpPaint);
