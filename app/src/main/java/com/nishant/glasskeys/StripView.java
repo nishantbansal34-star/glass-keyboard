@@ -65,7 +65,20 @@ public class StripView extends View {
 
     public void setTheme(Theme t) { theme = t; invalidate(); }
 
+    private String lastSig = "";
+
     public void setCells(List<Cell> list) {
+        StringBuilder sig = new StringBuilder();
+        for (Cell c : list) sig.append(c.chip ? 'c' : c.title ? 't' : c.text != null ? 'w' : 'i');
+        if (!sig.toString().equals(lastSig) && isShown()) {
+            // cross-fade between toolbar / suggestions / chips
+            animate().cancel();
+            setAlpha(0.2f);
+            setTranslationY(3 * dp);
+            animate().alpha(1f).translationY(0f).setDuration(200)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+        }
+        lastSig = sig.toString();
         cells.clear();
         cells.addAll(list);
         pressed = null;

@@ -170,8 +170,8 @@ public class SettingsActivity extends Activity {
             n.setAlpha(0.6f);
             look.addView(n);
         }
-        look.addView(toggle("Show a glass bubble when a key is pressed", "keypopup", true));
-        look.addView(toggle("Light ripple across the glass on each tap", "ripple", true));
+        look.addView(toggle("Liquid droplet preview when a key is pressed", "keypopup", true));
+        look.addView(toggle("Liquid motion: flowing background, light that follows your finger, springy keys", "ripple", true));
         look.addView(label("Key height"));
         SeekBar sb = new SeekBar(this);
         sb.setMax(24);

@@ -122,12 +122,19 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     // ================================================================= views
 
     /** Root container that paints the frosted glass backdrop behind everything. */
+    private LiquidBackdrop liquid;
+    private long lastNavTint;
+
+    /** Root container that paints the living frosted-glass backdrop behind everything. */
     private class RootView extends FrameLayout {
-        private Bitmap backdrop;
-        private final Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
         RootView(Context c) { super(c); setWillNotDraw(false); setClipChildren(false); }
-        void refresh() { backdrop = null; invalidate(); }
-        @Override protected void onSizeChanged(int w, int h, int ow, int oh) { backdrop = null; }
+        void refresh() {
+            if (liquid != null) liquid.setPhoto(loadCustomBackdrop());
+            invalidate();
+        }
+        @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+            if (keyboard != null) { keyboard.rootW = w; keyboard.rootH = h; }
+        }
         /** Size ourselves to the keyboard column only — never stretch to the full-height IME window. */
         @Override protected void onMeasure(int wSpec, int hSpec) {
             View col = getChildAt(0);
@@ -139,9 +146,27 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             setMeasuredDimension(w, h);
         }
         @Override protected void onDraw(Canvas c) {
-            if (backdrop == null) backdrop = gp.renderBackdrop(getWidth(), getHeight(), theme, loadCustomBackdrop(), liveBlurActive);
-            if (backdrop != null) c.drawBitmap(backdrop, 0, 0, p);
+            boolean motion = prefs.glassRipple();
+            liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
+            long now = SystemClock.uptimeMillis();
+            if (now - lastNavTint > 900) { lastNavTint = now; tintNavBar(); }
+            if (motion && (liquid.awake() || liquid.lightPower > 0.01f)) postInvalidateOnAnimation();
         }
+    }
+
+    private void tintNavBar() {
+        Window w = getWindow() != null ? getWindow().getWindow() : null;
+        if (w != null && liquid != null) w.setNavigationBarColor(liquid.bottomColor(theme));
+    }
+
+    @Override
+    public void onTouchPoint(float x, float y) {
+        if (root == null || liquid == null) return;
+        float nx = (x + keyboard.getLeft()) / Math.max(1, root.getWidth());
+        float ny = (y + strip.getHeight()) / Math.max(1, root.getHeight());
+        liquid.touch(nx, ny);
+        root.invalidate();
+        keyboard.invalidate();
     }
 
     private boolean liveBlurActive;
@@ -155,6 +180,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public View onCreateInputView() {
         theme = Theme.get(prefs.theme());
+        liquid = new LiquidBackdrop(dp);
         root = new RootView(this);
 
         LinearLayout column = new LinearLayout(this);
@@ -169,6 +195,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         content.setClipChildren(false);
         keyboard = new KeyboardView(this, gp);
         keyboard.setListener(this);
+        keyboard.backdrop = liquid;
         content.addView(keyboard, new FrameLayout.LayoutParams(-1, -1));
         column.addView(content, new LinearLayout.LayoutParams(-1, keyboardHeight()));
 
@@ -211,7 +238,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void styleWindow() {
         Window w = getWindow() != null ? getWindow().getWindow() : null;
         if (w == null) return;
-        w.setNavigationBarColor(theme.base);
+        w.setNavigationBarColor(liquid != null ? liquid.bottomColor(theme) : theme.base);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             int flags = w.getDecorView().getSystemUiVisibility();
             if (theme.dark) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
@@ -281,6 +308,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.setShift(KeyboardView.SHIFT_OFF);
         updateShift();
         updateStrip();
+        if (!restarting && prefs.glassRipple()) keyboard.playEntrance();
     }
 
     @Override
@@ -847,26 +875,42 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         calcDisplay = new View(this) {
             final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             @Override protected void onDraw(Canvas c) {
-                android.graphics.RectF r = new android.graphics.RectF(6 * dp, 4 * dp, getWidth() - 6 * dp, getHeight() - 2 * dp);
-                gp.drawGlass(c, r, 12 * dp, GlassPainter.STYLE_FUNC, false, theme);
-                p.setTextAlign(Paint.Align.RIGHT);
+                android.graphics.RectF r = new android.graphics.RectF(7 * dp, 4 * dp, getWidth() - 7 * dp, getHeight() - 3 * dp);
+                gp.drawGlass(c, r, 16 * dp, GlassPainter.STYLE_FUNC, false, theme);
+                float pad = 14 * dp;
+                // history (last calculation), small, left
+                p.setTextAlign(Paint.Align.LEFT);
+                p.setTypeface(android.graphics.Typeface.DEFAULT);
                 p.setColor(theme.subText);
-                p.setTextSize(15 * dp);
-                String e = calcExpr.isEmpty() ? "0" : calcExpr;
-                String shown = TextUtils.ellipsize(e, new android.text.TextPaint(p), r.width() - 24 * dp, TextUtils.TruncateAt.START).toString();
-                c.drawText(shown, r.right - 12 * dp, r.top + 20 * dp, p);
+                p.setTextSize(12 * dp);
+                if (!calcHistory.isEmpty()) {
+                    String hst = TextUtils.ellipsize(calcHistory, new android.text.TextPaint(p), r.width() - 2 * pad, TextUtils.TruncateAt.START).toString();
+                    c.drawText(hst, r.left + pad, r.top + 18 * dp, p);
+                }
+                // expression, right aligned
+                p.setTextAlign(Paint.Align.RIGHT);
+                String e = calcExpr.isEmpty() ? "0" : prettyExpr(calcExpr);
                 Double v = Calc.eval(calcExpr);
+                boolean showPreview = v != null && !calcJustEvaluated && calcExpr.matches(".*[+\\-*/×÷−%^].*");
+                p.setTypeface(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
                 p.setColor(theme.text);
-                p.setTextSize(24 * dp);
-                p.setFakeBoldText(true);
-                c.drawText(v == null ? (calcExpr.isEmpty() ? "0" : "…") : "= " + Calc.format(v, true), r.right - 12 * dp, r.bottom - 10 * dp, p);
-                p.setFakeBoldText(false);
+                float big = showPreview ? 22 * dp : 34 * dp;
+                p.setTextSize(big);
+                while (p.measureText(e) > r.width() - 2 * pad && p.getTextSize() > 14 * dp) p.setTextSize(p.getTextSize() - dp);
+                float ey = showPreview ? r.centerY() + 6 * dp : r.bottom - 14 * dp;
+                c.drawText(e, r.right - pad, ey, p);
+                if (showPreview) {
+                    p.setColor(theme.accent);
+                    p.setTextSize(20 * dp);
+                    c.drawText("= " + Calc.format(v, true), r.right - pad, r.bottom - 10 * dp, p);
+                }
             }
         };
         calcDisplay.setWillNotDraw(false);
-        calcPanel.addView(calcDisplay, new LinearLayout.LayoutParams(-1, 0, 1.3f));
+        calcPanel.addView(calcDisplay, new LinearLayout.LayoutParams(-1, 0, 1.45f));
         calcPad = new PadView(this, gp);
         calcPad.feedback = () -> feedback(false);
+        calcPad.setGaps(7, 6);
         calcPad.setRows(calcRows());
         calcPad.setOnPress(this::calcPress);
         calcPanel.addView(calcPad, new LinearLayout.LayoutParams(-1, 0, 5f));
@@ -936,6 +980,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (p == P_CALC) calcDisplay.invalidate();
         if (p == P_EDIT) { selectMode = false; editPad.setRows(editRows()); }
         if (p == P_NONE) updateShift();
+        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : p == P_CLIP ? clipScroll
+                : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : editPad;
+        if (prefs.glassRipple()) {
+            shown.setAlpha(0f);
+            shown.setTranslationY(18 * dp);
+            shown.setScaleX(0.97f);
+            shown.setScaleY(0.97f);
+            shown.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(260)
+                    .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.9f, 0.25f, 1.05f)).start();
+        }
         overlay.invalidate();
         updateStrip();
     }
@@ -960,20 +1014,36 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 cells.add(StripView.Cell.title("Quick text · type shortcut + space"));
                 cells.add(StripView.Cell.icon(GlassPainter.IC_PLUS, () -> openSettings("snippets")));
                 break;
-            case P_CALC:
+            case P_CALC: {
+                int rate = prefs.gstRate();
+                cells.add(StripView.Cell.chip(0, "+GST", () -> calcGst(true)));
+                cells.add(StripView.Cell.chip(0, "−GST", () -> calcGst(false)));
+                StripView.Cell rc = StripView.Cell.chip(0, rate + "%", () -> {
+                    int[] rates = {5, 12, 18, 28};
+                    int cur = prefs.gstRate(), next = 18;
+                    for (int i = 0; i < rates.length; i++) if (rates[i] == cur) next = rates[(i + 1) % rates.length];
+                    prefs.setInt("gst", next);
+                    updateStrip();
+                });
+                rc.weight = 0.7f;
+                cells.add(rc);
                 Double v = Calc.eval(calcExpr);
                 if (v != null) {
                     final String res = Calc.format(v, false);
-                    cells.add(StripView.Cell.chip(GlassPainter.IC_ARROW_RIGHT, "Insert " + Calc.format(v, true), () -> {
+                    StripView.Cell ins = StripView.Cell.chip(GlassPainter.IC_CHECK, "Insert", () -> {
                         InputConnection ic = getCurrentInputConnection();
                         if (ic != null) ic.commitText(res, 1);
-                    }));
-                    cells.add(StripView.Cell.chip(0, "Insert sum", () -> {
+                    });
+                    ins.active = true;
+                    ins.longAction = () -> {
                         InputConnection ic = getCurrentInputConnection();
-                        if (ic != null) ic.commitText(calcExpr + " = " + res, 1);
-                    }));
-                } else cells.add(StripView.Cell.title("Calculator · GST " + prefs.gstRate() + "%"));
+                        if (ic != null) ic.commitText(prettyExpr(calcExpr) + " = " + Calc.format(v, true), 1);
+                        toast("Inserted the full sum");
+                    };
+                    cells.add(ins);
+                }
                 break;
+            }
             case P_EDIT:
                 cells.add(StripView.Cell.title(countText()));
                 break;
@@ -993,15 +1063,107 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     // ---------------- calculator
 
+    private String calcHistory = "";
+    private boolean calcJustEvaluated;
+
     private List<List<PadView.Btn>> calcRows() {
-        int F = GlassPainter.STYLE_FUNC, A = GlassPainter.STYLE_ACTION;
+        int F = GlassPainter.STYLE_FUNC, O = GlassPainter.STYLE_ACTIVE, A = GlassPainter.STYLE_ACTION, K = GlassPainter.STYLE_KEY;
         List<List<PadView.Btn>> r = new ArrayList<>();
-        r.add(row(b("C", "C", F), b("(", "(", F), b(")", ")", F), b("%", "%", F), new PadView.Btn("bk", null, GlassPainter.IC_DEL).style(F).repeating()));
-        r.add(row(b("7", "7", 0), b("8", "8", 0), b("9", "9", 0), b("÷", "÷", F), b("gst+", "+GST", F)));
-        r.add(row(b("4", "4", 0), b("5", "5", 0), b("6", "6", 0), b("×", "×", F), b("gst-", "−GST", F)));
-        r.add(row(b("1", "1", 0), b("2", "2", 0), b("3", "3", 0), b("−", "−", F), b("abc", "ABC", F)));
-        r.add(row(b("0", "0", 0), b("00", "00", 0), b(".", ".", 0), b("+", "+", F), b("=", "=", A)));
+        r.add(row(b("C", "AC", F), b("()", "( )", F), b("%", "%", F), b("÷", "÷", O).big()));
+        r.add(row(b("7", "7", K).big(), b("8", "8", K).big(), b("9", "9", K).big(), b("×", "×", O).big()));
+        r.add(row(b("4", "4", K).big(), b("5", "5", K).big(), b("6", "6", K).big(), b("−", "−", O).big()));
+        r.add(row(b("1", "1", K).big(), b("2", "2", K).big(), b("3", "3", K).big(), b("+", "+", O).big()));
+        r.add(row(b("0", "0", K).big(), b(".", ".", K).big(), new PadView.Btn("bk", null, GlassPainter.IC_DEL).style(F).repeating(), b("=", "=", A).big()));
         return r;
+    }
+
+    /** Pretty display: Indian digit grouping and proper operator signs. */
+    private static String prettyExpr(String e) {
+        StringBuilder out = new StringBuilder();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+(\\.[0-9]*)?").matcher(e);
+        int last = 0;
+        while (m.find()) {
+            out.append(e, last, m.start());
+            String num = m.group();
+            int dot = num.indexOf('.');
+            String ip = dot >= 0 ? num.substring(0, dot) : num;
+            String fp = dot >= 0 ? num.substring(dot) : "";
+            try { out.append(Calc.format(Double.parseDouble(ip), true)).append(fp); } catch (Exception x) { out.append(num); }
+            last = m.end();
+        }
+        out.append(e.substring(last));
+        return out.toString().replace("*", "×").replace("/", "÷").replace("-", "−")
+                .replace("+", " + ").replace("−", " − ").replace("×", " × ").replace("÷", " ÷ ").replace("  ", " ").trim();
+    }
+
+    private static boolean isOp(char c) { return "+−×÷".indexOf(c) >= 0; }
+
+    private void calcGst(boolean add) {
+        Double v = Calc.eval(calcExpr);
+        if (v == null) { toast("Type an amount first"); return; }
+        double g = prefs.gstRate() / 100.0;
+        double res = add ? v * (1 + g) : v / (1 + g);
+        double tax = Math.abs(res - v);
+        res = Math.round(res * 100) / 100.0;
+        calcHistory = Calc.format(v, true) + (add ? " + " : " − ") + "GST " + prefs.gstRate() + "% (" + Calc.format(Math.round(tax * 100) / 100.0, true) + ")";
+        calcExpr = Calc.format(res, false);
+        calcJustEvaluated = true;
+        feedback(false);
+        calcDisplay.invalidate();
+        updateStrip();
+    }
+
+    private void calcPress(PadView.Btn b) {
+        String e = calcExpr;
+        char lastCh = e.isEmpty() ? 0 : e.charAt(e.length() - 1);
+        switch (b.id) {
+            case "C": calcExpr = ""; calcHistory = ""; calcJustEvaluated = false; break;
+            case "bk":
+                if (calcJustEvaluated) { calcExpr = ""; calcJustEvaluated = false; }
+                else if (!e.isEmpty()) calcExpr = e.substring(0, e.length() - 1);
+                break;
+            case "=": {
+                Double v = Calc.eval(e);
+                if (v != null && !calcJustEvaluated) {
+                    calcHistory = prettyExpr(e) + " =";
+                    calcExpr = Calc.format(v, false);
+                    calcJustEvaluated = true;
+                }
+                break;
+            }
+            case "()": {
+                int open = 0;
+                for (char ch : e.toCharArray()) { if (ch == '(') open++; else if (ch == ')') open--; }
+                boolean close = open > 0 && (Character.isDigit(lastCh) || lastCh == ')' || lastCh == '%');
+                if (calcJustEvaluated && !close) { calcExpr = ""; calcJustEvaluated = false; }
+                calcExpr += close ? ")" : ((Character.isDigit(lastCh) || lastCh == ')') && !calcExpr.isEmpty() ? "×(" : "(");
+                break;
+            }
+            case "+": case "−": case "×": case "÷":
+                calcJustEvaluated = false;
+                if (e.isEmpty()) { if (b.id.equals("−")) calcExpr = "−"; break; }
+                if (isOp(lastCh)) calcExpr = e.substring(0, e.length() - 1) + b.id;
+                else if (lastCh != '(') calcExpr = e + b.id;
+                break;
+            case "%":
+                calcJustEvaluated = false;
+                if (Character.isDigit(lastCh) || lastCh == ')') calcExpr = e + "%";
+                break;
+            case ".": {
+                if (calcJustEvaluated) { e = ""; calcJustEvaluated = false; }
+                int i = e.length() - 1;
+                while (i >= 0 && (Character.isDigit(e.charAt(i)))) i--;
+                if (i >= 0 && e.charAt(i) == '.') break; // already has a point
+                calcExpr = e + (Character.isDigit(e.isEmpty() ? 'x' : e.charAt(e.length() - 1)) ? "." : "0.");
+                break;
+            }
+            default: // digits
+                if (calcJustEvaluated) { calcExpr = ""; calcJustEvaluated = false; }
+                if (calcExpr.endsWith(")") || calcExpr.endsWith("%")) calcExpr += "×";
+                calcExpr += b.label;
+        }
+        calcDisplay.invalidate();
+        updateStrip();
     }
 
     private static PadView.Btn b(String id, String label, int style) { return new PadView.Btn(id, label, 0).style(style); }
@@ -1012,50 +1174,29 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return l;
     }
 
-    private void calcPress(PadView.Btn b) {
-        double gst = prefs.gstRate() / 100.0;
-        switch (b.id) {
-            case "C": calcExpr = ""; break;
-            case "bk": if (!calcExpr.isEmpty()) calcExpr = calcExpr.substring(0, calcExpr.length() - 1); break;
-            case "abc": showPanel(P_NONE); return;
-            case "=": {
-                Double v = Calc.eval(calcExpr);
-                if (v != null) calcExpr = Calc.format(v, false);
-                break;
-            }
-            case "gst+": case "gst-": {
-                Double v = Calc.eval(calcExpr);
-                if (v != null) {
-                    double res = b.id.equals("gst+") ? v * (1 + gst) : v / (1 + gst);
-                    toast(b.id.equals("gst+") ? "Added " + prefs.gstRate() + "% GST: +" + Calc.format(res - v, true)
-                            : "Removed " + prefs.gstRate() + "% GST: −" + Calc.format(v - res, true));
-                    calcExpr = Calc.format(Math.round(res * 100) / 100.0, false);
-                }
-                break;
-            }
-            default: calcExpr += b.label;
-        }
-        calcDisplay.invalidate();
-        updateStrip();
-    }
-
     // ---------------- text editing
 
     private List<List<PadView.Btn>> editRows() {
-        int F = GlassPainter.STYLE_FUNC;
+        int F = GlassPainter.STYLE_FUNC, K = GlassPainter.STYLE_KEY;
         List<List<PadView.Btn>> r = new ArrayList<>();
         PadView.Btn sel = new PadView.Btn("sel", "Select", GlassPainter.IC_SELECT);
         sel.selected = selectMode;
-        r.add(row(new PadView.Btn("home", "Start", GlassPainter.IC_LEFT).style(F), new PadView.Btn("up", null, GlassPainter.IC_UP).repeating(),
-                new PadView.Btn("end", "End", GlassPainter.IC_RIGHT).style(F), new PadView.Btn("undo", "Undo", GlassPainter.IC_UNDO).style(F),
+        r.add(row(new PadView.Btn("home", "Line start", GlassPainter.IC_LEFT).style(F),
+                new PadView.Btn("up", null, GlassPainter.IC_UP).style(K).repeating(),
+                new PadView.Btn("end", "Line end", GlassPainter.IC_RIGHT).style(F),
+                new PadView.Btn("undo", "Undo", GlassPainter.IC_UNDO).style(F),
                 new PadView.Btn("redo", "Redo", GlassPainter.IC_REDO).style(F)));
-        r.add(row(new PadView.Btn("left", null, GlassPainter.IC_LEFT).repeating(), sel,
-                new PadView.Btn("right", null, GlassPainter.IC_RIGHT).repeating(), new PadView.Btn("copy", "Copy", GlassPainter.IC_COPY).style(F),
+        r.add(row(new PadView.Btn("left", null, GlassPainter.IC_LEFT).style(K).repeating(), sel,
+                new PadView.Btn("right", null, GlassPainter.IC_RIGHT).style(K).repeating(),
+                new PadView.Btn("copy", "Copy", GlassPainter.IC_COPY).style(F),
                 new PadView.Btn("cut", "Cut", GlassPainter.IC_CUT).style(F)));
-        r.add(row(new PadView.Btn("all", "Select all", GlassPainter.IC_SELECT).style(F), new PadView.Btn("down", null, GlassPainter.IC_DOWN).repeating(),
-                new PadView.Btn("del", "Delete", GlassPainter.IC_DEL).style(F).repeating(), new PadView.Btn("paste", "Paste", GlassPainter.IC_PASTE).style(F),
-                new PadView.Btn("clip", "Clipboard", GlassPainter.IC_CLIP).style(F)));
-        r.add(row(b("UP", "ABC", F), b("low", "abc", F), b("title", "Abc Title", F), b("sent", "Sentence.", F), b("kb", "Keyboard", F)));
+        r.add(row(new PadView.Btn("all", "All", GlassPainter.IC_SELECT).style(F),
+                new PadView.Btn("down", null, GlassPainter.IC_DOWN).style(K).repeating(),
+                new PadView.Btn("del", "Delete", GlassPainter.IC_DEL).style(F).repeating(),
+                new PadView.Btn("paste", "Paste", GlassPainter.IC_PASTE).style(F),
+                new PadView.Btn("clip", "History", GlassPainter.IC_CLIP).style(F)));
+        r.add(row(b("UP", "ABC", F), b("low", "abc", F), b("title", "Abc", F), b("sent", "Abc.", F),
+                new PadView.Btn("kb", "Done", GlassPainter.IC_KEYBOARD).style(GlassPainter.STYLE_ACTION)));
         return r;
     }
 

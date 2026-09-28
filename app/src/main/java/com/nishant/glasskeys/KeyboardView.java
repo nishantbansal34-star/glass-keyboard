@@ -14,7 +14,10 @@ import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** The letter/symbol key area. Draws glass keys and handles all touch gestures. */
 public class KeyboardView extends View {
@@ -28,6 +31,7 @@ public class KeyboardView extends View {
         void onOneHandedSwap();
         void onOneHandedExit();
         void feedback(boolean strong);
+        void onTouchPoint(float x, float y);
     }
 
     public static final int SHIFT_OFF = 0, SHIFT_ON = 1, SHIFT_LOCK = 2;
@@ -76,6 +80,61 @@ public class KeyboardView extends View {
     private int repeatCount;
 
     public View overlay; // full-size view that draws previews/popups above everything
+
+    // ---- fluid motion state
+    private final Map<Key, Spring> pressSpring = new IdentityHashMap<>();
+    private final Map<Key, Spring> appear = new IdentityHashMap<>();
+    private final Map<Key, Long> appearAt = new IdentityHashMap<>();
+    private static class Drop { Key key; String label; final Spring s = new Spring(520f, 0.58f); }
+    private final List<Drop> drops = new ArrayList<>();
+    private long lastFrame;
+    public LiquidBackdrop backdrop;
+    public float rootW = 1, rootH = 1;
+    private final RectF tmpR = new RectF();
+    private final android.graphics.Path dropPath = new android.graphics.Path();
+    private final android.graphics.Path partPath = new android.graphics.Path();
+
+    private Spring pressOf(Key k) {
+        Spring sp = pressSpring.get(k);
+        if (sp == null) { sp = new Spring(1100f, 0.42f); pressSpring.put(k, sp); }
+        return sp;
+    }
+
+    /** Keys rise and settle row by row, like liquid filling a mould. */
+    public void playEntrance() {
+        long now = SystemClock.uptimeMillis();
+        for (int r = 0; r < rows.size(); r++) {
+            List<Key> row = rows.get(r);
+            for (int i = 0; i < row.size(); i++) {
+                Key k = row.get(i);
+                Spring sp = new Spring(420f, 0.6f).set(0f);
+                sp.target = 1f;
+                appear.put(k, sp);
+                appearAt.put(k, now + r * 32L + Math.abs(i - row.size() / 2) * 14L);
+            }
+        }
+        lastFrame = 0;
+        invalidate();
+    }
+
+    private void startDrop(Key k) {
+        if (!keyPopupEnabled || k == null || !k.isChar()) return;
+        for (Drop d : drops) if (d.key == k) { d.s.target = 1f; d.label = labelFor(k); return; }
+        Drop d = new Drop();
+        d.key = k;
+        d.label = labelFor(k);
+        d.s.set(0f);
+        d.s.target = 1f;
+        drops.add(d);
+    }
+
+    private void endDrop(Key k) {
+        for (Drop d : drops) if (d.key == k) d.s.target = 0f;
+    }
+
+    private String labelFor(Key k) {
+        return shift != SHIFT_OFF ? k.label.toUpperCase() : k.label;
+    }
 
     public KeyboardView(Context c, GlassPainter gp) {
         super(c);
@@ -177,23 +236,59 @@ public class KeyboardView extends View {
 
     @Override
     protected void onDraw(Canvas c) {
-        float radius = 9 * dp;
-        drawRipple(c);
+        long now = SystemClock.uptimeMillis();
+        float dt = lastFrame == 0 ? 0.016f : Math.min(0.05f, (now - lastFrame) / 1000f);
+        lastFrame = now;
+        boolean animating = false;
+
+        float lx = 0, ly = 0, lp = 0;
+        if (backdrop != null && rippleEnabled) {
+            lx = backdrop.lightX * rootW - getLeft();
+            ly = backdrop.lightY * rootH - overflowAbove;
+            lp = backdrop.lightPower;
+            if (lp > 0.01f) animating = true;
+        }
+        float radius = 11 * dp;
+        float reach = 130 * dp;
+
         for (List<Key> row : rows) for (Key k : row) {
             if (k.code == 0) continue;
             boolean pressed = isPressed(k);
+            Spring ps = pressSpring.get(k);
+            float pv = 0;
+            if (ps != null) { if (ps.step(dt)) animating = true; pv = ps.value; }
+            float a = 1f;
+            Spring ap = appear.get(k);
+            if (ap != null) {
+                Long at = appearAt.get(k);
+                if (at != null && now < at) { a = 0f; animating = true; }
+                else { if (ap.step(dt)) animating = true; a = ap.value; }
+                if (!animating && a >= 1f) appear.remove(k);
+            }
+            if (a <= 0.01f) continue;
+
             int style = GlassPainter.STYLE_KEY;
             if (k.code == Key.ENTER) style = GlassPainter.STYLE_ACTION;
             else if (k.code == Key.SHIFT && shift == SHIFT_LOCK) style = GlassPainter.STYLE_ACTIVE;
             else if (k.isFunction()) style = GlassPainter.STYLE_FUNC;
+
             RectF r = k.rect;
-            if (pressed && k.isChar() && !keyPopupEnabled) {
-                // subtle "liquid" swell when previews are off
-                r = new RectF(r);
-                r.inset(-1.5f * dp, -1.5f * dp);
+            float glow = 0;
+            if (lp > 0.01f) {
+                float d = (float) Math.hypot(r.centerX() - lx, r.centerY() - ly);
+                glow = lp * Math.max(0f, 1f - d / reach);
             }
-            gp.drawGlass(c, r, radius, style, pressed, theme);
+            glow = Math.min(1f, glow + pv * 0.7f);
+            // liquid swell on press (+ springy overshoot), rise-in on entrance
+            float sc = (1f + 0.07f * pv) * (0.72f + 0.28f * a);
+            float ty = (1f - a) * 14 * dp;
+            c.save();
+            c.translate(r.centerX(), r.centerY() + ty);
+            c.scale(sc, sc);
+            c.translate(-r.centerX(), -r.centerY());
+            gp.drawGlass(c, r, radius, style, pressed, theme, glow);
             drawKeyContent(c, k);
+            c.restore();
         }
         if (oneHanded != 0) {
             gp.drawGlass(c, sideBtnA, sideBtnA.width() / 2, GlassPainter.STYLE_FUNC, false, theme);
@@ -201,6 +296,15 @@ public class KeyboardView extends View {
             gp.drawGlass(c, sideBtnB, sideBtnB.width() / 2, GlassPainter.STYLE_FUNC, false, theme);
             gp.drawIcon(c, GlassPainter.IC_EXPAND, sideBtnB.centerX(), sideBtnB.centerY(), 20 * dp, theme.text);
         }
+
+        // droplet previews live in the overlay; keep it in step
+        for (int i = drops.size() - 1; i >= 0; i--) {
+            Drop d = drops.get(i);
+            if (d.s.step(dt)) animating = true;
+            else if (d.s.target == 0f) drops.remove(i);
+        }
+        if (overlay != null && (!drops.isEmpty() || popupPtr != null)) overlay.invalidate();
+        if (animating || !drops.isEmpty()) postInvalidateOnAnimation(); else lastFrame = 0;
     }
 
     private boolean isPressed(Key k) {
@@ -284,26 +388,56 @@ public class KeyboardView extends View {
     public void drawOverlay(Canvas c, float offsetY) {
         c.save();
         c.translate(getLeft(), offsetY);
-        float minTop = -offsetY + 2 * dp;
+        float minTop = -offsetY + 3 * dp;
         if (popupPtr != null && popupPtr.popup) {
             drawPopup(c);
-        } else if (keyPopupEnabled) {
-            for (int i = 0; i < ptrs.size(); i++) {
-                Ptr p = ptrs.valueAt(i);
-                if (p.key == null || !p.key.isChar() || p.consumed) continue;
-                RectF r = p.key.rect;
-                float bw = r.width() * 1.25f, bh = r.height() * 1.25f;
-                float top = Math.max(minTop, r.top - bh - 4 * dp);
-                RectF b = new RectF(r.centerX() - bw / 2, top, r.centerX() + bw / 2, top + bh);
-                if (b.left < 2 * dp) b.offset(2 * dp - b.left, 0);
-                if (b.right > getWidth() - 2 * dp) b.offset(getWidth() - 2 * dp - b.right, 0);
-                gp.drawBubble(c, b, 12 * dp, theme);
-                String s = p.key.label;
-                if (shift != SHIFT_OFF) s = s.toUpperCase();
-                label(c, s, b.centerX(), b.centerY(), bh * 0.5f, theme.text, false);
-            }
+        } else {
+            for (Drop d : drops) drawDrop(c, d, minTop);
         }
         c.restore();
+    }
+
+    private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
+
+    /** The pressed key stretches up into a liquid droplet that carries a big copy of the letter. */
+    private void drawDrop(Canvas c, Drop d, float minTop) {
+        float v = d.s.value;
+        if (v <= 0.02f) return;
+        RectF k = d.key.rect;
+        float bw = Math.max(k.width() * 1.3f, 40 * dp), bh = k.height() * 1.22f;
+        float top = Math.max(minTop, k.top - bh - 10 * dp);
+        float bl = k.centerX() - bw / 2;
+        if (bl < 3 * dp) bl = 3 * dp;
+        if (bl + bw > getWidth() - 3 * dp) bl = getWidth() - 3 * dp - bw;
+        // bubble grows out of the key
+        tmpR.set(lerp(k.left, bl, v), lerp(k.top, top, v), lerp(k.right, bl + bw, v), lerp(k.bottom, top + bh, v));
+        RectF b = new RectF(tmpR);
+        float rb = Math.min(b.height(), b.width()) * 0.34f, rk = 11 * dp;
+        dropPath.reset();
+        dropPath.addRoundRect(b, rb, rb, android.graphics.Path.Direction.CW);
+        if (b.bottom < k.top + rk) {
+            partPath.reset();
+            partPath.addRoundRect(k, rk, rk, android.graphics.Path.Direction.CW);
+            dropPath.op(partPath, android.graphics.Path.Op.UNION);
+            // concave "neck" joining bubble and key, thinner as the drop stretches
+            float nt = b.bottom - rb * 0.9f, nb = k.top + rk * 0.9f, mid = (nt + nb) / 2;
+            float pinch = lerp(k.width() * 0.46f, k.width() * 0.2f, Math.min(1f, v));
+            float kl = Math.max(k.left, b.left), kr = Math.min(k.right, b.right);
+            partPath.reset();
+            partPath.moveTo(b.left + rb * 0.5f, nt);
+            partPath.quadTo(k.centerX() - pinch, mid, kl, nb);
+            partPath.lineTo(kr, nb);
+            partPath.quadTo(k.centerX() + pinch, mid, b.right - rb * 0.5f, nt);
+            partPath.close();
+            dropPath.op(partPath, android.graphics.Path.Op.UNION);
+        }
+        RectF bounds = new RectF(b);
+        bounds.union(k);
+        gp.drawBubblePath(c, dropPath, bounds, theme);
+        int alpha = (int) (255 * Math.max(0f, Math.min(1f, (v - 0.25f) / 0.6f)));
+        text.setAlpha(255);
+        int col = (theme.text & 0x00FFFFFF) | (alpha << 24);
+        label(c, d.label, b.centerX(), b.centerY(), bh * 0.52f * Math.min(1.1f, v), col, false);
     }
 
     private void drawPopup(Canvas c) {
@@ -396,6 +530,7 @@ public class KeyboardView extends View {
                 return;
             }
             listener.feedback(true);
+            endDrop(p.key);
             openPopup(p, overflowAbove);
             invalidateAll();
         }
@@ -434,6 +569,7 @@ public class KeyboardView extends View {
                     Ptr o = ptrs.valueAt(i);
                     if (!o.consumed && o.key != null && !o.popup && (o.key.isChar() || (o.key.code == Key.SPACE && !o.spaceSwipe))) {
                         o.consumed = true;
+                        endDrop(o.key);
                         fire(o.key);
                     }
                 }
@@ -443,7 +579,9 @@ public class KeyboardView extends View {
                 p.key = k; p.downX = x; p.downY = y; p.lastX = x;
                 ptrs.put(e.getPointerId(idx), p);
                 listener.feedback(false);
-                if (rippleEnabled) { rippleX = x; rippleY = y; rippleStart = SystemClock.uptimeMillis(); }
+                pressOf(k).target = 1f;
+                startDrop(k);
+                if (rippleEnabled) listener.onTouchPoint(x, y);
                 h.removeCallbacks(longPress);
                 if (k.code == Key.DELETE) {
                     listener.onKey(Key.DELETE);
@@ -470,6 +608,7 @@ public class KeyboardView extends View {
                     float dx = x - p.downX;
                     if (p.key.code == Key.SPACE && !p.consumed) {
                         if (!p.spaceSwipe && Math.abs(dx) > 14 * dp) { p.spaceSwipe = true; h.removeCallbacks(longPress); }
+                        if (rippleEnabled) listener.onTouchPoint(x, y);
                         if (p.spaceSwipe) {
                             int steps = (int) ((x - p.downX) / (11 * dp));
                             if (steps != p.cursorSteps) {
@@ -489,7 +628,11 @@ public class KeyboardView extends View {
                         // let the finger slide onto a neighbouring key before release
                         Key k = keyAt(x, y);
                         if (k != null && k != p.key && k.isChar() && Math.hypot(x - p.downX, y - p.downY) > 10 * dp) {
+                            pressOf(p.key).target = 0f;
+                            endDrop(p.key);
                             p.key = k;
+                            pressOf(k).target = 1f;
+                            startDrop(k);
                             h.removeCallbacks(longPress);
                             if (k.popups != null || k.hint != null) { longPressTarget = p; h.postDelayed(longPress, 330); }
                             invalidateAll();
@@ -504,12 +647,15 @@ public class KeyboardView extends View {
                 Ptr p = ptrs.get(e.getPointerId(idx));
                 ptrs.remove(e.getPointerId(idx));
                 h.removeCallbacks(longPress);
+                if (p != null && p.key != null) { pressOf(p.key).target = 0f; endDrop(p.key); }
                 if (p != null && p.key != null) release(p);
                 if (ptrs.size() == 0) h.removeCallbacks(repeat);
                 invalidateAll();
                 return true;
             }
             case MotionEvent.ACTION_CANCEL:
+                for (Spring sp : pressSpring.values()) sp.target = 0f;
+                for (Drop d : drops) d.s.target = 0f;
                 ptrs.clear();
                 popupPtr = null;
                 h.removeCallbacks(longPress);
