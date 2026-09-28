@@ -101,6 +101,7 @@ public class CardList extends View {
             body.setTextAlign(android.graphics.Paint.Align.LEFT);
             return;
         }
+        gp.setOriginFromView(this);
         for (Card c : cards) {
             gp.drawGlass(canvas, c.r, 14 * dp, GlassPainter.STYLE_KEY, c == pressed && pressedIcon < 0, theme);
             float x = c.r.left + 12 * dp, y = c.r.top + 11 * dp;

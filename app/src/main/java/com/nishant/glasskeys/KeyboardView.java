@@ -52,7 +52,8 @@ public class KeyboardView extends View {
 
     private int enterIcon = GlassPainter.IC_ENTER;
     private String enterText = null;
-    private String spaceLabel = "English";
+    private String spaceLabel = "space";
+    public boolean capsLabels = true;
 
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -142,6 +143,7 @@ public class KeyboardView extends View {
         dp = c.getResources().getDisplayMetrics().density;
         text.setTextAlign(Paint.Align.CENTER);
         text.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        text.setLetterSpacing(0.01f);
         hintPaint.setTextAlign(Paint.Align.CENTER);
         setLayerType(LAYER_TYPE_HARDWARE, null);
         rows = Layouts.build(page, numberRow);
@@ -248,8 +250,9 @@ public class KeyboardView extends View {
             lp = backdrop.lightPower;
             if (lp > 0.01f) animating = true;
         }
-        float radius = 11 * dp;
+        float radius = 13 * dp;
         float reach = 130 * dp;
+        gp.setOriginFromView(this);
 
         for (List<Key> row : rows) for (Key k : row) {
             if (k.code == 0) continue;
@@ -268,7 +271,7 @@ public class KeyboardView extends View {
             if (a <= 0.01f) continue;
 
             int style = GlassPainter.STYLE_KEY;
-            if (k.code == Key.ENTER) style = GlassPainter.STYLE_ACTION;
+            if (k.code == Key.ENTER) style = GlassPainter.STYLE_FUNC;
             else if (k.code == Key.SHIFT && shift == SHIFT_LOCK) style = GlassPainter.STYLE_ACTIVE;
             else if (k.isFunction()) style = GlassPainter.STYLE_FUNC;
 
@@ -315,7 +318,7 @@ public class KeyboardView extends View {
     private void drawKeyContent(Canvas c, Key k) {
         RectF r = k.rect;
         float cx = r.centerX(), cy = r.centerY();
-        int col = k.code == Key.ENTER ? 0xFFFFFFFF : theme.text;
+        int col = theme.text;
         float icon = Math.min(r.height() * 0.5f, 24 * dp);
         switch (k.code) {
             case Key.SHIFT:
@@ -348,8 +351,8 @@ public class KeyboardView extends View {
         }
         String s = k.label;
         boolean letter = s.length() == 1 && Character.isLetter(s.charAt(0));
-        if (letter && shift != SHIFT_OFF) s = s.toUpperCase();
-        label(c, s, cx, cy, r.height() * (letter ? 0.44f : 0.4f), col, false);
+        if (letter && (shift != SHIFT_OFF || capsLabels)) s = s.toUpperCase();
+        label(c, s, cx, cy, r.height() * (letter ? 0.4f : 0.4f), col, false);
         if (k.hint != null) {
             hintPaint.setColor(theme.subText);
             hintPaint.setTextSize(r.height() * 0.22f);
@@ -363,6 +366,8 @@ public class KeyboardView extends View {
     }
 
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
+        if (theme.dark) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
+        else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);
         text.setFakeBoldText(bold);
@@ -388,6 +393,7 @@ public class KeyboardView extends View {
     public void drawOverlay(Canvas c, float offsetY) {
         c.save();
         c.translate(getLeft(), offsetY);
+        gp.setOrigin(getLeft(), offsetY);
         float minTop = -offsetY + 3 * dp;
         if (popupPtr != null && popupPtr.popup) {
             drawPopup(c);

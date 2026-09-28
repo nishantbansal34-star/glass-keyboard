@@ -25,7 +25,10 @@ public class LiquidBackdrop {
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float dp;
     private Bitmap noise;
-    private Bitmap photo;
+    private Bitmap photo;          // original picture
+    private Bitmap photoFit;       // cropped + softened to our size (also the refraction source)
+    private int fitW, fitH, fitBlur = -1;
+    private int blur = 2;
     private float clock = 3f;       // animation time; only advances while awake so nothing jumps
     private long lastDraw;
 
@@ -37,7 +40,35 @@ public class LiquidBackdrop {
 
     public LiquidBackdrop(float dp) { this.dp = dp; }
 
-    public void setPhoto(Bitmap b) { photo = b; }
+    public void setPhoto(Bitmap b, int blurLevel) {
+        photo = b;
+        blur = blurLevel;
+        photoFit = null;
+    }
+
+    private void fitPhoto(int w, int h) {
+        if (photo == null) { photoFit = null; return; }
+        if (photoFit != null && fitW == w && fitH == h && fitBlur == blur) return;
+        // Softness comes from resolution: lower resolution + bilinear upscaling = smooth blur.
+        float q = 1f / (1.3f + blur * 0.9f);
+        int tw = Math.max(8, (int) (w * q)), th = Math.max(8, (int) (h * q));
+        float s = Math.max(tw / (float) photo.getWidth(), th / (float) photo.getHeight());
+        float sw = tw / s, sh = th / s;
+        float sx = (photo.getWidth() - sw) / 2f, sy = (photo.getHeight() - sh) / 2f;
+        Bitmap out = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(out);
+        Paint fp = new Paint(Paint.FILTER_BITMAP_FLAG);
+        cv.drawBitmap(photo, new android.graphics.Rect((int) sx, (int) sy, (int) (sx + sw), (int) (sy + sh)),
+                new RectF(0, 0, tw, th), fp);
+        photoFit = out;
+        fitW = w; fitH = h; fitBlur = blur;
+    }
+
+    /** The picture behind the keys, for refraction. */
+    public Bitmap source() { return photoFit != null ? photoFit : grid; }
+
+    public float sourceScaleX(int w) { Bitmap s = source(); return s.getWidth() / (float) Math.max(1, w); }
+    public float sourceScaleY(int h) { Bitmap s = source(); return s.getHeight() / (float) Math.max(1, h); }
 
     public void touch(float nx, float ny) {
         targetX = nx;
@@ -66,10 +97,9 @@ public class LiquidBackdrop {
         if (liveBlur) {
             c.drawColor((t.base & 0x00FFFFFF) | (t.dark ? 0x80000000 : 0x8C000000));
         } else if (photo != null) {
-            float s = Math.max(w / (float) photo.getWidth(), h / (float) photo.getHeight());
-            float dw = photo.getWidth() * s, dh = photo.getHeight() * s;
-            c.drawBitmap(photo, null, new RectF((w - dw) / 2, (h - dh) / 2, (w + dw) / 2, (h + dh) / 2), bmpPaint);
-            c.drawColor(t.dark ? 0x4D000000 : 0x33FFFFFF);
+            fitPhoto(w, h);
+            c.drawBitmap(photoFit, null, new RectF(0, 0, w, h), bmpPaint);
+            c.drawColor(t.dark ? 0x1F000000 : 0x1AFFFFFF);
         } else {
             renderGrid(t, time);
             c.drawBitmap(grid, null, new RectF(0, 0, w, h), bmpPaint);
@@ -83,6 +113,8 @@ public class LiquidBackdrop {
             c.drawRect(0, 0, w, h, p);
             p.setShader(null);
         }
+
+        if (photo != null && !liveBlur) return;
 
         // Frost: milky veil + grain
         c.drawColor(t.dark ? 0x0DFFFFFF : 0x33FFFFFF);
@@ -100,6 +132,10 @@ public class LiquidBackdrop {
 
     /** Colour of the bottom edge, used to tint the navigation bar so it blends in. */
     public int bottomColor(Theme t) {
+        if (photoFit != null) {
+            int c = photoFit.getPixel(photoFit.getWidth() / 2, photoFit.getHeight() - 1);
+            return 0xFF000000 | c;
+        }
         if (photo != null) return t.base;
         int idx = (GH - 1) * GW + GW / 2;
         return px[idx] | 0xFF000000;

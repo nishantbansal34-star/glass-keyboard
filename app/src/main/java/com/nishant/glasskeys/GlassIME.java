@@ -129,7 +129,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private class RootView extends FrameLayout {
         RootView(Context c) { super(c); setWillNotDraw(false); setClipChildren(false); }
         void refresh() {
-            if (liquid != null) liquid.setPhoto(loadCustomBackdrop());
+            if (liquid != null) liquid.setPhoto(loadCustomBackdrop(), prefs.photoBlur());
+            gp.clearSprites();
             invalidate();
         }
         @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
@@ -148,9 +149,15 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         @Override protected void onDraw(Canvas c) {
             boolean motion = prefs.glassRipple();
             liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
+            gp.setSource(liquid.source(), liquid.sourceScaleX(getWidth()), liquid.sourceScaleY(getHeight()));
             long now = SystemClock.uptimeMillis();
             if (now - lastNavTint > 900) { lastNavTint = now; tintNavBar(); }
-            if (motion && (liquid.awake() || liquid.lightPower > 0.01f)) postInvalidateOnAnimation();
+            if (motion && (liquid.awake() || liquid.lightPower > 0.01f)) {
+                postInvalidateOnAnimation();
+                // keys refract the moving backdrop, so they redraw with it
+                if (keyboard != null && keyboard.getVisibility() == View.VISIBLE) keyboard.invalidate();
+                if (strip != null) strip.invalidate();
+            }
         }
     }
 
@@ -171,10 +178,26 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private boolean liveBlurActive;
 
+    private Bitmap cachedPhoto;
+    private String cachedPhotoKey;
+
+    /** The picture shown behind the glass: none (flowing colours), built-in bloom, or the user's photo. */
     private Bitmap loadCustomBackdrop() {
-        File f = new File(getFilesDir(), "backdrop.png");
-        if (!f.exists()) return null;
-        try { return BitmapFactory.decodeFile(f.getAbsolutePath()); } catch (Exception e) { return null; }
+        int mode = prefs.bgMode();
+        if (mode == 0) return null;
+        File f = new File(getFilesDir(), "backdrop.jpg");
+        String key = mode == 2 && f.exists() ? f.getAbsolutePath() + f.lastModified() : "bloom";
+        if (key.equals(cachedPhotoKey) && cachedPhoto != null) return cachedPhoto;
+        Bitmap b = null;
+        try {
+            if (mode == 2 && f.exists()) b = BitmapFactory.decodeFile(f.getAbsolutePath());
+            if (b == null) {
+                try (java.io.InputStream in = getAssets().open("bloom.jpg")) { b = BitmapFactory.decodeStream(in); }
+            }
+        } catch (Exception e) { b = null; }
+        cachedPhoto = b;
+        cachedPhotoKey = key;
+        return b;
     }
 
     @Override
@@ -182,6 +205,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         theme = Theme.get(prefs.theme());
         liquid = new LiquidBackdrop(dp);
         root = new RootView(this);
+        gp.setRoot(root);
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -189,7 +213,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
         strip = new StripView(this, gp);
         strip.feedback = () -> feedback(false);
-        column.addView(strip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (46 * dp)));
+        column.addView(strip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (54 * dp)));
 
         content = new FrameLayout(this);
         content.setClipChildren(false);
@@ -207,7 +231,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         overlay.setWillNotDraw(false);
         root.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
         keyboard.overlay = overlay;
-        keyboard.overflowAbove = 46 * dp;
+        keyboard.overflowAbove = 54 * dp;
 
         buildPanels();
         applySettings();
@@ -222,6 +246,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void applySettings() {
         theme = Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
+        keyboard.capsLabels = prefs.capsLabels();
         strip.setTheme(theme);
         for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad})
             if (v instanceof PadView) ((PadView) v).setTheme(theme);
@@ -303,7 +328,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             keyboard.setPage(Layouts.SYM1);
         else keyboard.setPage(Layouts.ALPHA);
 
-        keyboard.setSpaceLabel(isPassword ? "Private" : (noLearn ? "Incognito" : "English"));
+        keyboard.setSpaceLabel(isPassword ? "private" : (noLearn ? "incognito" : "space"));
         configureEnter(info);
         keyboard.setShift(KeyboardView.SHIFT_OFF);
         updateShift();
@@ -657,7 +682,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 1. Inline maths: "250*12=" -> tap to insert 3000
         String math = Calc.inlineResult(before == null ? null : before.toString() + composing);
         if (math != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_GRID, this::forceToolbar));
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
             final String res = math;
             cells.add(StripView.Cell.chip(GlassPainter.IC_CALC, "= " + Calc.format(Double.parseDouble(res), true), () -> {
                 commitComposing();
@@ -672,7 +697,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 2. Quick-text shortcut typed -> chip to expand
         Prefs.Snippet sn = snippetForToken();
         if (sn != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_GRID, this::forceToolbar));
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
             cells.add(StripView.Cell.chip(GlassPainter.IC_SNIPPET, sn.title + " — tap or press space", () -> {
                 commitComposing();
                 InputConnection c2 = getCurrentInputConnection();
@@ -686,7 +711,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 3. Recently copied text -> paste chip (like Gboard, but we keep history forever)
         boolean recentClip = lastClipText != null && SystemClock.uptimeMillis() - lastClipTime < 60000 && !isPassword;
         if (composing.length() == 0 && recentClip && !toolbarForced) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_GRID, this::forceToolbar));
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
             final String clip = lastClipText;
             cells.add(StripView.Cell.chip(GlassPainter.IC_PASTE, clip.replace('\n', ' '), () -> {
                 InputConnection c2 = getCurrentInputConnection();
@@ -703,7 +728,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (!noSuggest && composing.length() > 0 && !toolbarForced) {
             String typed = composing.toString();
             List<String> sug = dict.suggest(typed, prevWord);
-            cells.add(StripView.Cell.icon(GlassPainter.IC_GRID, this::forceToolbar));
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
             String best = sug.isEmpty() ? typed : sug.get(0);
             boolean willCorrect = !noAutoCorrect && dict.autocorrect(typed, prevWord) != null;
             List<String> order = new ArrayList<>();
@@ -733,7 +758,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 && before != null && before.length() > 0 && before.charAt(before.length() - 1) == ' ') {
             List<String> pred = dict.predict(prevWord);
             if (!pred.isEmpty()) {
-                cells.add(StripView.Cell.icon(GlassPainter.IC_GRID, this::forceToolbar));
+                cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
                 for (int i = 0; i < pred.size(); i++) {
                     final String w = pred.get(i);
                     cells.add(StripView.Cell.word(w, i == 0, () -> pickPrediction(w)));
@@ -875,6 +900,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         calcDisplay = new View(this) {
             final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             @Override protected void onDraw(Canvas c) {
+                gp.setOriginFromView(this);
                 android.graphics.RectF r = new android.graphics.RectF(7 * dp, 4 * dp, getWidth() - 7 * dp, getHeight() - 3 * dp);
                 gp.drawGlass(c, r, 16 * dp, GlassPainter.STYLE_FUNC, false, theme);
                 float pad = 14 * dp;

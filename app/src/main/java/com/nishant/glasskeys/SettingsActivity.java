@@ -128,7 +128,7 @@ public class SettingsActivity extends Activity {
 
         // --- Look
         LinearLayout look = card("Look");
-        look.addView(label("Glass colour"));
+        look.addView(label("Accent colour"));
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
         LinearLayout chips = new LinearLayout(this);
@@ -151,18 +151,24 @@ public class SettingsActivity extends Activity {
         }
         look.addView(hs);
 
-        look.addView(label("Frosted background photo"));
-        LinearLayout row = new LinearLayout(this);
-        row.addView(button("Choose photo", v -> {
-            Intent it = new Intent(Intent.ACTION_GET_CONTENT);
-            it.setType("image/*");
-            startActivityForResult(it, REQ_PHOTO);
-        }), new LinearLayout.LayoutParams(0, -2, 1));
-        row.addView(button("Remove", v -> {
-            new File(getFilesDir(), "backdrop.png").delete();
-            toast("Using the colour glass again");
-        }), new LinearLayout.LayoutParams(0, -2, 1));
-        look.addView(row);
+        look.addView(label("Behind the glass"));
+        look.addView(choice(new String[]{"Bloom", "My photo", "Flowing colours"}, new String[]{"1", "2", "0"},
+                String.valueOf(prefs.bgMode()), v -> {
+                    if (v.equals("2") && !new File(getFilesDir(), "backdrop.jpg").exists()) { pickPhoto(); return; }
+                    prefs.setInt("bgmode", Integer.parseInt(v));
+                }));
+        look.addView(button("Choose a photo from gallery", v -> pickPhoto()));
+        look.addView(label("Photo softness"));
+        SeekBar blur = new SeekBar(this);
+        blur.setMax(8);
+        blur.setProgress(prefs.photoBlur());
+        blur.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int v, boolean f) { prefs.setInt("photoblur", v); }
+            @Override public void onStartTrackingTouch(SeekBar s) { }
+            @Override public void onStopTrackingTouch(SeekBar s) { }
+        });
+        look.addView(blur);
+        look.addView(toggle("Capital letters on keys", "capslabels", true));
 
         look.addView(toggle("Live blur of the app behind (experimental, Android 12+)", "liveblur", false));
         if (prefs.bool("liveblurUnsupported", false)) {
@@ -175,7 +181,7 @@ public class SettingsActivity extends Activity {
         look.addView(label("Key height"));
         SeekBar sb = new SeekBar(this);
         sb.setMax(24);
-        sb.setProgress(prefs.keyHeightDp() - 40);
+        sb.setProgress(Math.max(0, Math.min(24, prefs.keyHeightDp() - 40)));
         sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int v, boolean f) { prefs.setInt("keyheight", 40 + v); }
             @Override public void onStartTrackingTouch(SeekBar s) { }
@@ -189,7 +195,7 @@ public class SettingsActivity extends Activity {
         typing.addView(toggle("Autocorrect (backspace right after undoes it)", "autocorrect", true));
         typing.addView(toggle("Capitalise the first letter of sentences", "autocaps", true));
         typing.addView(toggle("Double-tap space for a full stop", "dblspace", true));
-        typing.addView(toggle("Always-visible number row", "numrow", true));
+        typing.addView(toggle("Always-visible number row", "numrow", false));
         typing.addView(toggle("Learn words I type (off = always incognito)", "learn", true));
         typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); }));
 
@@ -234,6 +240,12 @@ public class SettingsActivity extends Activity {
 
         LinearLayout tips = card("Gestures");
         tips.addView(text("• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute", 14, false));
+    }
+
+    private void pickPhoto() {
+        Intent it = new Intent(Intent.ACTION_GET_CONTENT);
+        it.setType("image/*");
+        startActivityForResult(it, REQ_PHOTO);
     }
 
     private void renderSnippets(LinearLayout list) {
@@ -329,16 +341,21 @@ public class SettingsActivity extends Activity {
         Uri uri = data.getData();
         new Thread(() -> {
             try {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                try (InputStream in = getContentResolver().openInputStream(uri)) { BitmapFactory.decodeStream(in, null, bounds); }
+                int sample = 1;
+                while (Math.max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1400) sample *= 2;
                 BitmapFactory.Options o = new BitmapFactory.Options();
-                o.inSampleSize = 8;
+                o.inSampleSize = sample;
                 Bitmap src;
                 try (InputStream in = getContentResolver().openInputStream(uri)) { src = BitmapFactory.decodeStream(in, null, o); }
                 if (src == null) throw new Exception();
-                Bitmap frosted = GlassPainter.frost(src);
-                try (FileOutputStream out = new FileOutputStream(new File(getFilesDir(), "backdrop.png"))) {
-                    frosted.compress(Bitmap.CompressFormat.PNG, 100, out);
+                try (FileOutputStream out = new FileOutputStream(new File(getFilesDir(), "backdrop.jpg"))) {
+                    src.compress(Bitmap.CompressFormat.JPEG, 90, out);
                 }
-                runOnUiThread(() -> toast("Frosted photo set — open the keyboard to see it"));
+                prefs.setInt("bgmode", 2);
+                runOnUiThread(() -> { toast("Photo set — open the keyboard to see it"); recreate(); });
             } catch (Exception e) {
                 runOnUiThread(() -> toast("Couldn't open that photo"));
             }

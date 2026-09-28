@@ -63,6 +63,7 @@ public class EmojiGrid extends View {
             c.drawText(emptyText, getWidth() / 2f, 60 * dp, tp);
             return;
         }
+        gp.setOriginFromView(this);
         tp.setTextSize(cell * 0.56f);
         tp.setColor(0xFF000000);
         Paint.FontMetrics fm = tp.getFontMetrics();

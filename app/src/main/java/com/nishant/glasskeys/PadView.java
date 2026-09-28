@@ -114,13 +114,16 @@ public class PadView extends View {
         float dt = lastFrame == 0 ? 0.016f : Math.min(0.05f, (now - lastFrame) / 1000f);
         lastFrame = now;
         boolean animating = false;
+        gp.setOriginFromView(this);
         for (List<Btn> row : rows) for (Btn b : row) {
             if (b.press.step(dt)) animating = true;
             float s = 1f - 0.06f * b.press.value;
             float cx = b.r.centerX(), cy = b.r.centerY();
-            tmp.set(cx - b.r.width() * s / 2, cy - b.r.height() * s / 2, cx + b.r.width() * s / 2, cy + b.r.height() * s / 2);
+            tmp.set(b.r);
+            c.save();
+            c.scale(s, s, cx, cy);
             int style = b.selected ? GlassPainter.STYLE_ACTIVE : b.style;
-            float radius = Math.min(14 * dp, tmp.height() / 2);
+            float radius = Math.min(15 * dp, tmp.height() / 2);
             if (!emojiLabels || b == pressed || b.selected)
                 gp.drawGlass(c, tmp, radius, style, b == pressed, theme, b.press.value * 0.8f);
             int col = (style == GlassPainter.STYLE_ACTION || style == GlassPainter.STYLE_ACTIVE) ? 0xFFFFFFFF : theme.text;
@@ -148,6 +151,7 @@ public class PadView extends View {
                 Paint.FontMetrics fm = tp.getFontMetrics();
                 c.drawText(b.label, cx, cy - (fm.ascent + fm.descent) / 2, tp);
             }
+            c.restore();
         }
         if (animating) postInvalidateOnAnimation(); else lastFrame = 0;
     }

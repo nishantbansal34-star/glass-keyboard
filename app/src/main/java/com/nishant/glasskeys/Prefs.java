@@ -39,7 +39,7 @@ public class Prefs {
     public boolean doubleSpacePeriod() { return bool("dblspace", true); }
     public boolean autoCorrect() { return bool("autocorrect", true); }
     public boolean suggestions() { return bool("suggest", true); }
-    public boolean numberRow() { return bool("numrow", true); }
+    public boolean numberRow() { return bool("numrow", false); }
     public boolean keyPopup() { return bool("keypopup", true); }
     public boolean learnWords() { return bool("learn", true); }
     public boolean liveBlur() { return bool("liveblur", false); }
@@ -48,7 +48,11 @@ public class Prefs {
     public int oneHanded() { return integer("onehand", 0); }
     public void setOneHanded(int v) { setInt("onehand", v); }
     /** Key height in dp */
-    public int keyHeightDp() { return integer("keyheight", 50); }
+    public int keyHeightDp() { return integer("keyheight", 56); }
+    /** 0 = flowing colours, 1 = built-in bloom picture, 2 = my photo */
+    public int bgMode() { return integer("bgmode", 1); }
+    public int photoBlur() { return integer("photoblur", 1); }
+    public boolean capsLabels() { return bool("capslabels", true); }
     public String voiceLang() { return str("voicelang", "en-IN"); }
     public int gstRate() { return integer("gst", 18); }
     public String backdropUri() { return str("backdrop", null); }

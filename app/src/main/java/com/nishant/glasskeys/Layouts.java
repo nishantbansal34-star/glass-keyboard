@@ -29,7 +29,7 @@ public class Layouts {
         ALTS.put("l", "ł");
         ALTS.put("d", "ð");
         ALTS.put("g", "ğ");
-        ALTS.put(".", ", ? ! : ; ' \" - … @ #");
+        ALTS.put(".", ", ? ! ' \" : ; - … @ #");
         ALTS.put(",", "! ? ; : ' \"");
         ALTS.put("1", "¹ ½ ⅓ ¼ ⅛");
         ALTS.put("2", "² ⅔");
@@ -93,7 +93,7 @@ public class Layouts {
             rows.add(chars("@ # ₹ _ & - + ( ) /"));
             List<Key> r = new ArrayList<>();
             r.add(new Key("=\\<", Key.SYMBOLS2, 1.5f, null, null));
-            r.addAll(chars("* \" ' : ; ! ?"));
+            r.addAll(chars("* \" ' : ; ! ? ,"));
             r.add(new Key("", Key.DELETE, 1.5f, null, null));
             rows.add(r);
             rows.add(bottomRow("ABC", Key.ALPHA, ",", "."));
@@ -112,12 +112,12 @@ public class Layouts {
 
     private static List<Key> bottomRow(String modeLabel, int modeCode, String left, String right) {
         List<Key> r = new ArrayList<>();
-        r.add(new Key(modeLabel, modeCode, 1.5f, null, null));
-        r.add(ch(left));
-        r.add(new Key("", Key.EMOJI, 1f, null, null));
-        r.add(new Key("", Key.SPACE, 4.5f, null, null));
-        r.add(ch(right));
-        r.add(new Key("", Key.ENTER, 1.5f, null, null));
+        // Modern layout: 123 · emoji · wide space · . · return  (comma lives on long-press of ".")
+        r.add(new Key(modeLabel.equals("?123") ? "123" : modeLabel, modeCode, 1.35f, null, null));
+        r.add(new Key("", Key.EMOJI, 1.1f, null, null));
+        r.add(new Key("", Key.SPACE, 5.1f, null, null));
+        r.add(ch(right.equals(">") ? ">" : "."));
+        r.add(new Key("", Key.ENTER, 1.75f, null, null));
         return r;
     }
 }

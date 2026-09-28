@@ -92,55 +92,93 @@ public class StripView extends View {
     private void layoutCells() {
         float W = getWidth(), H = getHeight();
         if (W == 0) return;
-        float iconW = 44 * dp, fixed = 0, weights = 0;
+        float iconW = 42 * dp, fixed = 0, weights = 0;
         for (Cell c : cells) { if (c.weight == 0) fixed += iconW; else weights += c.weight; }
-        float pad = 4 * dp;
+        float pad = 10 * dp;
+        if (!cells.isEmpty() && (cells.get(0).icon == GlassPainter.IC_SPARKLE || cells.get(0).icon == GlassPainter.IC_KEYBOARD)) {
+            // leading round button: square cell of full height
+            fixed += (H - 10 * dp) + 12 * dp - iconW;
+        }
         float unit = weights > 0 ? (W - 2 * pad - fixed) / weights : 0;
         float x = pad;
         if (weights == 0) x = (W - fixed) / 2f; // icons only: centre the toolbar
-        for (Cell c : cells) {
+        for (int i = 0; i < cells.size(); i++) {
+            Cell c = cells.get(i);
             float w = c.weight == 0 ? iconW : unit * c.weight;
+            if (i == 0 && (c.icon == GlassPainter.IC_SPARKLE || c.icon == GlassPainter.IC_KEYBOARD)) {
+                w = (H - 10 * dp) + 12 * dp;
+                x = 0;
+            }
             c.r.set(x, 0, x + w, H);
             x += w;
         }
     }
 
+    private final RectF capsule = new RectF(), circle = new RectF();
+
     @Override
     protected void onDraw(Canvas c) {
-        float H = getHeight();
-        div.setColor(theme.dark ? 0x33FFFFFF : 0x331B1F2A);
+        float H = getHeight(), W = getWidth();
+        gp.setOriginFromView(this);
+        div.setColor(theme.dark ? 0x40FFFFFF : 0x401B1F2A);
+        if (cells.isEmpty()) return;
+
+        // Layout of the glass: a round button for the leading ✦ cell, a capsule for the rest.
+        Cell first = cells.get(0);
+        boolean lead = first.icon == GlassPainter.IC_SPARKLE || first.icon == GlassPainter.IC_KEYBOARD;
+        float m = 6 * dp, top = 5 * dp, bot = H - 5 * dp, d = bot - top;
+        float capLeft = m;
+        if (lead) {
+            circle.set(m, top, m + d, bot);
+            gp.drawGlass(c, circle, d / 2, GlassPainter.STYLE_KEY, first == pressed, theme,
+                    first == pressed ? 0.8f : 0f);
+            gp.drawIcon(c, first.icon, circle.centerX(), circle.centerY(), 20 * dp, theme.text);
+            capLeft = circle.right + 6 * dp;
+        }
+        capsule.set(capLeft, top, W - m, bot);
+        gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
+
         Cell prevWord = null;
-        for (Cell cell : cells) {
+        for (int i = lead ? 1 : 0; i < cells.size(); i++) {
+            Cell cell = cells.get(i);
             RectF r = cell.r;
-            if (cell.chip || cell.active || cell == pressed) {
-                RectF g = new RectF(r.left + 3 * dp, 6 * dp, r.right - 3 * dp, H - 6 * dp);
-                int style = cell.active ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_KEY;
-                if (cell.chip || cell.active || (cell.icon != 0 && cell.text == null))
-                    gp.drawGlass(c, g, g.height() / 2, style, cell == pressed, theme);
-                else gp.drawGlass(c, g, 10 * dp, GlassPainter.STYLE_FUNC, true, theme);
+            float cl = Math.max(r.left, capsule.left + 4 * dp), cr = Math.min(r.right, capsule.right - 4 * dp);
+            if (cell.chip || cell.active) {
+                RectF g = new RectF(cl + 2 * dp, top + 5 * dp, cr - 2 * dp, bot - 5 * dp);
+                gp.drawGlass(c, g, g.height() / 2, cell.active ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_ACTIVE,
+                        cell == pressed, theme);
+            } else if (cell == pressed) {
+                fill.setColor(theme.dark ? 0x26FFFFFF : 0x331B1F2A);
+                RectF g = new RectF(cl + 2 * dp, top + 5 * dp, cr - 2 * dp, bot - 5 * dp);
+                c.drawRoundRect(g, g.height() / 2, g.height() / 2, fill);
             }
-            int col = cell.active ? 0xFFFFFFFF : theme.text;
+            int col = (cell.active || cell.chip) ? 0xFFFFFFFF : theme.text;
+            float cy = (top + bot) / 2;
             if (cell.text != null) {
                 tp.setColor(cell.title ? theme.subText : col);
-                tp.setTextSize((cell.title ? 14 : 16) * dp);
-                tp.setTypeface(cell.primary || cell.title ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-                float avail = r.width() - (cell.icon != 0 ? 36 * dp : 12 * dp);
+                tp.setTextSize((cell.title ? 14 : 17) * dp);
+                tp.setTypeface(cell.primary ? Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                        : cell.title ? Typeface.DEFAULT : Typeface.create("sans-serif", Typeface.NORMAL));
+                if (theme.dark) tp.setShadowLayer(3 * dp, 0, 1 * dp, 0x59000000); else tp.clearShadowLayer();
+                float avail = (cr - cl) - (cell.icon != 0 ? 36 * dp : 14 * dp);
                 String s = TextUtils.ellipsize(cell.text, tp, Math.max(avail, 10), TextUtils.TruncateAt.END).toString();
-                float tx = r.centerX() + (cell.icon != 0 ? 11 * dp : 0);
+                float tx = (cl + cr) / 2 + (cell.icon != 0 ? 11 * dp : 0);
                 Paint.FontMetrics fm = tp.getFontMetrics();
-                c.drawText(s, tx, H / 2 - (fm.ascent + fm.descent) / 2, tp);
+                c.drawText(s, tx, cy - (fm.ascent + fm.descent) / 2, tp);
                 if (cell.icon != 0) {
                     float tw = tp.measureText(s);
-                    gp.drawIcon(c, cell.icon, tx - tw / 2 - 12 * dp, H / 2, 17 * dp, col);
+                    gp.drawIcon(c, cell.icon, tx - tw / 2 - 12 * dp, cy, 17 * dp, col);
                 }
-                if (!cell.chip && !cell.title && prevWord != null) c.drawLine(r.left, H * 0.3f, r.left, H * 0.7f, div);
+                if (!cell.chip && !cell.title && prevWord != null) c.drawLine(r.left, top + d * 0.28f, r.left, bot - d * 0.28f, div);
                 prevWord = cell.chip || cell.title ? null : cell;
             } else if (cell.icon != 0) {
-                gp.drawIcon(c, cell.icon, r.centerX(), H / 2, 22 * dp, col);
+                gp.drawIcon(c, cell.icon, (cl + cr) / 2, cy, 21 * dp, col);
                 prevWord = null;
             }
         }
     }
+
+    private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
