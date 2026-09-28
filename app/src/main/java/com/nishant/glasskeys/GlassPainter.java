@@ -303,6 +303,7 @@ public class GlassPainter {
     public float lightX = -1;
     public int rootWidth = 1;
     private final Paint envPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path innerPath = new Path();
 
     private int envSample(RectF r) {
         if (refrSrc == null || refrSrc.isRecycled()) return 0xFF000000;
@@ -337,17 +338,25 @@ public class GlassPainter {
         shape.addRoundRect(r, rad, rad, Path.Direction.CW);
         c.save();
         c.clipPath(shape);
-        // 2. refraction: the wallpaper seen through the glass, slightly magnified and softened
-        drawRefraction(c, r, wide ? 1.04f : 1.08f);
+        // 2. refraction: the rim bends the image a little more than the centre (glass thickness)
+        drawRefraction(c, r, wide ? 1.08f : 1.14f);
+        c.save();
+        float inset = Math.min(2.6f * dp, h * 0.08f);
+        tmp.set(r.left + inset, r.top + inset, r.right - inset, r.bottom - inset);
+        innerPath.reset();
+        innerPath.addRoundRect(tmp, Math.max(1, rad - inset), Math.max(1, rad - inset), Path.Direction.CW);
+        c.clipPath(innerPath);
+        drawRefraction(c, r, wide ? 1.03f : 1.06f);
+        c.restore();
 
         // 3. glass body: charcoal tinted by the environment; deeper over bright areas for legibility
         int base;
         float alpha;
         if (dark) {
             // clear glass: cool grey with a very faint blue, tinted by what is behind the key
-            base = mix(0xFF2B3139, env, 0.38f);
-            alpha = style == STYLE_FUNC ? 0.34f : wide ? 0.14f : 0.24f;
-            alpha += Math.max(0f, L - 0.45f) * 0.5f;            // only over bright spots: a little deeper
+            base = mix(0xFF2B3139, env, 0.5f);
+            alpha = style == STYLE_FUNC ? 0.27f : wide ? 0.11f : 0.18f;
+            alpha += Math.max(0f, L - 0.5f) * 0.45f;            // only over bright spots: a little deeper
         } else {
             base = mix(0xFFF6F8FB, env, 0.25f);
             alpha = style == STYLE_FUNC ? 0.55f : wide ? 0.34f : 0.44f;
@@ -358,6 +367,13 @@ public class GlassPainter {
             envPaint.setColor(0x0DFFFFFF);
             c.drawRect(r, envPaint);
         }
+        // environmental reflection: the light behind the key, softened, glowing up inside the lower glass
+        int refl = mix(env, 0xFFFFFFFF, 0.35f);
+        int reflA = (int) Math.min(46, 14 + L * 90);
+        envPaint.setShader(new LinearGradient(0, r.top + h * 0.35f, 0, r.bottom,
+                refl & 0x00FFFFFF, (reflA << 24) | (refl & 0xFFFFFF), Shader.TileMode.CLAMP));
+        c.drawRect(r, envPaint);
+        envPaint.setShader(null);
         envPaint.setColor(((int) (255 * Math.min(0.92f, alpha)) << 24) | (base & 0xFFFFFF));
         c.drawRect(r, envPaint);
         if (style == STYLE_ACTION || style == STYLE_ACTIVE) {
@@ -422,7 +438,7 @@ public class GlassPainter {
     /** Cached lighting for one key size / light bucket. */
     private Bitmap premiumOverlay(int w, int h, int rad, boolean dark, int bucket, boolean func, boolean wide) {
         long k = w | ((long) h << 16) | ((long) rad << 32) | ((long) bucket << 48) | ((dark ? 1L : 0L) << 52)
-                | ((func ? 1L : 0L) << 53) | (6L << 58);
+                | ((func ? 1L : 0L) << 53) | (7L << 58);
         Bitmap b = overlayCache.get(k);
         if (b != null) return b;
         if (overlayCache.size() > 120) overlayCache.clear();
@@ -436,6 +452,11 @@ public class GlassPainter {
         android.graphics.BlurMaskFilter soft = new android.graphics.BlurMaskFilter(Math.max(0.8f, 1.1f * dp), android.graphics.BlurMaskFilter.Blur.NORMAL);
         cv.save();
         cv.clipPath(pth);
+        // thickness: brighter top surface, slightly darker lower edge
+        p.setShader(new LinearGradient(0, 0, 0, h * 0.5f, dark ? 0x17FFFFFF : 0x26FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
+        p.setShader(new LinearGradient(0, h * 0.72f, 0, h, 0x00000000, dark ? 0x1C000000 : 0x121B2330, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
         // light entering the top of the glass (lit side brighter)
         p.setShader(new RadialGradient(w * peak, -h * 0.2f, Math.max(w, h) * (wide ? 0.6f : 1.0f),
                 new int[]{dark ? 0x2EFFFFFF : 0x40FFFFFF, 0x0AFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
@@ -463,7 +484,7 @@ public class GlassPainter {
         float in = 0.5f * dp;
         p.setStrokeWidth(0.7f * dp);
         p.setShader(new LinearGradient(0, 0, 0, h,
-                dark ? new int[]{0x40FFFFFF, 0x0DFFFFFF, 0x0AFFFFFF, 0x26FFFFFF} : new int[]{0xB3FFFFFF, 0x40FFFFFF, 0x33FFFFFF, 0x59FFFFFF},
+                dark ? new int[]{0x26FFFFFF, 0x05FFFFFF, 0x05FFFFFF, 0x14FFFFFF} : new int[]{0x80FFFFFF, 0x26FFFFFF, 0x1FFFFFFF, 0x40FFFFFF},
                 new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         cv.drawRoundRect(new RectF(in, in, w - in, h - in), rad - in, rad - in, p);
         // soft specular edge where the light hits (blurred, never a hard outline)

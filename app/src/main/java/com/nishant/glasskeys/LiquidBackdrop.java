@@ -57,7 +57,8 @@ public class LiquidBackdrop {
             float w3 = (float) Math.pow(Math.max(0, 1 - d3 / 1.1f), 2f) * 0.22f;
             r += (((g1 >> 16) & 255) - r) * w1; g += (((g1 >> 8) & 255) - g) * w1; b += ((g1 & 255) - b) * w1;
             r += (((g2 >> 16) & 255) - r) * w2; g += (((g2 >> 8) & 255) - g) * w2; b += ((g2 & 255) - b) * w2;
-            r += (0x6E - r) * w3; g += (0x86 - g) * w3; b += (0xA8 - b) * w3;
+            // (no artificial tint: the atmosphere is made only from your wallpaper's colours)
+            r += (255 - r) * w3 * 0.25f; g += (255 - g) * w3 * 0.25f; b += (255 - b) * w3 * 0.25f;
             a[y * aw + x] = 0xFF000000 | (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
         }
         return Bitmap.createBitmap(a, aw, ah, Bitmap.Config.ARGB_8888);
