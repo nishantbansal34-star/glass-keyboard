@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.nishant.glasskeys.SettingsActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype
+        android:label="English (India)"
+        android:imeSubtypeLocale="en_IN"
+        android:imeSubtypeMode="keyboard" />
+</input-method>

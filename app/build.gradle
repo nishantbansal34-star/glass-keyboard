@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.nishant.glasskeys'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.nishant.glasskeys'
+        minSdk 26
+        targetSdk 34
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ? System.getenv("GITHUB_RUN_NUMBER").toInteger() : 1)
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        // A fixed key kept in the repo so every new build installs as an update
+        // over the previous one (no uninstall needed).
+        personal {
+            storeFile file('glasskeys.jks')
+            storePassword 'glasskeys'
+            keyAlias 'glasskeys'
+            keyPassword 'glasskeys'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.personal
+        }
+        debug {
+            signingConfig signingConfigs.personal
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
