@@ -76,6 +76,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     // typing state
     private final StringBuilder composing = new StringBuilder();
     private String prevWord = null;
+    private String prevWord2 = null;
     private boolean noSuggest, noLearn, noAutoCorrect, noAutoCaps, isPassword;
     private String lastCorrOriginal, lastCorrReplacement;
     private long lastSpaceTime;
@@ -328,7 +329,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         dict.reloadLearned();
         applySettings();
         composing.setLength(0);
-        prevWord = null;
+        prevWord = null; prevWord2 = null;
         lastCorrOriginal = null;
         toolbarForced = false;
         glideWord = false;
@@ -403,7 +404,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) ic.finishComposingText();
             }
-            if (!ours) { prevWord = null; lastCorrOriginal = null; autoSpaced = false; }
+            if (!ours) { prevWord = null; prevWord2 = null; lastCorrOriginal = null; autoSpaced = false; }
         }
         if (keyboard == null) return;
         updateShift();
@@ -425,6 +426,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private List<String> glidePreview = null;
 
     private String caseForGlide(String w) {
+        w = dict.form(w);
         int st = keyboard.shiftState();
         if (st == KeyboardView.SHIFT_LOCK) return w.toUpperCase();
         if (w.equals("i") || w.startsWith("i'")) return "I" + w.substring(1);
@@ -522,6 +524,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         ic.endBatchEdit();
         lastCorrOriginal = null;
+        if (s.equals(".") || s.equals("!") || s.equals("?")) { prevWord = null; prevWord2 = null; }
         if (s.codePointCount(0, s.length()) >= 1 && isEmoji(s)) prefs.pushRecentEmoji(s);
         updateShift();
         updateStrip();
@@ -547,8 +550,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         composing.setLength(0);
         if (!out.equals(typed) && forced == null) { lastCorrOriginal = typed; lastCorrReplacement = out; }
         else lastCorrOriginal = null;
-        if (!noLearn) dict.learn(out.contains(" ") ? out.substring(out.lastIndexOf(' ') + 1) : out, prevWord);
+        if (!noLearn) dict.learn(out.contains(" ") ? out.substring(out.lastIndexOf(' ') + 1) : out, prevWord, prevWord2);
         gainXp(out, glideWord);
+        prevWord2 = prevWord;
         prevWord = out;
         return out;
     }
@@ -599,7 +603,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                     && before.charAt(1) == ' ' && Character.isLetterOrDigit(before.charAt(0))) {
                 ic.deleteSurroundingText(1, 0);
                 ic.commitText(". ", 1);
-                prevWord = null;
+                prevWord = null; prevWord2 = null;
             } else {
                 ic.commitText(" ", 1);
             }
@@ -691,7 +695,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         } else {
             sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
         }
-        prevWord = null;
+        prevWord = null; prevWord2 = null;
         updateShift();
         updateStrip();
     }
@@ -720,7 +724,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             while (i > 0 && Character.isLetterOrDigit(t.charAt(i - 1))) i--;
         }
         ic.deleteSurroundingText(t.length() - i, 0);
-        prevWord = null;
+        prevWord = null; prevWord2 = null;
         updateShift();
         updateStrip();
     }
@@ -893,9 +897,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
 
         // 5. Next-word predictions after a space
-        if (!noSuggest && composing.length() == 0 && prevWord != null && !toolbarForced
-                && before != null && before.length() > 0 && before.charAt(before.length() - 1) == ' ') {
-            List<String> pred = dict.predict(prevWord);
+        boolean atGap = before == null || before.length() == 0
+                || Character.isWhitespace(before.charAt(before.length() - 1));
+        if (!noSuggest && composing.length() == 0 && !toolbarForced && atGap) {
+            List<String> pred = dict.predict(prevWord2, prevWord);
             if (!pred.isEmpty()) {
                 cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
                 for (int i = 0; i < pred.size(); i++) {
@@ -1026,8 +1031,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
         ic.commitText(word + " ", 1);
-        if (!noLearn) dict.learn(word, prevWord);
+        if (!noLearn) dict.learn(word, prevWord, prevWord2);
         gainXp(word, false);
+        prevWord2 = prevWord;
         prevWord = word;
         lastEditTime = lastSpaceTime = SystemClock.uptimeMillis();
         autoSpaced = true;

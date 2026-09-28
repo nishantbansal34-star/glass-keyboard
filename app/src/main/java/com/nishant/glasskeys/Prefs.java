@@ -177,8 +177,28 @@ public class Prefs {
         sp.edit().putString(key, o.toString()).apply();
     }
 
+    public Map<String, Integer> trigrams() { return readMap("trigrams"); }
+    public void saveTrigrams(Map<String, Integer> m) { writeMap("trigrams", m); }
+
+    /** How you like certain words capitalised (e.g. nrrl -> NRRL, nishant -> Nishant). */
+    public Map<String, String> caseForms() {
+        Map<String, String> m = new HashMap<>();
+        try {
+            JSONObject o = new JSONObject(sp.getString("caseforms", "{}"));
+            JSONArray names = o.names();
+            if (names != null) for (int i = 0; i < names.length(); i++) m.put(names.getString(i), o.getString(names.getString(i)));
+        } catch (Exception ignored) { }
+        return m;
+    }
+
+    public void saveCaseForms(Map<String, String> m) {
+        JSONObject o = new JSONObject();
+        try { for (Map.Entry<String, String> e : m.entrySet()) o.put(e.getKey(), e.getValue()); } catch (Exception ignored) { }
+        sp.edit().putString("caseforms", o.toString()).apply();
+    }
+
     public void clearLearned() {
-        sp.edit().remove("learned").remove("bigrams").apply();
+        sp.edit().remove("learned").remove("bigrams").remove("trigrams").remove("caseforms").apply();
     }
 
     public List<String> recentEmoji() {

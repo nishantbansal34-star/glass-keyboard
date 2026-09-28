@@ -21,6 +21,11 @@ public class Dictionary {
     private volatile Map<String, Integer> index = new HashMap<>();
     private Map<String, Integer> learned = new HashMap<>();
     private Map<String, Integer> bigrams = new HashMap<>();
+    private Map<String, Integer> trigrams = new HashMap<>();
+    private Map<String, String> caseForms = new HashMap<>();
+    private int learnsSinceDecay;
+    /** Marks the start of a sentence in word-pair memory. */
+    public static final String START = "^";
     private final Prefs prefs;  // null in tests
     private volatile boolean loaded;
     private int dirty;
@@ -41,6 +46,8 @@ public class Dictionary {
         this.prefs = prefs;
         learned = prefs.learned();
         bigrams = prefs.bigrams();
+        trigrams = prefs.trigrams();
+        caseForms = prefs.caseForms();
         final Context app = ctx.getApplicationContext();
         new Thread(() -> load(app)).start();
     }
@@ -123,12 +130,21 @@ public class Dictionary {
         return c == null ? 0 : c;
     }
 
+    /** Dictionary frequency blended with how often YOU use the word. */
     private int score(String w) {
         Integer f = index.get(w);
         int base = f == null ? 0 : f;
         int lc = learnedCount(w);
-        if (lc >= 2) base = Math.max(base, 450) + Math.min(lc, 50) * 8;
+        int personal = lc > 0 ? (int) (140 * Math.log(1 + lc) + 6 * Math.min(lc, 120)) : 0;
+        if (f != null) base += personal;
+        else if (lc >= 2) base = 380 + (int) (personal * 1.3);
         return base;
+    }
+
+    /** Your preferred spelling/capitalisation of a word, if you have one. */
+    public String form(String w) {
+        String f = caseForms.get(w.toLowerCase());
+        return f != null ? f : w;
     }
 
     private static class Cand implements Comparable<Cand> {
@@ -152,11 +168,12 @@ public class Dictionary {
             // Prefix completions
             int i = Arrays.binarySearch(words, low);
             if (i < 0) i = -i - 1;
-            for (int n = 0; i < words.length && n < 400 && words[i].startsWith(low); i++, n++) {
+            for (int n = 0; i < words.length && n < 4000 && words[i].startsWith(low); i++, n++) {
                 String w = words[i];
                 if (seen.containsKey(w)) continue;
                 int s = score(w) - (w.length() - low.length()) * 12 + bigramBoost(prevWord, w);
                 if (w.equals(low)) s += 400;
+                else if (learnedCount(w) >= 2) s += 220;   // you've typed this before: likely again
                 cands.add(new Cand(w, s));
                 seen.put(w, true);
             }
@@ -168,7 +185,9 @@ public class Dictionary {
                     if (w.charAt(0) != low.charAt(0) && low.length() > 3 && w.length() > 3
                             && w.charAt(1) != low.charAt(1)) continue;
                     if (editDistanceAtMost1(low, w)) {
-                        cands.add(new Cand(w, score(w) - 60 + bigramBoost(prevWord, w)));
+                        // spelling fixes of very short input are guesswork; your own words should win
+                        int pen = low.length() <= 2 ? 260 : low.length() == 3 ? 150 : 60;
+                        cands.add(new Cand(w, score(w) - pen + bigramBoost(prevWord, w)));
                         seen.put(w, true);
                     }
                 }
@@ -177,14 +196,17 @@ public class Dictionary {
         for (Map.Entry<String, Integer> e : learned.entrySet()) {
             String w = e.getKey();
             if (e.getValue() >= 2 && w.startsWith(low) && !seen.containsKey(w)) {
-                cands.add(new Cand(w, score(w)));
+                cands.add(new Cand(w, score(w) + 220 - (w.length() - low.length()) * 6));
                 seen.put(w, true);
             }
         }
         Collections.sort(cands);
         for (Cand c : cands) {
             if (out.size() >= 3) break;
-            out.add(matchCase(typed, c.w));
+            String shown = matchCase(typed, c.w);
+            // typed in lowercase? use your usual capitalisation (NRRL, Nishant, WhatsApp)
+            if (typed.equals(typed.toLowerCase()) && caseForms.containsKey(c.w)) shown = caseForms.get(c.w);
+            out.add(shown);
         }
         return out;
     }
@@ -211,32 +233,85 @@ public class Dictionary {
         return null;
     }
 
-    /** Next-word predictions after a space, from the pairs you have typed before. */
-    public List<String> predict(String prev) {
+    public List<String> predict(String prev) { return predict(null, prev); }
+
+    /**
+     * Next-word predictions from YOUR writing: three-word phrases first ("thank you" -> "for"),
+     * then word pairs, and at the start of a sentence, how you usually begin ("Hi", "Namaste").
+     */
+    public List<String> predict(String prev2, String prev) {
         List<String> out = new ArrayList<>();
-        if (prev == null || prev.isEmpty()) return out;
-        String p = prev.toLowerCase() + " ";
-        List<Cand> c = new ArrayList<>();
+        String p1 = (prev == null || prev.isEmpty()) ? START : prev.toLowerCase();
+        Map<String, Integer> score = new HashMap<>();
+        if (prev2 != null && prev != null) {
+            String p = prev2.toLowerCase() + " " + p1 + " ";
+            for (Map.Entry<String, Integer> e : trigrams.entrySet())
+                if (e.getKey().startsWith(p) && e.getValue() >= 2) score.merge(e.getKey().substring(p.length()), e.getValue() * 4, Integer::sum);
+        }
+        String p = p1 + " ";
         for (Map.Entry<String, Integer> e : bigrams.entrySet())
-            if (e.getKey().startsWith(p)) c.add(new Cand(e.getKey().substring(p.length()), e.getValue()));
+            if (e.getKey().startsWith(p) && (e.getValue() >= 2 || !p1.equals(START)))
+                score.merge(e.getKey().substring(p.length()), e.getValue(), Integer::sum);
+        List<Cand> c = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : score.entrySet()) c.add(new Cand(e.getKey(), e.getValue()));
         Collections.sort(c);
-        for (Cand x : c) { if (out.size() >= 3) break; out.add(x.w.equals("i") ? "I" : x.w); }
+        for (Cand x : c) {
+            if (out.size() >= 3) break;
+            String w = x.w.equals("i") ? "I" : form(x.w);
+            if (p1.equals(START) && w.length() > 0) w = Character.toUpperCase(w.charAt(0)) + w.substring(1);
+            out.add(w);
+        }
         return out;
     }
 
+    public void learn(String word, String prev) { learn(word, prev, null); }
+
     /** Learns from a finished word (skipped in incognito / password fields). */
-    public void learn(String word, String prev) {
+    public void learn(String word, String prev, String prev2) {
         if (word == null || word.length() < 1 || word.length() > 30) return;
         String w = word.toLowerCase();
         for (int i = 0; i < w.length(); i++) if (!Character.isLetter(w.charAt(i)) && w.charAt(i) != '\'') return;
-        if (!index.containsKey(w)) learned.put(w, learnedCount(w) + 1);
-        if (prev != null && !prev.isEmpty()) {
-            String k = prev.toLowerCase() + " " + w;
-            Integer c = bigrams.get(k);
-            bigrams.put(k, c == null ? 1 : c + 1);
-            if (bigrams.size() > 6000) trimBigrams();
-        }
+        learned.put(w, learnedCount(w) + 1);
+        // remember deliberate capitalisation of names/brands (not just sentence-start capitals)
+        if (!word.equals(w) && (prev != null || word.length() > 1 && word.equals(word.toUpperCase()))) caseForms.put(w, word);
+        String p1 = (prev == null || prev.isEmpty()) ? START : prev.toLowerCase();
+        bigrams.merge(p1 + " " + w, 1, Integer::sum);
+        if (prev2 != null && prev != null) trigrams.merge(prev2.toLowerCase() + " " + p1 + " " + w, 1, Integer::sum);
+        if (bigrams.size() > 8000) bigrams = trim(bigrams, 6000);
+        if (trigrams.size() > 8000) trigrams = trim(trigrams, 6000);
+        if (learned.size() > 9000) learned = trim(learned, 7000);
+        // slow forgetting: habits you've dropped fade out over time
+        if (++learnsSinceDecay >= 600) { learnsSinceDecay = 0; decay(); }
         if (++dirty >= 8) flush();
+    }
+
+    private static Map<String, Integer> trim(Map<String, Integer> m, int keepN) {
+        List<Map.Entry<String, Integer>> l = new ArrayList<>(m.entrySet());
+        l.sort((a, b) -> b.getValue() - a.getValue());
+        Map<String, Integer> keep = new HashMap<>();
+        for (int i = 0; i < Math.min(keepN, l.size()); i++) keep.put(l.get(i).getKey(), l.get(i).getValue());
+        return keep;
+    }
+
+    private void decay() {
+        for (Map<String, Integer> m : java.util.Arrays.asList(learned, bigrams, trigrams)) {
+            java.util.Iterator<Map.Entry<String, Integer>> it = m.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Integer> e = it.next();
+                int v = (int) Math.floor(e.getValue() * 0.9);
+                if (v <= 0) it.remove(); else e.setValue(v);
+            }
+        }
+    }
+
+    /** Removes a word everywhere it was learned. */
+    public void forget(String word) {
+        String w = word.toLowerCase();
+        learned.remove(w);
+        caseForms.remove(w);
+        bigrams.keySet().removeIf(k -> k.endsWith(" " + w) || k.startsWith(w + " "));
+        trigrams.keySet().removeIf(k -> (" " + k + " ").contains(" " + w + " "));
+        flush();
     }
 
     private void trimBigrams() {
@@ -252,11 +327,15 @@ public class Dictionary {
         if (prefs == null) return;
         prefs.saveLearned(learned);
         prefs.saveBigrams(bigrams);
+        prefs.saveTrigrams(trigrams);
+        prefs.saveCaseForms(caseForms);
     }
 
     public void reloadLearned() {
         learned = prefs.learned();
         bigrams = prefs.bigrams();
+        trigrams = prefs.trigrams();
+        caseForms = prefs.caseForms();
     }
 
     private static String matchCase(String typed, String w) {

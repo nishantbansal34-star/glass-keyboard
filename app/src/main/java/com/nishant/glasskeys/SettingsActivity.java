@@ -72,6 +72,7 @@ public class SettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshSteps();
+        if (insights != null) renderInsights();
     }
 
     @Override
@@ -220,7 +221,9 @@ public class SettingsActivity extends Activity {
         typing.addView(toggle("Double-tap space for a full stop", "dblspace", true));
         typing.addView(toggle("Always-visible number row", "numrow", false));
         typing.addView(toggle("Learn words I type (off = always incognito)", "learn", true));
-        typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); }));
+        typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); if (insights != null) renderInsights(); }));
+
+        buildInsights();
 
         LinearLayout fb = card("Feel & sound");
         fb.addView(toggle("Vibrate on key press", "haptics", true));
@@ -269,6 +272,111 @@ public class SettingsActivity extends Activity {
         Intent it = new Intent(Intent.ACTION_GET_CONTENT);
         it.setType("image/*");
         startActivityForResult(it, REQ_PHOTO);
+    }
+
+    // ------------------------------------------------------------------ Your typing (insights)
+
+    private LinearLayout insights;
+
+    private void buildInsights() {
+        insights = card("Your typing");
+        renderInsights();
+    }
+
+    private static List<java.util.Map.Entry<String, Integer>> sorted(java.util.Map<String, Integer> m) {
+        List<java.util.Map.Entry<String, Integer>> l = new java.util.ArrayList<>(m.entrySet());
+        l.sort((x, y) -> y.getValue() - x.getValue());
+        return l;
+    }
+
+    private void renderInsights() {
+        while (insights.getChildCount() > 1) insights.removeViewAt(1);
+        java.util.Map<String, Integer> learned = prefs.learned(), bi = prefs.bigrams(), tri = prefs.trigrams();
+        java.util.Map<String, String> forms = prefs.caseForms();
+        int total = 0;
+        for (int v : learned.values()) total += v;
+        TextView sum = text(learned.size() + " different words learned · " + total + " words analysed. "
+                + "It all stays on this phone and shapes your suggestions, autocorrect and swipe typing.", 13, false);
+        sum.setAlpha(0.75f);
+        insights.addView(sum);
+        if (learned.isEmpty()) {
+            TextView e = text("Start typing and your most-used words and phrases will appear here.", 14, false);
+            e.setPadding(0, (int) (8 * dp), 0, 0);
+            insights.addView(e);
+            return;
+        }
+
+        insights.addView(label("Most-used words  ·  tap one to forget it"));
+        List<java.util.Map.Entry<String, Integer>> top = sorted(learned);
+        LinearLayout row = null;
+        float rowW = 0, maxW = getResources().getDisplayMetrics().widthPixels - 72 * dp;
+        for (int i = 0; i < Math.min(30, top.size()); i++) {
+            String w = top.get(i).getKey();
+            String shown = forms.containsKey(w) ? forms.get(w) : w;
+            TextView chip = text(shown + "  " + top.get(i).getValue(), 14, false);
+            chip.setBackground(pill(0x1FFFFFFF, 14));
+            chip.setPadding((int) (12 * dp), (int) (7 * dp), (int) (12 * dp), (int) (7 * dp));
+            chip.setOnClickListener(v -> confirmForget(w, shown));
+            chip.measure(0, 0);
+            float cw = chip.getMeasuredWidth() + 8 * dp;
+            if (row == null || rowW + cw > maxW) {
+                row = new LinearLayout(this);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                rl.bottomMargin = (int) (8 * dp);
+                insights.addView(row, rl);
+                rowW = 0;
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = (int) (8 * dp);
+            row.addView(chip, lp);
+            rowW += cw;
+        }
+
+        StringBuilder starts = new StringBuilder();
+        int n = 0;
+        for (java.util.Map.Entry<String, Integer> e : sorted(bi)) {
+            if (!e.getKey().startsWith(Dictionary.START + " ") || e.getValue() < 2) continue;
+            String w = e.getKey().substring(2);
+            w = forms.containsKey(w) ? forms.get(w) : Character.toUpperCase(w.charAt(0)) + w.substring(1);
+            if (n++ > 0) starts.append("  ·  ");
+            starts.append(w);
+            if (n >= 6) break;
+        }
+        if (n > 0) {
+            insights.addView(label("How you usually start messages"));
+            insights.addView(text(starts.toString(), 15, false));
+        }
+
+        StringBuilder ph = new StringBuilder();
+        n = 0;
+        for (java.util.Map.Entry<String, Integer> e : sorted(tri)) {
+            if (e.getValue() < 2 || e.getKey().startsWith(Dictionary.START)) continue;
+            if (n++ > 0) ph.append("\n");
+            ph.append("“").append(e.getKey().replace(Dictionary.START + " ", "")).append("”  ×").append(e.getValue());
+            if (n >= 8) break;
+        }
+        if (n > 0) {
+            insights.addView(label("Your favourite phrases (it finishes these for you)"));
+            insights.addView(text(ph.toString(), 15, false));
+        }
+    }
+
+    private void confirmForget(String w, String shown) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Forget “" + shown + "”?")
+                .setMessage("It won't be suggested from your typing any more (you can still type it).")
+                .setPositiveButton("Forget", (d, x) -> {
+                    java.util.Map<String, Integer> l = prefs.learned(), bi = prefs.bigrams(), tri = prefs.trigrams();
+                    java.util.Map<String, String> f = prefs.caseForms();
+                    l.remove(w);
+                    f.remove(w);
+                    bi.keySet().removeIf(k -> k.endsWith(" " + w) || k.startsWith(w + " "));
+                    tri.keySet().removeIf(k -> (" " + k + " ").contains(" " + w + " "));
+                    prefs.saveLearned(l); prefs.saveBigrams(bi); prefs.saveTrigrams(tri); prefs.saveCaseForms(f);
+                    renderInsights();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void renderSnippets(LinearLayout list) {

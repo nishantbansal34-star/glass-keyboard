@@ -74,7 +74,7 @@ public class GlideDecoder {
                 if (c < 0) continue;
                 double f = freq[k] / 100.0;                       // zipf-like 1.5 .. 7.7
                 Integer lc = learned.get(w);
-                if (lc != null) f += Math.min(1.5, lc * 0.15);
+                if (lc != null) f += Math.min(2.2, Math.log(1 + lc) * 0.55);
                 c -= 0.55 * f;
                 c -= dict.bigramScore(prevWord, w) * 0.4;
                 cands.add(new Cand(w, c));
