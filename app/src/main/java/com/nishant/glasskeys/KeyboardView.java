@@ -32,6 +32,8 @@ public class KeyboardView extends View {
         void onOneHandedExit();
         void feedback(boolean strong);
         void onTouchPoint(float x, float y);
+        void onGlide(List<String> words);
+        void onGlidePreview(List<String> words);
     }
 
     public static final int SHIFT_OFF = 0, SHIFT_ON = 1, SHIFT_LOCK = 2;
@@ -94,6 +96,73 @@ public class KeyboardView extends View {
     private final RectF tmpR = new RectF();
     private final android.graphics.Path dropPath = new android.graphics.Path();
     private final android.graphics.Path partPath = new android.graphics.Path();
+
+    // ---- swipe typing
+    public GlideDecoder decoder;
+    public boolean glideEnabled = true, trailEnabled = true;
+    private boolean gliding;
+    private int glidePointer = -1;
+    private float keyUnit = 1;
+    private float[] gx = new float[512], gy = new float[512];
+    private long[] gt = new long[512];
+    private int gn;
+    private long glideEnd = -1, lastPreview;
+    private final Paint trailGlow = new Paint(Paint.ANTI_ALIAS_FLAG), trailCore = new Paint(Paint.ANTI_ALIAS_FLAG);
+    { trailGlow.setStrokeCap(Paint.Cap.ROUND); trailCore.setStrokeCap(Paint.Cap.ROUND); }
+
+    public boolean isGliding() { return gliding; }
+
+    private void addGlidePoint(float x, float y, long t) {
+        if (gn > 0 && Math.abs(gx[gn - 1] - x) < 0.5f && Math.abs(gy[gn - 1] - y) < 0.5f) return;
+        if (gn == gx.length) {
+            gx = java.util.Arrays.copyOf(gx, gn * 2);
+            gy = java.util.Arrays.copyOf(gy, gn * 2);
+            gt = java.util.Arrays.copyOf(gt, gn * 2);
+        }
+        gx[gn] = x; gy[gn] = y; gt[gn] = t; gn++;
+    }
+
+    private List<String> decodeGlide(boolean partial) {
+        if (decoder == null || gn < 2) return new ArrayList<>();
+        float[] ux = new float[gn], uy = new float[gn];
+        for (int i = 0; i < gn; i++) { ux[i] = gx[i] / keyUnit; uy[i] = gy[i] / keyUnit; }
+        return decoder.decode(ux, uy, gn, null, partial).words;
+    }
+
+    private void updateDecoderLayout() {
+        if (decoder == null || page != Layouts.ALPHA) return;
+        for (List<Key> row : rows) for (Key k : row) {
+            if (k.label.length() == 1) {
+                char ch = k.label.charAt(0);
+                if (ch >= 'a' && ch <= 'z') decoder.setKey(ch, k.rect.centerX() / keyUnit, k.rect.centerY() / keyUnit);
+            }
+        }
+    }
+
+    /** Glowing liquid trail: a soft wide glow with a bright core that tapers toward the tail. */
+    private void drawTrail(Canvas c) {
+        if (!trailEnabled || gn < 2) return;
+        long now = SystemClock.uptimeMillis();
+        float global = 1f;
+        if (!gliding) {
+            if (glideEnd < 0) return;
+            global = 1f - (now - glideEnd) / 260f;
+            if (global <= 0) { gn = 0; glideEnd = -1; return; }
+        }
+        int accent = theme.accent & 0x00FFFFFF;
+        for (int i = 1; i < gn; i++) {
+            float age = (now - gt[i]) / 480f;
+            float a = Math.max(0f, 1f - age) * global;
+            if (a <= 0.02f) continue;
+            float taper = (float) i / gn;
+            trailGlow.setStrokeWidth((5 + 9 * taper) * dp * (0.4f + 0.6f * a));
+            trailGlow.setColor(((int) (70 * a) << 24) | accent);
+            c.drawLine(gx[i - 1], gy[i - 1], gx[i], gy[i], trailGlow);
+            trailCore.setStrokeWidth((1.2f + 2.6f * taper) * dp * (0.5f + 0.5f * a));
+            trailCore.setColor(((int) (235 * a) << 24) | 0xFFFFFF);
+            c.drawLine(gx[i - 1], gy[i - 1], gx[i], gy[i], trailCore);
+        }
+    }
 
     private Spring pressOf(Key k) {
         Spring sp = pressSpring.get(k);
@@ -170,6 +239,7 @@ public class KeyboardView extends View {
         page = p;
         rows = Layouts.build(p, numberRow);
         layoutKeys();
+        updateDecoderLayout();
         invalidate();
     }
 
@@ -226,6 +296,8 @@ public class KeyboardView extends View {
                 x += w;
             }
         }
+        keyUnit = Math.max(1f, (right - left) / 10f);
+        updateDecoderLayout();
         if (oneHanded != 0) {
             float colL = oneHanded == 1 ? keysRight() : 0;
             float colR = oneHanded == 1 ? W : keysLeft();
@@ -307,8 +379,9 @@ public class KeyboardView extends View {
             if (d.s.step(dt)) animating = true;
             else if (d.s.target == 0f) drops.remove(i);
         }
-        if (overlay != null && (!drops.isEmpty() || popupPtr != null)) overlay.invalidate();
-        if (animating || !drops.isEmpty()) postInvalidateOnAnimation(); else lastFrame = 0;
+        boolean trailAlive = gn > 0 && (gliding || glideEnd >= 0);
+        if (overlay != null && (!drops.isEmpty() || popupPtr != null || trailAlive)) overlay.invalidate();
+        if (animating || !drops.isEmpty() || (trailAlive && !gliding)) postInvalidateOnAnimation(); else lastFrame = 0;
     }
 
     private boolean isPressed(Key k) {
@@ -396,9 +469,10 @@ public class KeyboardView extends View {
         c.translate(getLeft(), offsetY);
         gp.setOrigin(getLeft(), offsetY);
         float minTop = -offsetY + 3 * dp;
+        drawTrail(c);
         if (popupPtr != null && popupPtr.popup) {
             drawPopup(c);
-        } else {
+        } else if (!gliding) {
             for (Drop d : drops) drawDrop(c, d, minTop);
         }
         c.restore();
@@ -566,6 +640,7 @@ public class KeyboardView extends View {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN: {
                 float x = e.getX(idx), y = e.getY(idx);
+                if (gliding) return true; // one swipe at a time
                 if (oneHanded != 0) {
                     if (sideBtnA.contains(x, y)) { listener.feedback(true); listener.onOneHandedSwap(); return true; }
                     if (sideBtnB.contains(x, y)) { listener.feedback(true); listener.onOneHandedExit(); return true; }
@@ -585,6 +660,7 @@ public class KeyboardView extends View {
                 Ptr p = new Ptr();
                 p.key = k; p.downX = x; p.downY = y; p.lastX = x;
                 ptrs.put(e.getPointerId(idx), p);
+                if (ptrs.size() == 1) { gn = 0; glideEnd = -1; addGlidePoint(x, y, SystemClock.uptimeMillis()); }
                 listener.feedback(false);
                 pressOf(k).target = 1f;
                 startDrop(k);
@@ -612,6 +688,31 @@ public class KeyboardView extends View {
                     if (p == null || p.key == null) continue;
                     float x = e.getX(i), y = e.getY(i);
                     if (p.popup) { updatePopupIndex(p, x, y); invalidateAll(); continue; }
+                    int pid = e.getPointerId(i);
+                    if (glideEnabled && !gliding && page == Layouts.ALPHA && ptrs.size() == 1 && p.key.isChar()
+                            && Character.isLetter(p.key.label.charAt(0)) && !p.consumed
+                            && Math.hypot(x - p.downX, y - p.downY) > keyUnit * 0.7f) {
+                        // it's a swipe, not a tap
+                        gliding = true;
+                        glidePointer = pid;
+                        p.consumed = true;
+                        h.removeCallbacks(longPress);
+                        pressOf(p.key).target = 0f;
+                        endDrop(p.key);
+                    }
+                    if (gliding && pid == glidePointer) {
+                        long now = SystemClock.uptimeMillis();
+                        for (int hh = 0; hh < e.getHistorySize(); hh++)
+                            addGlidePoint(e.getHistoricalX(i, hh), e.getHistoricalY(i, hh), e.getHistoricalEventTime(hh));
+                        addGlidePoint(x, y, now);
+                        if (rippleEnabled) listener.onTouchPoint(x, y);
+                        if (now - lastPreview > 90) {
+                            lastPreview = now;
+                            listener.onGlidePreview(decodeGlide(true));
+                        }
+                        invalidateAll();
+                        continue;
+                    }
                     float dx = x - p.downX;
                     if (p.key.code == Key.SPACE && !p.consumed) {
                         if (!p.spaceSwipe && Math.abs(dx) > 14 * dp) { p.spaceSwipe = true; h.removeCallbacks(longPress); }
@@ -631,7 +732,7 @@ public class KeyboardView extends View {
                             int words = 1 + (int) ((-dx - 26 * dp) / (32 * dp));
                             if (words != p.delWords) { p.delWords = words; listener.feedback(false); invalidate(); }
                         } else if (p.delSwipe) { p.delWords = 0; invalidate(); }
-                    } else if (!p.consumed && p.key.isChar()) {
+                    } else if (!p.consumed && p.key.isChar() && !glideEnabled) {
                         // let the finger slide onto a neighbouring key before release
                         Key k = keyAt(x, y);
                         if (k != null && k != p.key && k.isChar() && Math.hypot(x - p.downX, y - p.downY) > 10 * dp) {
@@ -654,6 +755,18 @@ public class KeyboardView extends View {
                 Ptr p = ptrs.get(e.getPointerId(idx));
                 ptrs.remove(e.getPointerId(idx));
                 h.removeCallbacks(longPress);
+                if (gliding && e.getPointerId(idx) == glidePointer) {
+                    addGlidePoint(e.getX(idx), e.getY(idx), SystemClock.uptimeMillis());
+                    gliding = false;
+                    glidePointer = -1;
+                    glideEnd = SystemClock.uptimeMillis();
+                    List<String> words = decodeGlide(false);
+                    listener.onGlide(words);
+                    if (!words.isEmpty() && shift == SHIFT_ON && !shiftHeld) setShift(SHIFT_OFF);
+                    if (p != null && p.key != null) pressOf(p.key).target = 0f;
+                    invalidateAll();
+                    return true;
+                }
                 if (p != null && p.key != null) { pressOf(p.key).target = 0f; endDrop(p.key); }
                 if (p != null && p.key != null) release(p);
                 if (ptrs.size() == 0) h.removeCallbacks(repeat);
@@ -661,6 +774,9 @@ public class KeyboardView extends View {
                 return true;
             }
             case MotionEvent.ACTION_CANCEL:
+                gliding = false;
+                glidePointer = -1;
+                gn = 0;
                 for (Spring sp : pressSpring.values()) sp.target = 0f;
                 for (Drop d : drops) d.s.target = 0f;
                 ptrs.clear();

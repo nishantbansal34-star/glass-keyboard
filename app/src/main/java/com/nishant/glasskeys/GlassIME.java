@@ -231,6 +231,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard = new KeyboardView(this, gp);
         keyboard.setListener(this);
         keyboard.backdrop = liquid;
+        keyboard.decoder = new GlideDecoder(dict);
         content.addView(keyboard, new FrameLayout.LayoutParams(-1, -1));
         column.addView(content, new LinearLayout.LayoutParams(-1, keyboardHeight()));
 
@@ -258,6 +259,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         theme = Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
+        keyboard.glideEnabled = prefs.bool("glide", true);
+        keyboard.trailEnabled = prefs.bool("trail", true);
         strip.setTheme(theme);
         for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad})
             if (v instanceof PadView) ((PadView) v).setTheme(theme);
@@ -319,6 +322,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         prevWord = null;
         lastCorrOriginal = null;
         toolbarForced = false;
+        glideWord = false;
+        glidePreview = null;
         selectMode = false;
         if (!restarting) showPanel(P_NONE);
 
@@ -404,6 +409,69 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return Character.isLetter(cp) || (s.equals("'") && composing.length() > 0) || (Character.isDigit(cp) && composing.length() > 0);
     }
 
+    // ================================================================= swipe typing
+
+    private boolean glideWord;                 // composing text came from a swipe
+    private List<String> glideAlts = new ArrayList<>();
+    private List<String> glidePreview = null;
+
+    private String caseForGlide(String w) {
+        int st = keyboard.shiftState();
+        if (st == KeyboardView.SHIFT_LOCK) return w.toUpperCase();
+        if (w.equals("i") || w.startsWith("i'")) return "I" + w.substring(1);
+        if (st == KeyboardView.SHIFT_ON) return Character.toUpperCase(w.charAt(0)) + w.substring(1);
+        return w;
+    }
+
+    @Override
+    public void onGlidePreview(List<String> words) {
+        glidePreview = words;
+        updateStrip();
+    }
+
+    @Override
+    public void onGlide(List<String> words) {
+        glidePreview = null;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        if (words.isEmpty()) { updateStrip(); return; }
+        lastEditTime = SystemClock.uptimeMillis();
+        toolbarForced = false;
+        ic.beginBatchEdit();
+        if (composing.length() > 0) finishWord(ic, false, null);
+        // swipe words get their own space, so you can swipe word after word
+        CharSequence before = ic.getTextBeforeCursor(1, 0);
+        if (before != null && before.length() > 0) {
+            char ch = before.charAt(0);
+            if (!Character.isWhitespace(ch) && "([{\"'/@#".indexOf(ch) < 0) ic.commitText(" ", 1);
+        }
+        String w = caseForGlide(words.get(0));
+        glideAlts = new ArrayList<>();
+        for (int i = 1; i < words.size(); i++) glideAlts.add(caseForGlide(words.get(i)));
+        composing.setLength(0);
+        composing.append(w);
+        ic.setComposingText(composing, 1);
+        ic.endBatchEdit();
+        glideWord = true;
+        lastCorrOriginal = null;
+        autoSpaced = false;
+        updateStrip();
+    }
+
+    /** Swap the swiped word for one of the alternatives. */
+    private void pickGlideAlt(String alt) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null || !glideWord) return;
+        String old = composing.toString();
+        glideAlts.remove(alt);
+        glideAlts.add(0, old);
+        composing.setLength(0);
+        composing.append(alt);
+        ic.setComposingText(composing, 1);
+        lastEditTime = SystemClock.uptimeMillis();
+        updateStrip();
+    }
+
     @Override
     public void onText(String s) {
         InputConnection ic = getCurrentInputConnection();
@@ -412,6 +480,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         toolbarForced = false;
         boolean wasAutoSpaced = autoSpaced;
         autoSpaced = false;
+        if (glideWord && composing.length() > 0) {
+            glideWord = false;
+            ic.beginBatchEdit();
+            finishWord(ic, false, null);
+            if (Character.isLetterOrDigit(s.codePointAt(0))) ic.commitText(" ", 1);
+            ic.endBatchEdit();
+        }
+        glideWord = false;
         if (!noSuggest && isWordChar(s)) {
             lastCorrOriginal = null;
             composing.append(s);
@@ -504,7 +580,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return;
         }
         if (composing.length() > 0) {
-            finishWord(ic, !noAutoCorrect, null);
+            finishWord(ic, !noAutoCorrect && !glideWord, null);
+            glideWord = false;
             ic.commitText(" ", 1);
         } else {
             CharSequence before = ic.getTextBeforeCursor(2, 0);
@@ -557,6 +634,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void handleDelete(InputConnection ic) {
         if (ic == null) return;
         toolbarForced = false;
+        if (glideWord && composing.length() > 0) {
+            glideWord = false;
+            composing.setLength(0);
+            ic.commitText("", 1);
+            updateStrip();
+            return;
+        }
+        glideWord = false;
         if (composing.length() > 0) {
             int cp = composing.codePointBefore(composing.length());
             composing.setLength(composing.length() - Character.charCount(cp));
@@ -732,6 +817,38 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 updateStrip();
             }));
             cells.add(StripView.Cell.icon(GlassPainter.IC_CLOSE, () -> { lastClipText = null; updateStrip(); }));
+            strip.setCells(cells);
+            return;
+        }
+
+        // 3b. Swipe typing: live guess while swiping, alternatives after
+        if (keyboard.isGliding() && glidePreview != null) {
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            if (glidePreview.isEmpty()) cells.add(StripView.Cell.title("…"));
+            else {
+                String g = caseForGlide(glidePreview.get(0));
+                if (glidePreview.size() > 1) cells.add(StripView.Cell.word(caseForGlide(glidePreview.get(1)), false, null));
+                cells.add(StripView.Cell.word(g, true, null));
+                if (glidePreview.size() > 2) cells.add(StripView.Cell.word(caseForGlide(glidePreview.get(2)), false, null));
+            }
+            strip.setCells(cells);
+            return;
+        }
+        if (glideWord && composing.length() > 0) {
+            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            String cur = composing.toString();
+            List<String> alts = glideAlts;
+            if (alts.size() > 0) { final String a0 = alts.get(0); cells.add(StripView.Cell.word(a0, false, () -> pickGlideAlt(a0))); }
+            cells.add(StripView.Cell.word(cur, true, () -> {
+                InputConnection c2 = getCurrentInputConnection();
+                if (c2 == null) return;
+                finishWord(c2, false, null);
+                glideWord = false;
+                c2.commitText(" ", 1);
+                autoSpaced = true;
+                updateStrip();
+            }));
+            if (alts.size() > 1) { final String a1 = alts.get(1); cells.add(StripView.Cell.word(a1, false, () -> pickGlideAlt(a1))); }
             strip.setCells(cells);
             return;
         }

@@ -204,6 +204,8 @@ public class SettingsActivity extends Activity {
 
         // --- Typing
         LinearLayout typing = card("Typing");
+        typing.addView(toggle("Swipe typing (glide across letters)", "glide", true));
+        typing.addView(toggle("Show the glowing swipe trail", "trail", true));
         typing.addView(toggle("Word suggestions & next-word prediction", "suggest", true));
         typing.addView(toggle("Autocorrect (backspace right after undoes it)", "autocorrect", true));
         typing.addView(toggle("Capitalise the first letter of sentences", "autocaps", true));
@@ -252,7 +254,7 @@ public class SettingsActivity extends Activity {
         }));
 
         LinearLayout tips = card("Gestures");
-        tips.addView(text("• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute", 14, false));
+        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute", 14, false));
     }
 
     private void pickPhoto() {

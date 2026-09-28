@@ -21,7 +21,7 @@ public class Dictionary {
     private volatile Map<String, Integer> index = new HashMap<>();
     private Map<String, Integer> learned = new HashMap<>();
     private Map<String, Integer> bigrams = new HashMap<>();
-    private final Prefs prefs;
+    private final Prefs prefs;  // null in tests
     private volatile boolean loaded;
     private int dirty;
 
@@ -66,6 +66,51 @@ public class Dictionary {
         words = w;
         freq = fr;
         loaded = true;
+    }
+
+    // ---- accessors for the swipe recogniser
+    private int[][] buckets;
+
+    /** Test / offline constructor. */
+    Dictionary(String[] sortedWords, int[] freqs) {
+        this.prefs = null;
+        words = sortedWords;
+        freq = freqs;
+        Map<String, Integer> m = new HashMap<>();
+        for (int i = 0; i < sortedWords.length; i++) m.put(sortedWords[i], freqs[i]);
+        index = m;
+        loaded = true;
+    }
+
+    public boolean isLoaded() { return loaded; }
+    public String[] words() { return words; }
+    public int[] freqs() { return freq; }
+    public Map<String, Integer> learnedMap() { return learned; }
+    public boolean isDictWord(String w) { return index.containsKey(w); }
+
+    /** [start, end) range of words beginning with c (words are sorted). */
+    public synchronized int[] bucket(char c) {
+        if (!loaded) return null;
+        if (buckets == null) {
+            buckets = new int[26][];
+            String[] w = words;
+            int i = 0;
+            for (int b = 0; b < 26; b++) {
+                char ch = (char) ('a' + b);
+                while (i < w.length && (w[i].isEmpty() || w[i].charAt(0) < ch)) i++;
+                int start = i;
+                while (i < w.length && !w[i].isEmpty() && w[i].charAt(0) == ch) i++;
+                buckets[b] = new int[]{start, i};
+            }
+        }
+        int b = c - 'a';
+        return b >= 0 && b < 26 ? buckets[b] : null;
+    }
+
+    public double bigramScore(String prev, String w) {
+        if (prev == null) return 0;
+        Integer c = bigrams.get(prev.toLowerCase() + " " + w);
+        return c == null ? 0 : Math.min(3.0, Math.log(1 + c));
     }
 
     public boolean isWord(String w) {
@@ -204,6 +249,7 @@ public class Dictionary {
 
     public void flush() {
         dirty = 0;
+        if (prefs == null) return;
         prefs.saveLearned(learned);
         prefs.saveBigrams(bigrams);
     }
