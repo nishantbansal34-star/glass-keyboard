@@ -1,44 +1,32 @@
 name: Build APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      - name: Unpack source
+        run: unzip -o glasskeys-source.zip -d src
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
-
-      - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk GlassKeys-${{ github.run_number }}.apk
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GlassKeys-apk
-          path: GlassKeys-*.apk
-
-      - name: Publish as a GitHub Release (easy phone download)
-        uses: softprops/action-gh-release@v2
+      - name: Build APK
+        run: cd src && gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Name APK
+        run: cp src/app/build/outputs/apk/release/app-release.apk GlassKeys-${{ github.run_number }}.apk
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Glass Keys build ${{ github.run_number }}
-          body: "Tap the .apk below to download and install on your phone."
+          body: Tap the .apk file below to download, then open it to install.
           files: GlassKeys-*.apk
           make_latest: true
