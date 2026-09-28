@@ -49,8 +49,8 @@ public class SettingsActivity extends Activity {
         super.onCreate(b);
         prefs = new Prefs(this);
         dp = getResources().getDisplayMetrics().density;
-        getWindow().setStatusBarColor(0xFF0E1024);
-        getWindow().setNavigationBarColor(0xFF0E1024);
+        getWindow().setStatusBarColor(0xFF000000);
+        getWindow().setNavigationBarColor(0xFF000000);
         build();
         handleIntent(getIntent());
     }
@@ -85,7 +85,7 @@ public class SettingsActivity extends Activity {
     private void build() {
         scroll = new ScrollView(this);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xFF2A1B6B, 0xFF0E1024, 0xFF08323A});
+                new int[]{0xFF000000, 0xFF000000, 0xFF0A0A0A});
         scroll.setBackground(bg);
         col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -151,8 +151,11 @@ public class SettingsActivity extends Activity {
         }
         look.addView(hs);
 
-        look.addView(label("Behind the glass"));
-        look.addView(choice(new String[]{"Bloom", "My photo", "Flowing colours"}, new String[]{"1", "2", "0"},
+        look.addView(label("Glass style"));
+        look.addView(choice(new String[]{"Dark (AMOLED)", "Bright"}, new String[]{"1", "0"},
+                prefs.darkGlass() ? "1" : "0", v -> prefs.setBool("darkglass", v.equals("1"))));
+        look.addView(label("Background"));
+        look.addView(choice(new String[]{"Black", "Bloom", "My photo", "Colours"}, new String[]{"3", "1", "2", "0"},
                 String.valueOf(prefs.bgMode()), v -> {
                     if (v.equals("2") && !new File(getFilesDir(), "backdrop.jpg").exists()) { pickPhoto(); return; }
                     prefs.setInt("bgmode", Integer.parseInt(v));
@@ -168,6 +171,16 @@ public class SettingsActivity extends Activity {
             @Override public void onStopTrackingTouch(SeekBar s) { }
         });
         look.addView(blur);
+        look.addView(label("Photo dimming"));
+        SeekBar dim = new SeekBar(this);
+        dim.setMax(90);
+        dim.setProgress(prefs.photoDim());
+        dim.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int v, boolean f) { prefs.setInt("photodim", v); }
+            @Override public void onStartTrackingTouch(SeekBar s) { }
+            @Override public void onStopTrackingTouch(SeekBar s) { }
+        });
+        look.addView(dim);
         look.addView(toggle("Capital letters on keys", "capslabels", true));
 
         look.addView(toggle("Live blur of the app behind (experimental, Android 12+)", "liveblur", false));
@@ -391,7 +404,7 @@ public class SettingsActivity extends Activity {
     private LinearLayout card(String title) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x33FFFFFF, 0x14FFFFFF});
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x1FFFFFFF, 0x0DFFFFFF});
         g.setCornerRadius(22 * dp);
         g.setStroke((int) Math.max(1, dp), 0x55FFFFFF);
         c.setBackground(g);

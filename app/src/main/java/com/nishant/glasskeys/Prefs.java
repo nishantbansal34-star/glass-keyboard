@@ -50,7 +50,9 @@ public class Prefs {
     /** Key height in dp */
     public int keyHeightDp() { return integer("keyheight", 56); }
     /** 0 = flowing colours, 1 = built-in bloom picture, 2 = my photo */
-    public int bgMode() { return integer("bgmode", 1); }
+    public int bgMode() { return integer("bgmode", 3); }   // 3 = pure black (AMOLED)
+    public boolean darkGlass() { return bool("darkglass", true); }
+    public int photoDim() { return integer("photodim", 55); }  // percent
     public int photoBlur() { return integer("photoblur", 1); }
     public boolean capsLabels() { return bool("capslabels", true); }
     public String voiceLang() { return str("voicelang", "en-IN"); }

@@ -144,6 +144,7 @@ public class KeyboardView extends View {
         text.setTextAlign(Paint.Align.CENTER);
         text.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         text.setLetterSpacing(0.01f);
+        text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         hintPaint.setTextAlign(Paint.Align.CENTER);
         setLayerType(LAYER_TYPE_HARDWARE, null);
         rows = Layouts.build(page, numberRow);
@@ -366,7 +367,7 @@ public class KeyboardView extends View {
     }
 
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
-        if (theme.dark) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
+        if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);

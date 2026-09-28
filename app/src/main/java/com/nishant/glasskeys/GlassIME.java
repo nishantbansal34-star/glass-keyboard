@@ -99,6 +99,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
+        if (!prefs.bool("amoledMigrated", false)) {
+            // one-time switch to the new dark AMOLED look
+            prefs.setInt("bgmode", 3);
+            prefs.setBool("darkglass", true);
+            prefs.setBool("amoledMigrated", true);
+        }
         dict = new Dictionary(this, prefs);
         dp = getResources().getDisplayMetrics().density;
         gp = new GlassPainter(dp);
@@ -129,7 +135,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private class RootView extends FrameLayout {
         RootView(Context c) { super(c); setWillNotDraw(false); setClipChildren(false); }
         void refresh() {
-            if (liquid != null) liquid.setPhoto(loadCustomBackdrop(), prefs.photoBlur());
+            if (liquid != null) {
+                liquid.setPhoto(loadCustomBackdrop(), prefs.photoBlur());
+                liquid.black = prefs.bgMode() == 3;
+                liquid.photoDim = prefs.darkGlass() ? prefs.photoDim() : Math.min(prefs.photoDim(), 15);
+            }
+            gp.setAmoled(prefs.darkGlass());
             gp.clearSprites();
             invalidate();
         }
@@ -184,7 +195,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     /** The picture shown behind the glass: none (flowing colours), built-in bloom, or the user's photo. */
     private Bitmap loadCustomBackdrop() {
         int mode = prefs.bgMode();
-        if (mode == 0) return null;
+        if (mode == 0 || mode == 3) return null;
         File f = new File(getFilesDir(), "backdrop.jpg");
         String key = mode == 2 && f.exists() ? f.getAbsolutePath() + f.lastModified() : "bloom";
         if (key.equals(cachedPhotoKey) && cachedPhoto != null) return cachedPhoto;

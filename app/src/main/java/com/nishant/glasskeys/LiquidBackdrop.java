@@ -29,6 +29,9 @@ public class LiquidBackdrop {
     private Bitmap photoFit;       // cropped + softened to our size (also the refraction source)
     private int fitW, fitH, fitBlur = -1;
     private int blur = 2;
+    public boolean black;          // pure black AMOLED background
+    public int photoDim = 55;      // percent darkening of photos
+    private final Bitmap blackPx = Bitmap.createBitmap(new int[]{0xFF000000}, 1, 1, Bitmap.Config.ARGB_8888);
     private float clock = 3f;       // animation time; only advances while awake so nothing jumps
     private long lastDraw;
 
@@ -65,7 +68,7 @@ public class LiquidBackdrop {
     }
 
     /** The picture behind the keys, for refraction. */
-    public Bitmap source() { return photoFit != null ? photoFit : grid; }
+    public Bitmap source() { return black ? blackPx : photoFit != null ? photoFit : grid; }
 
     public float sourceScaleX(int w) { Bitmap s = source(); return s.getWidth() / (float) Math.max(1, w); }
     public float sourceScaleY(int h) { Bitmap s = source(); return s.getHeight() / (float) Math.max(1, h); }
@@ -94,12 +97,23 @@ public class LiquidBackdrop {
         float wantPower = awake() ? Math.max(0f, 1f - (SystemClock.uptimeMillis() - lastTouch) / 2500f) : 0f;
         lightPower += (wantPower - lightPower) * 0.08f;
 
+        if (black && !liveBlur) {
+            c.drawColor(0xFF000000);
+            if (lightPower > 0.01f) {
+                float r = Math.max(w, h) * 0.4f;
+                p.setShader(new android.graphics.RadialGradient(lightX * w, lightY * h, r,
+                        new int[]{Color.argb((int) (34 * lightPower), 255, 255, 255), 0x00FFFFFF}, null, Shader.TileMode.CLAMP));
+                c.drawRect(0, 0, w, h, p);
+                p.setShader(null);
+            }
+            return;
+        }
         if (liveBlur) {
             c.drawColor((t.base & 0x00FFFFFF) | (t.dark ? 0x80000000 : 0x8C000000));
         } else if (photo != null) {
             fitPhoto(w, h);
             c.drawBitmap(photoFit, null, new RectF(0, 0, w, h), bmpPaint);
-            c.drawColor(t.dark ? 0x1F000000 : 0x1AFFFFFF);
+            c.drawColor(Color.argb(Math.round(255 * photoDim / 100f), 0, 0, 0));
         } else {
             renderGrid(t, time);
             c.drawBitmap(grid, null, new RectF(0, 0, w, h), bmpPaint);
@@ -132,6 +146,7 @@ public class LiquidBackdrop {
 
     /** Colour of the bottom edge, used to tint the navigation bar so it blends in. */
     public int bottomColor(Theme t) {
+        if (black) return 0xFF000000;
         if (photoFit != null) {
             int c = photoFit.getPixel(photoFit.getWidth() / 2, photoFit.getHeight() - 1);
             return 0xFF000000 | c;

@@ -197,6 +197,13 @@ public class GlassPainter {
         refr.setColorFilter(new android.graphics.ColorMatrixColorFilter(cm));
     }
 
+    /** Dark "AMOLED" glass: smoky keys with hairline edges on black. */
+    public boolean amoled = true;
+
+    public void setAmoled(boolean a) {
+        if (a != amoled) { amoled = a; clearSprites(); }
+    }
+
     public void setRoot(android.view.View root) { rootView = root; }
 
     public void setSource(Bitmap src, float scaleX, float scaleY) {
@@ -235,15 +242,40 @@ public class GlassPainter {
         int w = Math.max(2, Math.round(r.width())), h = Math.max(2, Math.round(r.height()));
         int rad = Math.round(Math.min(radius, Math.min(w, h) / 2f));
 
-        Bitmap sh = shadow(w, h, rad, t.dark);
-        float pad = 12 * dp;
-        c.drawBitmap(sh, r.left - pad, r.top - pad, spritePaint);
+        if (!amoled) {
+            Bitmap sh = shadow(w, h, rad, t.dark);
+            float pad = 12 * dp;
+            c.drawBitmap(sh, r.left - pad, r.top - pad, spritePaint);
+        }
 
         shape.reset();
         shape.addRoundRect(r, rad, rad, Path.Direction.CW);
         c.save();
         c.clipPath(shape);
         drawRefraction(c, r, pressed ? 1.16f : 1.07f);
+        if (amoled) {
+            // smoky dark glass: the picture behind stays dark, the key just lifts slightly
+            if (style == STYLE_ACTION) fill.setColor((t.accent & 0x00FFFFFF) | 0x80000000);
+            else if (style == STYLE_ACTIVE) fill.setColor((t.accent & 0x00FFFFFF) | 0x66000000);
+            else if (style == STYLE_FUNC) fill.setColor(0x0DFFFFFF);
+            else fill.setColor(0x00000000);
+            c.drawRect(r, fill);
+            if (pressed) {
+                // lights up under the finger, like the passcode buttons
+                fill.setColor(0x4DFFFFFF);
+                c.drawRect(r, fill);
+            }
+            c.restore();
+            c.drawBitmap(overlay(w, h, rad, t.dark), null, r, spritePaint);
+            if (glow > 0.02f) {
+                rim.setShader(null);
+                rim.setStrokeWidth(1.2f * dp);
+                rim.setColor(Color.argb((int) (110 * Math.min(1f, glow)), 255, 255, 255));
+                tmp.set(r.left + 0.6f * dp, r.top + 0.6f * dp, r.right - 0.6f * dp, r.bottom - 0.6f * dp);
+                c.drawRoundRect(tmp, rad - 0.6f * dp, rad - 0.6f * dp, rim);
+            }
+            return;
+        }
         if (style == STYLE_ACTION) {
             fill.setColor((t.accent & 0x00FFFFFF) | 0x8C000000);
             c.drawRect(r, fill);
@@ -271,6 +303,34 @@ public class GlassPainter {
         }
     }
 
+    /** Smoky glass lighting: faint frost, hairline rim brighter at the top, a whisper of light at the bottom. */
+    private Bitmap overlayDark(int w, int h, int rad) {
+        Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(b);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        RectF all = new RectF(0, 0, w, h);
+        Path pth = new Path();
+        pth.addRoundRect(all, rad, rad, Path.Direction.CW);
+        cv.save();
+        cv.clipPath(pth);
+        cv.drawColor(0x1CFFFFFF);
+        p.setShader(new LinearGradient(0, 0, 0, h * 0.5f, 0x17FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
+        p.setShader(new RadialGradient(w * 0.5f, h * 1.1f, Math.max(w, h) * 0.7f,
+                new int[]{0x1FFFFFFF, 0x08FFFFFF, 0x00FFFFFF}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
+        p.setShader(null);
+        cv.restore();
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(1.1f * dp);
+        p.setShader(new LinearGradient(0, 0, 0, h,
+                new int[]{0x8CFFFFFF, 0x2EFFFFFF, 0x17FFFFFF, 0x21FFFFFF, 0x4DFFFFFF},
+                new float[]{0f, 0.2f, 0.55f, 0.85f, 1f}, Shader.TileMode.CLAMP));
+        float in = 0.6f * dp;
+        cv.drawRoundRect(new RectF(in, in, w - in, h - in), rad - in, rad - in, p);
+        return b;
+    }
+
     private Bitmap shadow(int w, int h, int rad, boolean dark) {
         long k = w | ((long) h << 16) | ((long) rad << 32) | ((dark ? 1L : 0L) << 48);
         Bitmap b = shadowCache.get(k);
@@ -294,10 +354,11 @@ public class GlassPainter {
 
     /** All the static glass lighting for one key size, drawn once in software and cached. */
     private Bitmap overlay(int w, int h, int rad, boolean dark) {
-        long k = w | ((long) h << 16) | ((long) rad << 32) | ((dark ? 1L : 0L) << 48);
+        long k = w | ((long) h << 16) | ((long) rad << 32) | ((dark ? 1L : 0L) << 48) | ((amoled ? 1L : 0L) << 49);
         Bitmap b = overlayCache.get(k);
         if (b != null) return b;
         if (overlayCache.size() > 90) overlayCache.clear();
+        if (amoled) { b = overlayDark(w, h, rad); overlayCache.put(k, b); return b; }
         b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(b);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -430,7 +491,8 @@ public class GlassPainter {
         c.drawPath(sh, shadow);
         c.restore();
         fill.setShader(new LinearGradient(0, r.top, 0, r.bottom,
-                t.dark ? 0x8C2A3048 : 0xB3FFFFFF, t.dark ? 0x731E2236 : 0x99F2F5FA, Shader.TileMode.CLAMP));
+                amoled ? 0xF0262626 : (t.dark ? 0x8C2A3048 : 0xB3FFFFFF),
+                amoled ? 0xF0161616 : (t.dark ? 0x731E2236 : 0x99F2F5FA), Shader.TileMode.CLAMP));
         c.drawPath(sh, fill);
         fill.setShader(null);
         drawGlassPath(c, sh, r, STYLE_KEY, false, t, 0.6f);
