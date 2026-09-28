@@ -432,7 +432,7 @@ public class KeyboardView extends View {
                 // Fast typing: a new finger commits the previous finger's key immediately.
                 for (int i = 0; i < ptrs.size(); i++) {
                     Ptr o = ptrs.valueAt(i);
-                    if (!o.consumed && o.key != null && o.key.isChar() && !o.popup) {
+                    if (!o.consumed && o.key != null && !o.popup && (o.key.isChar() || (o.key.code == Key.SPACE && !o.spaceSwipe))) {
                         o.consumed = true;
                         fire(o.key);
                     }

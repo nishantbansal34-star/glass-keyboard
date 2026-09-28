@@ -27,5 +27,5 @@ public class Key {
                 || code == EMOJI;
     }
 
-    public boolean isChar() { return code > 0; }
+    public boolean isChar() { return code > 0 && code != SPACE; }
 }
