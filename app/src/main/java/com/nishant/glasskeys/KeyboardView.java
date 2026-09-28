@@ -430,7 +430,7 @@ public class KeyboardView extends View {
             if (a <= 0.01f) continue;
 
             int style = GlassPainter.STYLE_KEY;
-            if (k.code == Key.ENTER) style = GlassPainter.STYLE_FUNC;
+            if (k.code == Key.ENTER) style = gp.pack == 1 ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_FUNC;
             else if (k.code == Key.SHIFT && shift == SHIFT_LOCK) style = GlassPainter.STYLE_ACTIVE;
             else if (k.isFunction()) style = GlassPainter.STYLE_FUNC;
 
@@ -448,7 +448,9 @@ public class KeyboardView extends View {
             c.translate(r.centerX(), r.centerY() + ty);
             c.scale(sc, sc);
             c.translate(-r.centerX(), -r.centerY());
+            gp.variant = System.identityHashCode(k);
             gp.drawGlass(c, r, radius, style, pressed, theme, glow);
+            gp.variant = 0;
             drawKeyContent(c, k);
             c.restore();
         }
@@ -526,7 +528,8 @@ public class KeyboardView extends View {
     }
 
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
-        if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
+        if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
+        else if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);

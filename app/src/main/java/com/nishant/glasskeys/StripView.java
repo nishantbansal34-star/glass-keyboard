@@ -26,6 +26,8 @@ public class StripView extends View {
         public float weight;      // 0 = fixed icon width
         public Runnable action;
         public Runnable longAction;
+        public float hud = -1;     // >= 0: level badge with an XP bar (value = progress 0..1)
+        public float fixedW = 0;
         final RectF r = new RectF();
 
         public static Cell icon(int icon, Runnable a) { Cell c = new Cell(); c.icon = icon; c.action = a; return c; }
@@ -93,7 +95,7 @@ public class StripView extends View {
         float W = getWidth(), H = getHeight();
         if (W == 0) return;
         float iconW = 42 * dp, fixed = 0, weights = 0;
-        for (Cell c : cells) { if (c.weight == 0) fixed += iconW; else weights += c.weight; }
+        for (Cell c : cells) { if (c.fixedW > 0) fixed += c.fixedW; else if (c.weight == 0) fixed += iconW; else weights += c.weight; }
         float pad = 10 * dp;
         if (!cells.isEmpty() && (cells.get(0).icon == GlassPainter.IC_SPARKLE || cells.get(0).icon == GlassPainter.IC_KEYBOARD)) {
             // leading round button: square cell of full height
@@ -104,7 +106,7 @@ public class StripView extends View {
         if (weights == 0) x = (W - fixed) / 2f; // icons only: centre the toolbar
         for (int i = 0; i < cells.size(); i++) {
             Cell c = cells.get(i);
-            float w = c.weight == 0 ? iconW : unit * c.weight;
+            float w = c.fixedW > 0 ? c.fixedW : c.weight == 0 ? iconW : unit * c.weight;
             if (i == 0 && (c.icon == GlassPainter.IC_SPARKLE || c.icon == GlassPainter.IC_KEYBOARD)) {
                 w = (H - 10 * dp) + 12 * dp;
                 x = 0;
@@ -130,13 +132,16 @@ public class StripView extends View {
         float capLeft = m;
         if (lead) {
             circle.set(m, top, m + d, bot);
+            gp.variant = -1;
             gp.drawGlass(c, circle, d / 2, GlassPainter.STYLE_KEY, first == pressed, theme,
                     first == pressed ? 0.8f : 0f);
             gp.drawIcon(c, first.icon, circle.centerX(), circle.centerY(), 20 * dp, theme.text);
             capLeft = circle.right + 6 * dp;
         }
         capsule.set(capLeft, top, W - m, bot);
+        gp.variant = -1;
         gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
+        gp.variant = 0;
 
         Cell prevWord = null;
         for (int i = lead ? 1 : 0; i < cells.size(); i++) {
@@ -154,6 +159,20 @@ public class StripView extends View {
             }
             int col = (cell.active || cell.chip) ? 0xFFFFFFFF : theme.text;
             float cy = (top + bot) / 2;
+            if (cell.hud >= 0) { drawHud(c, cell, cl, cr, top, bot); continue; }
+            if (gp.pack == 1 && cell.primary && cell.text != null) {
+                // glowing outlined pill around the best suggestion
+                RectF g = new RectF(cl + 3 * dp, top + 4 * dp, cr - 3 * dp, bot - 4 * dp);
+                fill.setColor(0x338B5CFF);
+                c.drawRoundRect(g, 12 * dp, 12 * dp, fill);
+                hudPaint.setStyle(Paint.Style.STROKE);
+                hudPaint.setStrokeWidth(1.5f * dp);
+                hudPaint.setColor(0xFFA88BFF);
+                hudPaint.setShadowLayer(6 * dp, 0, 0, 0xCC8B5CFF);
+                c.drawRoundRect(g, 12 * dp, 12 * dp, hudPaint);
+                hudPaint.clearShadowLayer();
+                hudPaint.setStyle(Paint.Style.FILL);
+            }
             if (cell.text != null) {
                 tp.setColor(cell.title ? theme.subText : col);
                 tp.setTextSize((cell.title ? 14 : 17) * dp);
@@ -179,6 +198,34 @@ public class StripView extends View {
     }
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint hudPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    /** Level badge: "LV 12" with a slim glowing XP bar underneath. */
+    private void drawHud(Canvas c, Cell cell, float cl, float cr, float top, float bot) {
+        float h = bot - top;
+        RectF box = new RectF(cl + 4 * dp, top + 5 * dp, cr - 4 * dp, bot - 5 * dp);
+        if (cell == pressed) {
+            fill.setColor(0x338B5CFF);
+            c.drawRoundRect(box, 10 * dp, 10 * dp, fill);
+        }
+        hudPaint.setStyle(Paint.Style.FILL);
+        hudPaint.setTextAlign(Paint.Align.CENTER);
+        hudPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        hudPaint.setTextSize(13 * dp);
+        hudPaint.setLetterSpacing(0.12f);
+        hudPaint.setColor(0xFFEFE8FF);
+        hudPaint.setShadowLayer(5 * dp, 0, 0, 0xCC8B5CFF);
+        c.drawText(cell.text, box.centerX(), box.top + h * 0.42f, hudPaint);
+        hudPaint.clearShadowLayer();
+        hudPaint.setLetterSpacing(0f);
+        float bl = box.left + 6 * dp, br = box.right - 6 * dp, by = box.bottom - 7 * dp;
+        hudPaint.setColor(0x33FFFFFF);
+        c.drawRoundRect(new RectF(bl, by - 1.5f * dp, br, by + 1.5f * dp), 2 * dp, 2 * dp, hudPaint);
+        hudPaint.setColor(0xFFA070FF);
+        hudPaint.setShadowLayer(4 * dp, 0, 0, 0xFF8B5CFF);
+        c.drawRoundRect(new RectF(bl, by - 1.5f * dp, bl + (br - bl) * Math.max(0.03f, Math.min(1f, cell.hud)), by + 1.5f * dp), 2 * dp, 2 * dp, hudPaint);
+        hudPaint.clearShadowLayer();
+    }
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {

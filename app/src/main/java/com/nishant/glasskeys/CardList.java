@@ -102,6 +102,7 @@ public class CardList extends View {
             return;
         }
         gp.setOriginFromView(this);
+        gp.variant = -1;
         for (Card c : cards) {
             gp.drawGlass(canvas, c.r, 14 * dp, GlassPainter.STYLE_KEY, c == pressed && pressedIcon < 0, theme);
             float x = c.r.left + 12 * dp, y = c.r.top + 11 * dp;

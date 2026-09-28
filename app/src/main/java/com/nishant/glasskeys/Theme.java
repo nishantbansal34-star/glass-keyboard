@@ -32,6 +32,10 @@ public class Theme {
         new Theme("Emerald", 0xFF04140F, new int[]{0xFF10B981, 0xFF0E7490, 0xFF84CC16}, Color.WHITE, 0xFF10B981, true),
     };
 
+    /** Shadow Realm theme pack (kept separate from the Liquid Glass colour list). */
+    public static final Theme SHADOW = new Theme("Shadow Realm", 0xFF07050F,
+            new int[]{0xFF3A1A8C, 0xFF6A3DF0, 0xFF1A0F40}, 0xFFEFE8FF, 0xFF8B5CFF, true);
+
     public static Theme get(int i) {
         if (i < 0 || i >= ALL.length) i = 0;
         return ALL[i];

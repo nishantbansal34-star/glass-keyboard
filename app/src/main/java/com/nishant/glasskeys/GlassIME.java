@@ -43,7 +43,7 @@ import java.util.List;
 
 public class GlassIME extends InputMethodService implements KeyboardView.Listener {
 
-    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5;
+    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6;
 
     private Prefs prefs;
     private Dictionary dict;
@@ -135,11 +135,13 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private class RootView extends FrameLayout {
         RootView(Context c) { super(c); setWillNotDraw(false); setClipChildren(false); }
         void refresh() {
+            boolean shadow = prefs.pack() == 1;
             if (liquid != null) {
-                liquid.setPhoto(loadCustomBackdrop(), prefs.photoBlur());
-                liquid.black = prefs.bgMode() == 3;
-                liquid.photoDim = prefs.darkGlass() ? prefs.photoDim() : Math.min(prefs.photoDim(), 15);
+                liquid.setPhoto(loadCustomBackdrop(), shadow ? 0 : prefs.photoBlur());
+                liquid.black = !shadow && prefs.bgMode() == 3;
+                liquid.photoDim = shadow ? 8 : prefs.darkGlass() ? prefs.photoDim() : Math.min(prefs.photoDim(), 15);
             }
+            gp.setPack(prefs.pack());
             gp.setAmoled(prefs.darkGlass());
             gp.clearSprites();
             invalidate();
@@ -194,6 +196,13 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     /** The picture shown behind the glass: none (flowing colours), built-in bloom, or the user's photo. */
     private Bitmap loadCustomBackdrop() {
+        if (prefs.pack() == 1) {
+            if ("shadow".equals(cachedPhotoKey) && cachedPhoto != null) return cachedPhoto;
+            try (java.io.InputStream in = getAssets().open("shadow.jpg")) { cachedPhoto = BitmapFactory.decodeStream(in); }
+            catch (Exception e) { cachedPhoto = null; }
+            cachedPhotoKey = "shadow";
+            return cachedPhoto;
+        }
         int mode = prefs.bgMode();
         if (mode == 0 || mode == 3) return null;
         File f = new File(getFilesDir(), "backdrop.jpg");
@@ -256,7 +265,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     private void applySettings() {
-        theme = Theme.get(prefs.theme());
+        theme = prefs.pack() == 1 ? Theme.SHADOW : Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
         keyboard.glideEnabled = prefs.bool("glide", true);
@@ -481,9 +490,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         boolean wasAutoSpaced = autoSpaced;
         autoSpaced = false;
         if (glideWord && composing.length() > 0) {
-            glideWord = false;
             ic.beginBatchEdit();
             finishWord(ic, false, null);
+            glideWord = false;
             if (Character.isLetterOrDigit(s.codePointAt(0))) ic.commitText(" ", 1);
             ic.endBatchEdit();
         }
@@ -539,6 +548,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (!out.equals(typed) && forced == null) { lastCorrOriginal = typed; lastCorrReplacement = out; }
         else lastCorrOriginal = null;
         if (!noLearn) dict.learn(out.contains(" ") ? out.substring(out.lastIndexOf(' ') + 1) : out, prevWord);
+        gainXp(out, glideWord);
         prevWord = out;
         return out;
     }
@@ -898,6 +908,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
 
         // 6. Toolbar
+        if (levelUpUntil > SystemClock.uptimeMillis() && prefs.pack() == 1) {
+            StripView.Cell lu = StripView.Cell.chip(GlassPainter.IC_SPARKLE, "LEVEL UP  ·  LV " + level(prefs.integer("xp", 0)), () -> showPanel(P_STATS));
+            lu.active = true;
+            cells.add(lu);
+            strip.setCells(cells);
+            return;
+        }
+        if (prefs.pack() == 1) {
+            int xp = prefs.integer("xp", 0), lv = level(xp);
+            StripView.Cell hud = new StripView.Cell();
+            hud.text = "LV " + lv;
+            hud.hud = (xp - totalXp(lv)) / (float) xpToNext(lv);
+            hud.fixedW = 66 * dp;
+            hud.action = () -> showPanel(P_STATS);
+            cells.add(hud);
+        }
         cells.add(StripView.Cell.icon(GlassPainter.IC_CLIP, () -> showPanel(P_CLIP)));
         cells.add(StripView.Cell.icon(GlassPainter.IC_SNIPPET, () -> showPanel(P_SNIP)));
         cells.add(StripView.Cell.icon(GlassPainter.IC_CALC, () -> showPanel(P_CALC)));
@@ -913,6 +939,69 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     private void requestHideSelf0() { requestHideSelf(0); }
+
+    // ================================================================= typing XP (Shadow Realm HUD)
+
+    private long levelUpUntil;
+
+    private static int xpToNext(int lv) { return 20 + lv * 12; }
+
+    private static int totalXp(int lv) {
+        int t = 0;
+        for (int i = 1; i < lv; i++) t += xpToNext(i);
+        return t;
+    }
+
+    private static int level(int xp) {
+        int lv = 1;
+        while (xp >= totalXp(lv + 1) && lv < 999) lv++;
+        return lv;
+    }
+
+    private static String rank(int lv) {
+        if (lv >= 60) return "Legend";
+        if (lv >= 40) return "Grandmaster";
+        if (lv >= 25) return "Master";
+        if (lv >= 12) return "Expert";
+        if (lv >= 5) return "Adept";
+        return "Novice";
+    }
+
+    private void gainXp(String word, boolean swiped) {
+        if (word == null || word.isEmpty() || isPassword) return;
+        int gain = 1 + (word.length() >= 6 ? 1 : 0) + (swiped ? 1 : 0);
+        int before = prefs.integer("xp", 0);
+        int after = before + gain;
+        prefs.setInt("xp", after);
+        prefs.setInt("statWords", prefs.integer("statWords", 0) + 1);
+        if (swiped) prefs.setInt("statSwipes", prefs.integer("statSwipes", 0) + 1);
+        String today = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(new java.util.Date());
+        if (!today.equals(prefs.str("statDay", ""))) { prefs.setStr("statDay", today); prefs.setInt("statToday", 0); }
+        prefs.setInt("statToday", prefs.integer("statToday", 0) + 1);
+        if (level(after) > level(before) && prefs.pack() == 1) {
+            levelUpUntil = SystemClock.uptimeMillis() + 2400;
+            feedback(true);
+            if (strip != null) strip.postDelayed(this::updateStrip, 2500);
+        }
+    }
+
+    private void refreshStats() {
+        int xp = prefs.integer("xp", 0), lv = level(xp);
+        List<CardList.Card> cards = new ArrayList<>();
+        CardList.Card a = new CardList.Card();
+        a.title = "Level " + lv + "  ·  " + rank(lv);
+        a.body = (xp - totalXp(lv)) + " / " + xpToNext(lv) + " XP to level " + (lv + 1) + "\nTotal XP " + xp;
+        cards.add(a);
+        CardList.Card b = new CardList.Card();
+        b.title = "Words";
+        b.body = prefs.integer("statToday", 0) + " today  ·  " + prefs.integer("statWords", 0) + " all time";
+        cards.add(b);
+        CardList.Card d = new CardList.Card();
+        d.title = "Swiped words";
+        d.body = prefs.integer("statSwipes", 0) + " (swipes earn bonus XP, long words too)";
+        cards.add(d);
+        clipList.setCards(cards, "");
+    }
 
     private void forceToolbar() {
         toolbarForced = true;
@@ -938,6 +1027,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (ic == null) return;
         ic.commitText(word + " ", 1);
         if (!noLearn) dict.learn(word, prevWord);
+        gainXp(word, false);
         prevWord = word;
         lastEditTime = lastSpaceTime = SystemClock.uptimeMillis();
         autoSpaced = true;
@@ -988,10 +1078,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         clipScroll.addView(clipList);
         clipList.setOnCard(new CardList.OnCard() {
             @Override public void tap(CardList.Card c) {
+                if (panel == P_STATS) return;
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) { commitComposing(); ic.commitText(c.body, 1); }
             }
             @Override public void icon(CardList.Card c, int i) {
+                if (panel == P_STATS || c.tag == null) return;
                 List<Prefs.Clip> clips = prefs.clips();
                 int idx = (Integer) c.tag;
                 if (idx >= clips.size()) return;
@@ -1100,17 +1192,18 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         panel = p;
         keyboard.setVisibility(p == P_NONE ? View.VISIBLE : View.GONE);
         emojiPanel.setVisibility(p == P_EMOJI ? View.VISIBLE : View.GONE);
-        clipScroll.setVisibility(p == P_CLIP ? View.VISIBLE : View.GONE);
+        clipScroll.setVisibility(p == P_CLIP || p == P_STATS ? View.VISIBLE : View.GONE);
         snipScroll.setVisibility(p == P_SNIP ? View.VISIBLE : View.GONE);
         calcPanel.setVisibility(p == P_CALC ? View.VISIBLE : View.GONE);
         editPad.setVisibility(p == P_EDIT ? View.VISIBLE : View.GONE);
         if (p == P_EMOJI) showEmojiTab(prefs.recentEmoji().isEmpty() ? 1 : 0);
         if (p == P_CLIP) { refreshClips(); clipScroll.scrollTo(0, 0); }
+        if (p == P_STATS) { refreshStats(); clipScroll.scrollTo(0, 0); }
         if (p == P_SNIP) { refreshSnippets(); snipScroll.scrollTo(0, 0); }
         if (p == P_CALC) calcDisplay.invalidate();
         if (p == P_EDIT) { selectMode = false; editPad.setRows(editRows()); }
         if (p == P_NONE) updateShift();
-        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : p == P_CLIP ? clipScroll
+        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS) ? clipScroll
                 : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : editPad;
         if (prefs.glassRipple()) {
             shown.setAlpha(0f);
@@ -1129,6 +1222,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         switch (panel) {
             case P_EMOJI:
                 cells.add(StripView.Cell.title("Emoji"));
+                break;
+            case P_STATS:
+                cells.add(StripView.Cell.title("Your typing level"));
                 break;
             case P_CLIP:
                 cells.add(StripView.Cell.title("Clipboard · pinned items never expire"));

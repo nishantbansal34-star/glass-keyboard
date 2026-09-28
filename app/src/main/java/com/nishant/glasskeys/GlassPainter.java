@@ -199,6 +199,14 @@ public class GlassPainter {
 
     /** Dark "AMOLED" glass: smoky keys with hairline edges on black. */
     public boolean amoled = true;
+    /** Theme pack: 0 = Liquid Glass, 1 = Shadow Realm */
+    public int pack = 0;
+    /** Per-key variation (so flames differ from key to key). */
+    public int variant = 0;
+
+    public void setPack(int p) {
+        if (p != pack) { pack = p; clearSprites(); }
+    }
 
     public void setAmoled(boolean a) {
         if (a != amoled) { amoled = a; clearSprites(); }
@@ -242,6 +250,7 @@ public class GlassPainter {
         int w = Math.max(2, Math.round(r.width())), h = Math.max(2, Math.round(r.height()));
         int rad = Math.round(Math.min(radius, Math.min(w, h) / 2f));
 
+        if (pack == 1) { drawShadowKey(c, r, w, h, rad, style, pressed, t, glow); return; }
         if (!amoled) {
             Bitmap sh = shadow(w, h, rad, t.dark);
             float pad = 12 * dp;
@@ -301,6 +310,121 @@ public class GlassPainter {
             tmp.set(r.left + 0.7f * dp, r.top + 0.7f * dp, r.right - 0.7f * dp, r.bottom - 0.7f * dp);
             c.drawRoundRect(tmp, rad - 0.7f * dp, rad - 0.7f * dp, rim);
         }
+    }
+
+    // ---------------------------------------------------------------- Shadow Realm keys
+
+    private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private void drawShadowKey(Canvas c, RectF r, int w, int h, int rad, int style, boolean pressed, Theme t, float glow) {
+        boolean hero = style == STYLE_ACTION;           // return key: blazing outer glow
+        if (hero || pressed || glow > 0.3f) {
+            Bitmap g = violetGlow(w, h, rad);
+            float pad = 14 * dp;
+            spritePaint.setAlpha(hero ? 255 : (int) (255 * Math.max(pressed ? 0.8f : 0f, glow * 0.6f)));
+            c.drawBitmap(g, r.left - pad, r.top - pad, spritePaint);
+            spritePaint.setAlpha(255);
+        }
+        shape.reset();
+        shape.addRoundRect(r, rad, rad, Path.Direction.CW);
+        c.save();
+        c.clipPath(shape);
+        drawRefraction(c, r, 1.0f);
+        // obsidian body: the art shows through faintly (more on the wide space bar)
+        boolean wide = w > h * 3;
+        fill.setColor(wide ? 0x730A0618 : (style == STYLE_FUNC ? 0xD9090614 : 0xCC0A0716));
+        c.drawRect(r, fill);
+        if (pressed) {
+            fill.setColor(0x598B5CFF);
+            c.drawRect(r, fill);
+        }
+        c.restore();
+        c.drawBitmap(shadowOverlay(w, h, rad, variant, hero, wide), null, r, spritePaint);
+        if (glow > 0.02f) {
+            rim.setShader(null);
+            rim.setStrokeWidth(1.4f * dp);
+            rim.setColor(Color.argb((int) (170 * Math.min(1f, glow)), 0xB0, 0x90, 0xFF));
+            tmp.set(r.left + 0.7f * dp, r.top + 0.7f * dp, r.right - 0.7f * dp, r.bottom - 0.7f * dp);
+            c.drawRoundRect(tmp, rad - 0.7f * dp, rad - 0.7f * dp, rim);
+        }
+    }
+
+    private Bitmap violetGlow(int w, int h, int rad) {
+        long k = w | ((long) h << 16) | ((long) rad << 32) | (7L << 50);
+        Bitmap b = shadowCache.get(k);
+        if (b != null) return b;
+        int pad = Math.round(14 * dp);
+        b = Bitmap.createBitmap(w + 2 * pad, h + 2 * pad, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(b);
+        glowPaint.setColor(0xB38B5CFF);
+        glowPaint.setMaskFilter(new android.graphics.BlurMaskFilter(9 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL));
+        cv.drawRoundRect(new RectF(pad, pad, pad + w, pad + h), rad, rad, glowPaint);
+        glowPaint.setMaskFilter(null);
+        shadowCache.put(k, b);
+        return b;
+    }
+
+    /** Violet flames licking up from the bottom edge, a flame-lit rim and a faint top sheen. */
+    private Bitmap shadowOverlay(int w, int h, int rad, int seed, boolean hero, boolean wide) {
+        long k = w | ((long) h << 16) | ((long) rad << 32) | ((long) (seed == -1 ? 64 : seed & 63) << 49) | ((hero ? 1L : 0L) << 57) | (1L << 60);
+        Bitmap b = overlayCache.get(k);
+        if (b != null) return b;
+        if (overlayCache.size() > 120) overlayCache.clear();
+        b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas cv = new Canvas(b);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        RectF all = new RectF(0, 0, w, h);
+        Path pth = new Path();
+        pth.addRoundRect(all, rad, rad, Path.Direction.CW);
+        cv.save();
+        cv.clipPath(pth);
+        // ember glow pooled at the bottom
+        p.setShader(new RadialGradient(w * 0.5f, h * 1.15f, Math.max(w, h) * 0.8f,
+                new int[]{hero ? 0xB38B5CFF : 0x6B7C4DFF, 0x1A5B2DD0, 0x00000000}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
+        p.setShader(null);
+        // flame tongues
+        Random rnd = new Random((seed & 63) * 7919L + w * 31L + h);
+        int tongues = seed == -1 ? 0 : wide ? 9 : (hero ? 5 : 2 + rnd.nextInt(3));
+        p.setMaskFilter(new android.graphics.BlurMaskFilter(Math.max(1f, 1.6f * dp), android.graphics.BlurMaskFilter.Blur.NORMAL));
+        for (int i = 0; i < tongues; i++) {
+            float cx = w * (0.08f + 0.84f * rnd.nextFloat());
+            float fh = h * ((hero ? 0.35f : 0.18f) + rnd.nextFloat() * (hero ? 0.35f : 0.28f));
+            float fw = Math.min(w * 0.35f, (7 + rnd.nextFloat() * 9) * dp);
+            float lean = (rnd.nextFloat() - 0.5f) * fw * 1.4f;
+            Path f = new Path();
+            f.moveTo(cx - fw / 2, h + 2);
+            f.quadTo(cx - fw * 0.55f + lean * 0.3f, h - fh * 0.45f, cx + lean, h - fh);
+            f.quadTo(cx + fw * 0.35f + lean * 0.3f, h - fh * 0.5f, cx + fw / 2, h + 2);
+            f.close();
+            p.setShader(new LinearGradient(0, h, 0, h - fh, 0xD97C4DFF, 0x006B3DF0, Shader.TileMode.CLAMP));
+            cv.drawPath(f, p);
+            // hot inner core
+            Path core = new Path();
+            core.moveTo(cx - fw * 0.18f, h + 2);
+            core.quadTo(cx - fw * 0.2f + lean * 0.2f, h - fh * 0.35f, cx + lean * 0.55f, h - fh * 0.6f);
+            core.quadTo(cx + fw * 0.12f, h - fh * 0.3f, cx + fw * 0.18f, h + 2);
+            core.close();
+            p.setShader(new LinearGradient(0, h, 0, h - fh * 0.6f, 0xB3D4C2FF, 0x00B79CFF, Shader.TileMode.CLAMP));
+            cv.drawPath(core, p);
+        }
+        p.setShader(null);
+        p.setMaskFilter(null);
+        // faint glassy sheen at the top
+        p.setShader(new LinearGradient(0, 0, 0, h * 0.4f, 0x1FFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        cv.drawRect(all, p);
+        p.setShader(null);
+        cv.restore();
+        // flame-lit rim: cool violet at the top, hot at the bottom
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth((hero ? 1.8f : 1.2f) * dp);
+        p.setShader(new LinearGradient(0, 0, 0, h,
+                new int[]{hero ? 0xFFC9B5FF : 0x99A58BFF, hero ? 0xCC8B5CFF : 0x4D6B4BFF, hero ? 0xFFB08CFF : 0xCC9B6BFF},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        float in = 0.7f * dp;
+        cv.drawRoundRect(new RectF(in, in, w - in, h - in), rad - in, rad - in, p);
+        overlayCache.put(k, b);
+        return b;
     }
 
     /** Smoky glass lighting: faint frost, hairline rim brighter at the top, a whisper of light at the bottom. */
