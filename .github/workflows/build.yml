@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unpack source
-        run: unzip -o glasskeys-source.zip -d src
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -20,9 +18,9 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build APK
-        run: cd src && gradle :app:assembleRelease --no-daemon --stacktrace
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
       - name: Name APK
-        run: cp src/app/build/outputs/apk/release/app-release.apk GlassKeys-${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk GlassKeys-${{ github.run_number }}.apk
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
