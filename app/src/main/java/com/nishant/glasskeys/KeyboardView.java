@@ -142,89 +142,126 @@ public class KeyboardView extends View {
     private final android.graphics.Path ribbon = new android.graphics.Path();
     private final android.graphics.Path headDot = new android.graphics.Path();
     private final Paint ribbonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private android.graphics.BlurMaskFilter glowBlur;
-    private float[] sx = new float[256], sy = new float[256], sw = new float[256];
+    private final Paint headPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private android.graphics.BlurMaskFilter haloBlur, glowBlur;
+    private final android.graphics.PorterDuffXfermode screenMode =
+            new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN);
+    private float[] sx = new float[400], sy = new float[400], sw = new float[400];
+    private float[] rlx = new float[400], rly = new float[400], rrx = new float[400], rry = new float[400];
+
+    // blue light palette for the trail
+    private static final int TR_HALO = 0x1450FF, TR_GLOW = 0x2F7DFF, TR_BODY = 0x62A8FF, TR_CORE = 0xEEF7FF;
 
     /**
-     * Glowing liquid trail drawn as one continuous ribbon: points are smoothed, the width tapers
-     * from a rounded head under the finger to a fine point at the tail, and it fades as a whole.
+     * Glowing blue trail that follows the finger: a continuous ribbon, thick and bright under the
+     * fingertip, tapering and retracting smoothly behind it (the tail chases the head, frame by frame).
      */
     private void drawTrail(Canvas c) {
-        if (!trailEnabled || gn < 2) return;
+        if (!trailEnabled || gn < 1) return;
         long now = SystemClock.uptimeMillis();
         float global = 1f;
         if (!gliding) {
             if (glideEnd < 0) return;
-            global = 1f - (now - glideEnd) / 280f;
+            global = 1f - (now - glideEnd) / 260f;
             if (global <= 0) { gn = 0; glideEnd = -1; return; }
             global = global * global * (3 - 2 * global); // smoothstep
         }
-        final float life = 560f;
-        // while the finger rests, keep the trail alive instead of fading it out
-        if (gliding) now = Math.min(now, gt[gn - 1] + 140);
-        // 1. collect the visible part of the stroke, resampled every ~3dp and smoothed
+        final float life = 420f;
+        long cut = now - (long) life;
+        // 1. find where the tail currently is, interpolated between samples so it glides, not jumps
         int first = gn - 1;
-        while (first > 0 && now - gt[first - 1] < life) first--;
-        float step = 3f * dp;
+        while (first > 0 && gt[first - 1] > cut) first--;
+        float tx0 = gx[first], ty0 = gy[first];
+        long tt0 = gt[first];
+        if (first > 0 && gt[first] > cut) {
+            long ta = gt[first - 1], tb = gt[first];
+            float f = tb == ta ? 1f : (cut - ta) / (float) (tb - ta);
+            f = Math.max(0f, Math.min(1f, f));
+            tx0 = gx[first - 1] + (gx[first] - gx[first - 1]) * f;
+            ty0 = gy[first - 1] + (gy[first] - gy[first - 1]) * f;
+            tt0 = cut;
+        }
+        // 2. resample every ~2.5dp
+        float step = 2.5f * dp;
         int m = 0;
-        float lx = gx[first], ly = gy[first];
-        long lt = gt[first];
-        if (sx.length < 400) { sx = new float[400]; sy = new float[400]; sw = new float[400]; }
+        float lx = tx0, ly = ty0;
+        long lt = tt0;
         sx[m] = lx; sy[m] = ly; sw[m] = lt; m++;
-        for (int i = first + 1; i < gn && m < 399; i++) {
+        for (int i = first; i < gn && m < 398; i++) {
             float dx = gx[i] - lx, dy = gy[i] - ly;
             float d = (float) Math.hypot(dx, dy);
-            if (d < step) continue;
-            int n = Math.min(12, (int) (d / step));
-            for (int k = 1; k <= n && m < 399; k++) {
+            if (d < 0.5f || (d < step && i < gn - 1)) continue;
+            int n = Math.max(1, Math.min(16, (int) (d / step)));
+            for (int k = 1; k <= n && m < 398; k++) {
                 float t = k / (float) n;
                 sx[m] = lx + dx * t; sy[m] = ly + dy * t; sw[m] = lt + (gt[i] - lt) * t; m++;
             }
             lx = gx[i]; ly = gy[i]; lt = gt[i];
         }
-        if (m < 2) return;
-        // light smoothing (keeps the ends fixed)
-        for (int pass = 0; pass < 2; pass++)
+        float headX = gx[gn - 1], headY = gy[gn - 1];
+        // 3. smoothing (the head stays pinned to the finger)
+        if (m >= 3) for (int pass = 0; pass < 3; pass++)
             for (int i = 1; i < m - 1; i++) {
                 sx[i] = (sx[i - 1] + 2 * sx[i] + sx[i + 1]) / 4f;
                 sy[i] = (sy[i - 1] + 2 * sy[i] + sy[i + 1]) / 4f;
             }
-        // 2. width per point: full at the head, tapering to nothing at the tail
-        boolean prem = gp.amoled && gp.pack == 0;
-        float maxW = (prem ? 2.8f : 5.5f) * dp;
+        // 4. width: full under the finger, easing to a fine point at the tail
+        float maxW = 8f * dp;
         for (int i = 0; i < m; i++) {
-            float age = Math.max(0f, (now - sw[i]) / life);
-            float byAge = (float) Math.pow(Math.max(0f, 1f - age), 0.7);
-            float byPos = Math.min(1f, (i + 1) / (float) Math.max(6, m * 0.35f));
-            sw[i] = maxW * byAge * byPos;
+            float age = Math.max(0f, Math.min(1f, (now - sw[i]) / life));
+            float byAge = 1f - age;
+            byAge = byAge * byAge * (3 - 2 * byAge);
+            float byPos = Math.min(1f, (i + 1) / (float) Math.max(5, m * 0.25f));
+            sw[i] = maxW * (0.12f + 0.88f * byAge) * byPos;
         }
+        if (m >= 1) sw[m - 1] = maxW;
 
-        int accent = theme.accent & 0x00FFFFFF;
-        if (glowBlur == null) glowBlur = new android.graphics.BlurMaskFilter(7 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+        if (haloBlur == null) {
+            haloBlur = new android.graphics.BlurMaskFilter(14 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+            glowBlur = new android.graphics.BlurMaskFilter(5 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+        }
+        boolean dark = theme.dark;
         ribbonPaint.setStyle(Paint.Style.FILL);
-
-        int glowCol = prem ? (theme.dark ? 0xC8D6F0 : 0x5A6B85) : accent;
-        int coreCol = prem ? (theme.dark ? 0xF4F8FF : 0x2A3342) : 0xFFFFFF;
-        // outer glow
-        buildRibbon(m, prem ? 3.6f : 3.4f);
-        ribbonPaint.setMaskFilter(glowBlur);
-        ribbonPaint.setColor(((int) ((prem ? 46 : 120) * global) << 24) | glowCol);
-        c.drawPath(ribbon, ribbonPaint);
-        ribbonPaint.setMaskFilter(null);
-        // inner glow
-        buildRibbon(m, prem ? 1.8f : 1.9f);
-        ribbonPaint.setColor(((int) ((prem ? 70 : 150) * global) << 24) | glowCol);
-        c.drawPath(ribbon, ribbonPaint);
-        // luminous core
-        buildRibbon(m, 1f);
-        ribbonPaint.setColor(((int) ((prem ? 200 : 245) * global) << 24) | coreCol);
-        c.drawPath(ribbon, ribbonPaint);
+        ribbonPaint.setXfermode(dark ? screenMode : null);
+        if (m >= 2) {
+            // wide soft halo
+            buildRibbon(m, 4.4f);
+            ribbonPaint.setMaskFilter(haloBlur);
+            ribbonPaint.setColor(((int) ((dark ? 195 : 110) * global) << 24) | TR_HALO);
+            c.drawPath(ribbon, ribbonPaint);
+            // glow
+            buildRibbon(m, 1.9f);
+            ribbonPaint.setMaskFilter(glowBlur);
+            ribbonPaint.setColor(((int) ((dark ? 215 : 150) * global) << 24) | TR_GLOW);
+            c.drawPath(ribbon, ribbonPaint);
+            ribbonPaint.setMaskFilter(null);
+            // body
+            buildRibbon(m, 1f);
+            ribbonPaint.setColor(((int) (215 * global) << 24) | TR_BODY);
+            c.drawPath(ribbon, ribbonPaint);
+            // hot core
+            buildRibbon(m, 0.42f);
+            ribbonPaint.setColor(((int) (235 * global) << 24) | (dark ? TR_CORE : 0xDDEBFF));
+            c.drawPath(ribbon, ribbonPaint);
+        }
+        // glowing head under the fingertip
+        float hr = 15 * dp;
+        headPaint.setXfermode(dark ? screenMode : null);
+        headPaint.setShader(new RadialGradient(headX, headY, hr,
+                new int[]{((int) (230 * global) << 24) | TR_CORE, ((int) (170 * global) << 24) | TR_BODY,
+                        ((int) (70 * global) << 24) | TR_GLOW, 0x00000000 | TR_HALO},
+                new float[]{0f, 0.22f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        c.drawCircle(headX, headY, hr, headPaint);
+        headPaint.setShader(null);
+        ribbonPaint.setXfermode(null);
+        headPaint.setXfermode(null);
+        // keep animating the overlay so the tail keeps catching up even when the finger is still
+        if (overlay != null) overlay.postInvalidateOnAnimation();
     }
 
     /** Builds a closed, smoothly curved ribbon outline around the sampled stroke. */
     private void buildRibbon(int m, float scale) {
         ribbon.reset();
-        float[] lxs = new float[m], lys = new float[m], rxs = new float[m], rys = new float[m];
         for (int i = 0; i < m; i++) {
             int a = Math.max(0, i - 1), b = Math.min(m - 1, i + 1);
             float tx = sx[b] - sx[a], ty = sy[b] - sy[a];
@@ -232,25 +269,25 @@ public class KeyboardView extends View {
             if (len < 1e-3f) { tx = 1; ty = 0; len = 1; }
             float nx = -ty / len, ny = tx / len;
             float hw = sw[i] * scale / 2f;
-            lxs[i] = sx[i] + nx * hw; lys[i] = sy[i] + ny * hw;
-            rxs[i] = sx[i] - nx * hw; rys[i] = sy[i] - ny * hw;
+            rlx[i] = sx[i] + nx * hw; rly[i] = sy[i] + ny * hw;
+            rrx[i] = sx[i] - nx * hw; rry[i] = sy[i] - ny * hw;
         }
-        ribbon.moveTo(lxs[0], lys[0]);
+        ribbon.moveTo(rlx[0], rly[0]);
         for (int i = 1; i < m - 1; i++)
-            ribbon.quadTo(lxs[i], lys[i], (lxs[i] + lxs[i + 1]) / 2f, (lys[i] + lys[i + 1]) / 2f);
-        ribbon.lineTo(lxs[m - 1], lys[m - 1]);
-        ribbon.lineTo(rxs[m - 1], rys[m - 1]);
+            ribbon.quadTo(rlx[i], rly[i], (rlx[i] + rlx[i + 1]) / 2f, (rly[i] + rly[i + 1]) / 2f);
+        ribbon.lineTo(rlx[m - 1], rly[m - 1]);
+        ribbon.lineTo(rrx[m - 1], rry[m - 1]);
         for (int i = m - 2; i > 0; i--)
-            ribbon.quadTo(rxs[i], rys[i], (rxs[i] + rxs[i - 1]) / 2f, (rys[i] + rys[i - 1]) / 2f);
-        ribbon.lineTo(rxs[0], rys[0]);
+            ribbon.quadTo(rrx[i], rry[i], (rrx[i] + rrx[i - 1]) / 2f, (rry[i] + rry[i - 1]) / 2f);
+        ribbon.lineTo(rrx[0], rry[0]);
         ribbon.close();
-        // rounded head under the finger
+        // rounded ends
+        headDot.reset();
         float hr = sw[m - 1] * scale / 2f;
-        if (hr > 0.5f) {
-            headDot.reset();
-            headDot.addCircle(sx[m - 1], sy[m - 1], hr, android.graphics.Path.Direction.CW);
-            ribbon.op(headDot, android.graphics.Path.Op.UNION);
-        }
+        if (hr > 0.5f) headDot.addCircle(sx[m - 1], sy[m - 1], hr, android.graphics.Path.Direction.CW);
+        float tr = sw[0] * scale / 2f;
+        if (tr > 0.5f) headDot.addCircle(sx[0], sy[0], tr, android.graphics.Path.Direction.CW);
+        if (!headDot.isEmpty()) ribbon.op(headDot, android.graphics.Path.Op.UNION);
     }
 
     private final Map<Key, float[]> touchInfo = new IdentityHashMap<>();   // {x, y, startMillis}
@@ -815,6 +852,11 @@ public class KeyboardView extends View {
                     float x = e.getX(i), y = e.getY(i);
                     if (p.popup) { updatePopupIndex(p, x, y); invalidateAll(); continue; }
                     int pid = e.getPointerId(i);
+                    if (glideEnabled && !gliding && ptrs.size() == 1 && page == Layouts.ALPHA) {
+                        for (int hh = 0; hh < e.getHistorySize(); hh++)
+                            addGlidePoint(e.getHistoricalX(i, hh), e.getHistoricalY(i, hh), e.getHistoricalEventTime(hh));
+                        addGlidePoint(x, y, SystemClock.uptimeMillis());
+                    }
                     if (glideEnabled && !gliding && page == Layouts.ALPHA && ptrs.size() == 1 && p.key.isChar()
                             && Character.isLetter(p.key.label.charAt(0)) && !p.consumed
                             && Math.hypot(x - p.downX, y - p.downY) > keyUnit * 0.7f) {
