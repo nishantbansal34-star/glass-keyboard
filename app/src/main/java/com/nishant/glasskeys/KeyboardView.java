@@ -139,28 +139,114 @@ public class KeyboardView extends View {
         }
     }
 
-    /** Glowing liquid trail: a soft wide glow with a bright core that tapers toward the tail. */
+    private final android.graphics.Path ribbon = new android.graphics.Path();
+    private final android.graphics.Path headDot = new android.graphics.Path();
+    private final Paint ribbonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private android.graphics.BlurMaskFilter glowBlur;
+    private float[] sx = new float[256], sy = new float[256], sw = new float[256];
+
+    /**
+     * Glowing liquid trail drawn as one continuous ribbon: points are smoothed, the width tapers
+     * from a rounded head under the finger to a fine point at the tail, and it fades as a whole.
+     */
     private void drawTrail(Canvas c) {
         if (!trailEnabled || gn < 2) return;
         long now = SystemClock.uptimeMillis();
         float global = 1f;
         if (!gliding) {
             if (glideEnd < 0) return;
-            global = 1f - (now - glideEnd) / 260f;
+            global = 1f - (now - glideEnd) / 280f;
             if (global <= 0) { gn = 0; glideEnd = -1; return; }
+            global = global * global * (3 - 2 * global); // smoothstep
         }
+        final float life = 560f;
+        // while the finger rests, keep the trail alive instead of fading it out
+        if (gliding) now = Math.min(now, gt[gn - 1] + 140);
+        // 1. collect the visible part of the stroke, resampled every ~3dp and smoothed
+        int first = gn - 1;
+        while (first > 0 && now - gt[first - 1] < life) first--;
+        float step = 3f * dp;
+        int m = 0;
+        float lx = gx[first], ly = gy[first];
+        long lt = gt[first];
+        if (sx.length < 400) { sx = new float[400]; sy = new float[400]; sw = new float[400]; }
+        sx[m] = lx; sy[m] = ly; sw[m] = lt; m++;
+        for (int i = first + 1; i < gn && m < 399; i++) {
+            float dx = gx[i] - lx, dy = gy[i] - ly;
+            float d = (float) Math.hypot(dx, dy);
+            if (d < step) continue;
+            int n = Math.min(12, (int) (d / step));
+            for (int k = 1; k <= n && m < 399; k++) {
+                float t = k / (float) n;
+                sx[m] = lx + dx * t; sy[m] = ly + dy * t; sw[m] = lt + (gt[i] - lt) * t; m++;
+            }
+            lx = gx[i]; ly = gy[i]; lt = gt[i];
+        }
+        if (m < 2) return;
+        // light smoothing (keeps the ends fixed)
+        for (int pass = 0; pass < 2; pass++)
+            for (int i = 1; i < m - 1; i++) {
+                sx[i] = (sx[i - 1] + 2 * sx[i] + sx[i + 1]) / 4f;
+                sy[i] = (sy[i - 1] + 2 * sy[i] + sy[i + 1]) / 4f;
+            }
+        // 2. width per point: full at the head, tapering to nothing at the tail
+        float maxW = 5.5f * dp;
+        for (int i = 0; i < m; i++) {
+            float age = Math.max(0f, (now - sw[i]) / life);
+            float byAge = (float) Math.pow(Math.max(0f, 1f - age), 0.7);
+            float byPos = Math.min(1f, (i + 1) / (float) Math.max(6, m * 0.35f));
+            sw[i] = maxW * byAge * byPos;
+        }
+
         int accent = theme.accent & 0x00FFFFFF;
-        for (int i = 1; i < gn; i++) {
-            float age = (now - gt[i]) / 480f;
-            float a = Math.max(0f, 1f - age) * global;
-            if (a <= 0.02f) continue;
-            float taper = (float) i / gn;
-            trailGlow.setStrokeWidth((5 + 9 * taper) * dp * (0.4f + 0.6f * a));
-            trailGlow.setColor(((int) (70 * a) << 24) | accent);
-            c.drawLine(gx[i - 1], gy[i - 1], gx[i], gy[i], trailGlow);
-            trailCore.setStrokeWidth((1.2f + 2.6f * taper) * dp * (0.5f + 0.5f * a));
-            trailCore.setColor(((int) (235 * a) << 24) | 0xFFFFFF);
-            c.drawLine(gx[i - 1], gy[i - 1], gx[i], gy[i], trailCore);
+        if (glowBlur == null) glowBlur = new android.graphics.BlurMaskFilter(7 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+        ribbonPaint.setStyle(Paint.Style.FILL);
+
+        // outer glow
+        buildRibbon(m, 3.4f);
+        ribbonPaint.setMaskFilter(glowBlur);
+        ribbonPaint.setColor(((int) (120 * global) << 24) | accent);
+        c.drawPath(ribbon, ribbonPaint);
+        ribbonPaint.setMaskFilter(null);
+        // inner glow
+        buildRibbon(m, 1.9f);
+        ribbonPaint.setColor(((int) (150 * global) << 24) | accent);
+        c.drawPath(ribbon, ribbonPaint);
+        // bright core
+        buildRibbon(m, 1f);
+        ribbonPaint.setColor(((int) (245 * global) << 24) | 0xFFFFFF);
+        c.drawPath(ribbon, ribbonPaint);
+    }
+
+    /** Builds a closed, smoothly curved ribbon outline around the sampled stroke. */
+    private void buildRibbon(int m, float scale) {
+        ribbon.reset();
+        float[] lxs = new float[m], lys = new float[m], rxs = new float[m], rys = new float[m];
+        for (int i = 0; i < m; i++) {
+            int a = Math.max(0, i - 1), b = Math.min(m - 1, i + 1);
+            float tx = sx[b] - sx[a], ty = sy[b] - sy[a];
+            float len = (float) Math.hypot(tx, ty);
+            if (len < 1e-3f) { tx = 1; ty = 0; len = 1; }
+            float nx = -ty / len, ny = tx / len;
+            float hw = sw[i] * scale / 2f;
+            lxs[i] = sx[i] + nx * hw; lys[i] = sy[i] + ny * hw;
+            rxs[i] = sx[i] - nx * hw; rys[i] = sy[i] - ny * hw;
+        }
+        ribbon.moveTo(lxs[0], lys[0]);
+        for (int i = 1; i < m - 1; i++)
+            ribbon.quadTo(lxs[i], lys[i], (lxs[i] + lxs[i + 1]) / 2f, (lys[i] + lys[i + 1]) / 2f);
+        ribbon.lineTo(lxs[m - 1], lys[m - 1]);
+        ribbon.lineTo(rxs[m - 1], rys[m - 1]);
+        for (int i = m - 2; i > 0; i--)
+            ribbon.quadTo(rxs[i], rys[i], (rxs[i] + rxs[i - 1]) / 2f, (rys[i] + rys[i - 1]) / 2f);
+        ribbon.lineTo(rxs[0], rys[0]);
+        ribbon.close();
+        // rounded head under the finger
+        float hr = sw[m - 1] * scale / 2f;
+        if (hr > 0.5f) {
+            headDot.reset();
+            headDot.addCircle(sx[m - 1], sy[m - 1], hr, android.graphics.Path.Direction.CW);
+            ribbon.op(headDot, android.graphics.Path.Op.UNION);
         }
     }
 
