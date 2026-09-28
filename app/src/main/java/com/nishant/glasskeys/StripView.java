@@ -161,16 +161,9 @@ public class StripView extends View {
                 new float[]{0f, 0.45f, 1f}, android.graphics.Shader.TileMode.CLAMP));
         c.drawCircle(o.centerX(), o.centerY(), o.width() / 2 - 1, orbPaint);
         orbPaint.setShader(null);
-        orbPaint.setShader(new android.graphics.RadialGradient(o.centerX(), o.centerY(), 10 * dp * expand,
-                ((int) (100 * breath) << 24) | 0xFFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
-        c.drawCircle(o.centerX(), o.centerY(), 10 * dp * expand, orbPaint);
-        // a tiny light slowly travelling around the inside of the rim
-        double ang = t * 0.55;
-        float rr = o.width() / 2 - 3 * dp;
-        float lx = o.centerX() + (float) Math.cos(ang) * rr, ly = o.centerY() + (float) Math.sin(ang) * rr;
-        orbPaint.setShader(new android.graphics.RadialGradient(lx, ly, 5 * dp,
-                0x4DFFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
-        c.drawCircle(lx, ly, 5 * dp, orbPaint);
+        orbPaint.setShader(new android.graphics.RadialGradient(o.centerX(), o.centerY(), 9 * dp * expand,
+                ((int) (70 * breath) << 24) | 0xFFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+        c.drawCircle(o.centerX(), o.centerY(), 9 * dp * expand, orbPaint);
         orbPaint.setShader(null);
         gp.drawIcon(c, GlassPainter.IC_SPARKLE, o.centerX() + 1 * dp, o.centerY() + 1 * dp, 16 * dp,
                 theme.dark ? 0xF2FFFFFF : 0xE615181E);

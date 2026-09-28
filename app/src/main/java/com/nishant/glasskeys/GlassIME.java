@@ -103,6 +103,13 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onCreate() {
         super.onCreate();
         prefs = new Prefs(this);
+        if (!prefs.bool("wallMigrated3", false)) {
+            // back to the look you liked: glass lit by your wallpaper's colours
+            if (prefs.bgMode() == 5) prefs.setInt("bgmode", 4);
+            prefs.setBool("wallMigrated3", true);
+            prefs.setBool("wallMigrated2", true);
+            prefs.setBool("wallMigrated", true);
+        }
         if (!prefs.bool("wallMigrated2", false)) {
             // "Wallpaper" now means your real wallpaper image when allowed (colours otherwise)
             if (prefs.bgMode() == 4 || prefs.bgMode() == 3) prefs.setInt("bgmode", 5);
