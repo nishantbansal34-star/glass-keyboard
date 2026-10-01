@@ -61,6 +61,94 @@ public class Prefs {
     public int gstRate() { return integer("gst", 18); }
     public String backdropUri() { return str("backdrop", null); }
 
+    /** 0 = English, 1 = Hinglish → हिंदी (type in English letters), 2 = हिंदी keys */
+    public int lang() { return bool("hindi", true) ? integer("lang", 0) : 0; }
+    public boolean incognito() { return bool("incognito", false); }
+
+    /** Hinglish choices you made: "roman\u0001हिंदी" -> times picked */
+    public Map<String, Integer> hiPicks() { return readMap("hiPicks"); }
+    public void saveHiPicks(Map<String, Integer> m) { writeMap("hiPicks", m); }
+
+    // ---------- price list ----------
+    public static class Product {
+        public String name, unit;
+        public double price;
+        public Product(String name, double price, String unit) { this.name = name; this.price = price; this.unit = unit == null ? "" : unit; }
+    }
+
+    public List<Product> products() {
+        List<Product> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(sp.getString("products", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.getJSONObject(i);
+                out.add(new Product(o.optString("n"), o.optDouble("p", 0), o.optString("u")));
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    public void saveProducts(List<Product> list) {
+        JSONArray a = new JSONArray();
+        try {
+            for (Product p : list) {
+                JSONObject o = new JSONObject();
+                o.put("n", p.name); o.put("p", p.price); o.put("u", p.unit);
+                a.put(o);
+            }
+        } catch (Exception ignored) { }
+        sp.edit().putString("products", a.toString()).apply();
+    }
+
+    // ---------- backup ----------
+    /** Everything the keyboard knows (settings, learned words, snippets, clipboard pins, business details) as JSON. */
+    public String exportAll() throws org.json.JSONException {
+        JSONObject root = new JSONObject();
+        root.put("app", "glasskeys");
+        root.put("v", 1);
+        root.put("time", System.currentTimeMillis());
+        JSONObject data = new JSONObject();
+        for (Map.Entry<String, ?> e : sp.getAll().entrySet()) {
+            Object v = e.getValue();
+            JSONObject item = new JSONObject();
+            if (v instanceof Boolean) item.put("t", "b");
+            else if (v instanceof Integer) item.put("t", "i");
+            else if (v instanceof Long) item.put("t", "l");
+            else if (v instanceof Float) item.put("t", "f");
+            else if (v instanceof String) item.put("t", "s");
+            else continue;
+            item.put("v", v);
+            data.put(e.getKey(), item);
+        }
+        root.put("data", data);
+        return root.toString(1);
+    }
+
+    /** Replaces everything with a backup made by exportAll(). Returns how many entries were restored. */
+    public int importAll(String json) throws org.json.JSONException {
+        JSONObject root = new JSONObject(json);
+        if (!"glasskeys".equals(root.optString("app"))) throw new org.json.JSONException("not a Glass Keys backup");
+        JSONObject data = root.getJSONObject("data");
+        SharedPreferences.Editor ed = sp.edit().clear();
+        JSONArray names = data.names();
+        int n = 0;
+        if (names != null) for (int i = 0; i < names.length(); i++) {
+            String k = names.getString(i);
+            JSONObject item = data.getJSONObject(k);
+            switch (item.optString("t")) {
+                case "b": ed.putBoolean(k, item.getBoolean("v")); break;
+                case "i": ed.putInt(k, item.getInt("v")); break;
+                case "l": ed.putLong(k, item.getLong("v")); break;
+                case "f": ed.putFloat(k, (float) item.getDouble("v")); break;
+                case "s": ed.putString(k, item.getString("v")); break;
+                default: continue;
+            }
+            n++;
+        }
+        ed.commit();
+        return n;
+    }
+
     // ---------- clipboard ----------
     public static class Clip {
         public String text;
@@ -198,7 +286,7 @@ public class Prefs {
     }
 
     public void clearLearned() {
-        sp.edit().remove("learned").remove("bigrams").remove("trigrams").remove("caseforms").apply();
+        sp.edit().remove("learned").remove("bigrams").remove("trigrams").remove("caseforms").remove("hiPicks").apply();
     }
 
     public List<String> recentEmoji() {

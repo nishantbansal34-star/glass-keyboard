@@ -50,6 +50,50 @@ public class Business {
         return sb.toString();
     }
 
+    static String rupees(double v) { return "₹" + Calc.format(Math.round(v * 100) / 100.0, true); }
+
+    /** Your price list as a WhatsApp-ready message. */
+    public static String priceListText(Prefs p, java.util.List<Prefs.Product> items) {
+        String nm = name(p);
+        StringBuilder sb = new StringBuilder();
+        sb.append("*Price list").append(nm.isEmpty() ? "" : " · " + nm).append("*\n");
+        for (Prefs.Product it : items) {
+            sb.append("• ").append(it.name).append(" — ").append(rupees(it.price));
+            if (!it.unit.isEmpty()) sb.append(" / ").append(it.unit);
+            sb.append("\n");
+        }
+        String date = new java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.ENGLISH).format(new java.util.Date());
+        sb.append("_Rates as of ").append(date).append("_");
+        return sb.toString();
+    }
+
+    /** Order summary with quantities and total. cart: product index -> quantity. */
+    public static String orderText(Prefs p, java.util.List<Prefs.Product> items, java.util.Map<Integer, Integer> cart) {
+        String nm = name(p);
+        StringBuilder sb = new StringBuilder();
+        sb.append("*Order summary").append(nm.isEmpty() ? "" : " · " + nm).append("*\n");
+        double total = 0;
+        int n = 1;
+        for (java.util.Map.Entry<Integer, Integer> e : cart.entrySet()) {
+            if (e.getKey() >= items.size() || e.getValue() <= 0) continue;
+            Prefs.Product it = items.get(e.getKey());
+            double line = it.price * e.getValue();
+            total += line;
+            sb.append(n++).append(". ").append(it.name).append(" × ").append(e.getValue());
+            if (!it.unit.isEmpty()) sb.append(" ").append(it.unit);
+            sb.append(" — ").append(rupees(line)).append("\n");
+        }
+        sb.append("*Total: ").append(rupees(total)).append("*");
+        return sb.toString();
+    }
+
+    public static double orderTotal(java.util.List<Prefs.Product> items, java.util.Map<Integer, Integer> cart) {
+        double t = 0;
+        for (java.util.Map.Entry<Integer, Integer> e : cart.entrySet())
+            if (e.getKey() < items.size()) t += items.get(e.getKey()).price * e.getValue();
+        return Math.round(t * 100) / 100.0;
+    }
+
     /** A clean white payment card: business name, amount, QR, UPI ID. */
     public static Bitmap qrCard(Prefs p, double amount, float density) {
         String link = upiLink(upi(p), name(p), amount, "");

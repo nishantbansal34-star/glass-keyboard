@@ -35,13 +35,13 @@ import java.util.List;
 
 /** Setup + settings screen (also opened from the keyboard's gear icon). */
 public class SettingsActivity extends Activity {
-    private static final int REQ_PHOTO = 11, REQ_MIC = 12;
+    private static final int REQ_PHOTO = 11, REQ_MIC = 12, REQ_BACKUP = 13, REQ_RESTORE = 14;
 
     private Prefs prefs;
     private float dp;
     private LinearLayout col;
     private ScrollView scroll;
-    private View snippetsAnchor, businessAnchor;
+    private View snippetsAnchor, businessAnchor, pricesAnchor;
     private TextView step1, step2, step3;
 
     @Override
@@ -68,6 +68,8 @@ public class SettingsActivity extends Activity {
             scroll.post(() -> scroll.smoothScrollTo(0, businessAnchor.getTop()));
         if ("snippets".equals(section) && snippetsAnchor != null)
             scroll.post(() -> scroll.smoothScrollTo(0, snippetsAnchor.getTop()));
+        if ("prices".equals(section) && pricesAnchor != null)
+            scroll.post(() -> scroll.smoothScrollTo(0, pricesAnchor.getTop()));
     }
 
     @Override
@@ -171,6 +173,50 @@ public class SettingsActivity extends Activity {
             days.addView(t, lp);
         }
         biz.addView(days);
+
+        // --- Price list
+        LinearLayout pc = card("Price list");
+        pricesAnchor = pc;
+        TextView ph = text("Your products and rates. In the keyboard: ₹ Business → Price list & order. Send the whole list, one item's price, or tap items to build an order with a total (then request the payment). Shortcut: ;price", 13, false);
+        ph.setAlpha(0.7f);
+        pc.addView(ph);
+        LinearLayout plist = new LinearLayout(this);
+        plist.setOrientation(LinearLayout.VERTICAL);
+        pc.addView(plist);
+        renderProducts(plist);
+        EditText pn = field("Item (e.g. Foil balloons, gold)", false);
+        LinearLayout prow = new LinearLayout(this);
+        EditText pp = field("Price ₹", false);
+        pp.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText pu = field("Per (pack of 50, kg, pc…)", false);
+        LinearLayout.LayoutParams ph1 = new LinearLayout.LayoutParams(0, -2, 1);
+        ph1.rightMargin = (int) (6 * dp);
+        ph1.topMargin = (int) (8 * dp);
+        LinearLayout.LayoutParams ph2 = new LinearLayout.LayoutParams(0, -2, 1.4f);
+        ph2.topMargin = (int) (8 * dp);
+        prow.addView(pp, ph1);
+        prow.addView(pu, ph2);
+        pc.addView(pn);
+        pc.addView(prow);
+        pc.addView(button("Add item", v -> {
+            String n = pn.getText().toString().trim();
+            double price;
+            try { price = Double.parseDouble(pp.getText().toString().trim().replace(",", "")); } catch (Exception e) { toast("Enter a price"); return; }
+            if (n.isEmpty()) { toast("Enter the item name"); return; }
+            List<Prefs.Product> l = prefs.products();
+            l.add(new Prefs.Product(n, price, pu.getText().toString().trim()));
+            prefs.saveProducts(l);
+            pn.setText(""); pp.setText(""); pu.setText("");
+            renderProducts(plist);
+            toast("Added");
+        }));
+
+        // --- Languages
+        LinearLayout lg = card("Languages");
+        TextView lh = text("Adds a 🌐 key next to space. Tap it to switch:\n• English\n• Hinglish → हिंदी — type \"aap kaise ho\" in English letters and get आप कैसे हो. Space puts in the top Hindi word; tap the English word in the bar to keep it as typed. It remembers your choices.\n• हिंदी — Hindi keys. Hold a letter for its other forms (क → ख, ग → घ…); shift shows the full vowels and rarer letters. A vowel sign at the start of a word becomes the full vowel (ा → आ).\nHold 🌐 to switch to another keyboard app. Voice typing uses Hindi while a Hindi mode is on.", 13, false);
+        lh.setAlpha(0.75f);
+        lg.addView(lh);
+        lg.addView(toggle("Hindi (globe key)", "hindi", true));
 
         // --- Theme pack (kept separate from the clean Liquid Glass options)
         LinearLayout packCard = card("Theme pack");
@@ -282,6 +328,7 @@ public class SettingsActivity extends Activity {
         typing.addView(toggle("Double-tap space for a full stop", "dblspace", true));
         typing.addView(toggle("Always-visible number row", "numrow", false));
         typing.addView(toggle("Learn words I type (off = always incognito)", "learn", true));
+        typing.addView(toggle("Incognito now — don't learn or keep clipboard history (also: hold the ✦ orb in the keyboard)", "incognito", false));
         typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); if (insights != null) renderInsights(); }));
 
         buildInsights();
@@ -325,8 +372,28 @@ public class SettingsActivity extends Activity {
             toast("Added");
         }));
 
+        // --- Backup
+        LinearLayout bk = card("Backup & restore");
+        TextView bkh = text("Saves everything Glass Keys has learned and all your settings — words, phrases, Hinglish choices, quick text, price list, business details, pinned clips — to one file you keep (Drive, WhatsApp to yourself, a pen drive). Restore it after a reset or on a new phone. Your background photo isn't included.", 13, false);
+        bkh.setAlpha(0.7f);
+        bk.addView(bkh);
+        bk.addView(button("Back up to a file", v -> {
+            Intent it = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            it.addCategory(Intent.CATEGORY_OPENABLE);
+            it.setType("application/json");
+            String d = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+            it.putExtra(Intent.EXTRA_TITLE, "glasskeys-backup-" + d + ".json");
+            try { startActivityForResult(it, REQ_BACKUP); } catch (Exception e) { toast("No file app found"); }
+        }));
+        bk.addView(button("Restore from a file", v -> {
+            Intent it = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            it.addCategory(Intent.CATEGORY_OPENABLE);
+            it.setType("*/*");
+            try { startActivityForResult(it, REQ_RESTORE); } catch (Exception e) { toast("No file app found"); }
+        }));
+
         LinearLayout tips = card("Gestures");
-        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute — with one-tap actions for phone numbers, GSTINs, pincodes, UPI IDs and amounts\n• ;pay 1250 + space types a UPI payment request · ;qr sends a payment QR · ;hours sends your shop timings", 14, false));
+        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute — with one-tap actions for phone numbers, GSTINs, pincodes, UPI IDs and amounts\n• ;pay 1250 + space types a UPI payment request · ;qr sends a payment QR · ;hours sends your shop timings · ;price sends your price list\n• Tap 🌐 to switch English / Hinglish → हिंदी / हिंदी keys\n• Emoji panel → 🔍 to search emoji by word (happy, party, paisa…)\n• Hold the ✦ orb for incognito", 14, false));
     }
 
     private EditText bizField(String hint, String key, boolean multi) {
@@ -482,6 +549,70 @@ public class SettingsActivity extends Activity {
         }
     }
 
+    private void renderProducts(LinearLayout list) {
+        list.removeAllViews();
+        List<Prefs.Product> l = prefs.products();
+        for (int i = 0; i < l.size(); i++) {
+            final int idx = i;
+            Prefs.Product p = l.get(i);
+            LinearLayout r = new LinearLayout(this);
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            r.setBackground(pill(0x1AFFFFFF, 12));
+            r.setPadding((int) (12 * dp), (int) (8 * dp), (int) (6 * dp), (int) (8 * dp));
+            TextView tv = text(p.name + "\n₹" + Calc.format(p.price, true) + (p.unit.isEmpty() ? "" : " / " + p.unit), 14, false);
+            r.addView(tv, new LinearLayout.LayoutParams(0, -2, 1));
+            Button up = smallButton("↑");
+            up.setOnClickListener(v -> {
+                List<Prefs.Product> cur = prefs.products();
+                if (idx > 0 && idx < cur.size()) { cur.add(idx - 1, cur.remove(idx)); prefs.saveProducts(cur); renderProducts(list); }
+            });
+            r.addView(up);
+            Button edit = smallButton("Edit");
+            edit.setOnClickListener(v -> editProduct(idx, list));
+            r.addView(edit);
+            Button del = smallButton("✕");
+            del.setOnClickListener(v -> {
+                List<Prefs.Product> cur = prefs.products();
+                if (idx < cur.size()) cur.remove(idx);
+                prefs.saveProducts(cur);
+                renderProducts(list);
+            });
+            r.addView(del);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.topMargin = (int) (8 * dp);
+            list.addView(r, lp);
+        }
+    }
+
+    private void editProduct(int idx, LinearLayout list) {
+        List<Prefs.Product> cur = prefs.products();
+        if (idx >= cur.size()) return;
+        Prefs.Product p = cur.get(idx);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding((int) (20 * dp), (int) (8 * dp), (int) (20 * dp), 0);
+        EditText a = new EditText(this); a.setText(p.name); a.setHint("Item");
+        EditText b = new EditText(this); b.setText(Calc.format(p.price, false)); b.setHint("Price ₹");
+        b.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText c = new EditText(this); c.setText(p.unit); c.setHint("Per (pack, kg, pc…)");
+        box.addView(a); box.addView(b); box.addView(c);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Edit item")
+                .setView(box)
+                .setPositiveButton("Save", (d, w) -> {
+                    List<Prefs.Product> l = prefs.products();
+                    double price;
+                    try { price = Double.parseDouble(b.getText().toString().trim().replace(",", "")); } catch (Exception e) { toast("Enter a price"); return; }
+                    if (idx < l.size()) {
+                        l.set(idx, new Prefs.Product(a.getText().toString().trim(), price, c.getText().toString().trim()));
+                        prefs.saveProducts(l);
+                        renderProducts(list);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     private void editSnippet(int idx, LinearLayout list) {
         List<Prefs.Snippet> cur = prefs.snippets();
         if (idx >= cur.size()) return;
@@ -540,6 +671,36 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if ((req == REQ_BACKUP || req == REQ_RESTORE) && res == RESULT_OK && data != null && data.getData() != null) {
+            Uri u = data.getData();
+            if (req == REQ_BACKUP) {
+                try (java.io.OutputStream out = getContentResolver().openOutputStream(u, "wt")) {
+                    out.write(prefs.exportAll().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    toast("Backup saved");
+                } catch (Exception e) { toast("Couldn't save the backup"); }
+            } else {
+                try (InputStream in = getContentResolver().openInputStream(u)) {
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[8192];
+                    int r;
+                    while ((r = in.read(buf)) > 0) bo.write(buf, 0, r);
+                    String json = new String(bo.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                    new android.app.AlertDialog.Builder(this)
+                            .setTitle("Restore this backup?")
+                            .setMessage("This replaces your current settings and everything Glass Keys has learned on this phone.")
+                            .setPositiveButton("Restore", (d, w) -> {
+                                try {
+                                    int n = prefs.importAll(json);
+                                    toast("Restored " + n + " items");
+                                    recreate();
+                                } catch (Exception e) { toast("That isn't a Glass Keys backup"); }
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                } catch (Exception e) { toast("Couldn't read that file"); }
+            }
+            return;
+        }
         if (req != REQ_PHOTO || res != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         new Thread(() -> {

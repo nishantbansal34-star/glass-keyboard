@@ -5,7 +5,7 @@ import android.graphics.RectF;
 public class Key {
     // Special codes (negative); printable keys use their character code.
     public static final int SHIFT = -1, SYMBOLS = -2, ALPHA = -3, ENTER = -4, DELETE = -5, EMOJI = -6,
-            SYMBOLS2 = -7, SPACE = 32;
+            SYMBOLS2 = -7, LANG = -8, SPACE = 32;
 
     public final String label;
     public final int code;
@@ -24,7 +24,7 @@ public class Key {
 
     public boolean isFunction() {
         return code == SHIFT || code == DELETE || code == SYMBOLS || code == ALPHA || code == SYMBOLS2
-                || code == EMOJI;
+                || code == EMOJI || code == LANG;
     }
 
     public boolean isChar() { return code > 0 && code != SPACE; }

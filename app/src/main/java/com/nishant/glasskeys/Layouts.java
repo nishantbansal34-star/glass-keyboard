@@ -7,7 +7,12 @@ import java.util.Map;
 
 /** Builds rows of keys for the letter and symbol pages. */
 public class Layouts {
-    public static final int ALPHA = 0, SYM1 = 1, SYM2 = 2;
+    public static final int ALPHA = 0, SYM1 = 1, SYM2 = 2, HINDI = 3;
+
+    /** Show the language (globe) key next to space. */
+    public static boolean showLang = false;
+    /** Hindi keys page: the full-stop key types the Hindi full stop । */
+    public static boolean hindiStop = false;
 
     private static final Map<String, String> ALTS = new HashMap<>();
     static {
@@ -29,7 +34,8 @@ public class Layouts {
         ALTS.put("l", "ł");
         ALTS.put("d", "ð");
         ALTS.put("g", "ğ");
-        ALTS.put(".", ", ? ! ' \" : ; - … @ #");
+        ALTS.put(".", ", ? ! ' \" : ; - … @ # ।");
+        ALTS.put("।", ". , ? ! ॥ - ' \"");
         ALTS.put(",", "! ? ; : ' \"");
         ALTS.put("1", "¹ ½ ⅓ ¼ ⅛");
         ALTS.put("2", "² ⅔");
@@ -49,6 +55,13 @@ public class Layouts {
         ALTS.put("=", "≠ ≈ ∞");
         ALTS.put("+", "±");
         ALTS.put("/", "÷ \\");
+        // Hindi keys: aspirated / rarer letters on long-press
+        ALTS.put("क", "ख क़ ख़ क्ष"); ALTS.put("ग", "घ ग़"); ALTS.put("च", "छ"); ALTS.put("ज", "झ ज़ ज्ञ");
+        ALTS.put("ट", "ठ"); ALTS.put("ड", "ड़ ढ ढ़"); ALTS.put("त", "थ त्र"); ALTS.put("द", "ध"); ALTS.put("न", "ण ञ ङ");
+        ALTS.put("प", "फ फ़"); ALTS.put("ब", "भ"); ALTS.put("स", "ष श्र"); ALTS.put("श", "श्र ष"); ALTS.put("र", "ऋ ृ");
+        ALTS.put("ा", "अ आ ॉ"); ALTS.put("ि", "इ"); ALTS.put("ी", "ई"); ALTS.put("ु", "उ ृ"); ALTS.put("ू", "ऊ");
+        ALTS.put("े", "ए ॅ"); ALTS.put("ै", "ऐ"); ALTS.put("ो", "ओ ॉ"); ALTS.put("ौ", "औ"); ALTS.put("ं", "ँ ः");
+        ALTS.put("्", "़ ॐ");
     }
 
     private static String[] alts(String label) {
@@ -64,8 +77,33 @@ public class Layouts {
         return l;
     }
 
-    public static List<List<Key>> build(int page, boolean numberRow) {
+    public static List<List<Key>> build(int page, boolean numberRow) { return build(page, numberRow, false); }
+
+    public static List<List<Key>> build(int page, boolean numberRow, boolean shifted) {
         List<List<Key>> rows = new ArrayList<>();
+        if (page == HINDI) {
+            if (!shifted) {
+                rows.add(chars("ा ि ी ु ू े ै ो ौ ं"));
+                rows.add(chars("क ख ग घ च छ ज झ ट ड"));
+                rows.add(chars("त थ द ध न प फ ब भ म"));
+                List<Key> r = new ArrayList<>();
+                r.add(new Key("", Key.SHIFT, 1f, null, null));
+                r.addAll(chars("य र ल व स श ह ्"));
+                r.add(new Key("", Key.DELETE, 1f, null, null));
+                rows.add(r);
+            } else {
+                rows.add(chars("अ आ इ ई उ ऊ ए ऐ ओ औ"));
+                rows.add(chars("ठ ढ ण ष ड़ ढ़ ञ ङ ँ ः"));
+                rows.add(chars("क्ष त्र ज्ञ श्र ऋ ृ ॉ ऑ ़ ॐ"));
+                List<Key> r = new ArrayList<>();
+                r.add(new Key("", Key.SHIFT, 1f, null, null));
+                r.addAll(chars("ज़ फ़ क़ ख़ ग़ ॅ । ॥"));
+                r.add(new Key("", Key.DELETE, 1f, null, null));
+                rows.add(r);
+            }
+            rows.add(bottomRow("?123", Key.SYMBOLS, ",", "।"));
+            return rows;
+        }
         if (page == ALPHA) {
             if (numberRow) rows.add(chars("1 2 3 4 5 6 7 8 9 0"));
             List<Key> r1 = chars("q w e r t y u i o p");
@@ -115,8 +153,11 @@ public class Layouts {
         // Modern layout: 123 · emoji · wide space · . · return  (comma lives on long-press of ".")
         r.add(new Key(modeLabel.equals("?123") ? "123" : modeLabel, modeCode, 1.35f, null, null));
         r.add(new Key("", Key.EMOJI, 1.1f, null, null));
-        r.add(new Key("", Key.SPACE, 5.1f, null, null));
-        r.add(ch(right.equals(">") ? ">" : "."));
+        if (showLang) {
+            r.add(new Key("", Key.LANG, 1f, null, null));
+            r.add(new Key("", Key.SPACE, 4.1f, null, null));
+        } else r.add(new Key("", Key.SPACE, 5.1f, null, null));
+        r.add(ch(right.equals(">") ? ">" : right.equals("।") ? "।" : "."));
         r.add(new Key("", Key.ENTER, 1.75f, null, null));
         return r;
     }

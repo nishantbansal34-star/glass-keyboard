@@ -43,7 +43,7 @@ import java.util.List;
 
 public class GlassIME extends InputMethodService implements KeyboardView.Listener {
 
-    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6, P_BIZ = 7, P_DETECT = 8;
+    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6, P_BIZ = 7, P_DETECT = 8, P_PRICE = 9;
 
     private Prefs prefs;
     private Dictionary dict;
@@ -75,6 +75,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private List<Business.Found> lastClipFound = new ArrayList<>();
     private double requestedAmount = -1;
     private boolean selectMode;
+
+    // languages: 0 English, 1 Hinglish → हिंदी, 2 हिंदी keys
+    private int lang;
+    private java.util.Map<String, Integer> hiPicks = new java.util.HashMap<>();
+    // emoji search (typed on the keyboard, results in the bar)
+    private boolean emojiSearch;
+    private final StringBuilder emojiQuery = new StringBuilder();
+    // price list order being built
+    private final java.util.LinkedHashMap<Integer, Integer> cart = new java.util.LinkedHashMap<>();
+    private double orderSent = -1;
 
     // typing state
     private final StringBuilder composing = new StringBuilder();
@@ -352,7 +362,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     private int keyboardHeight() {
-        int rows = prefs.numberRow() ? 5 : 4;
+        int rows = prefs.numberRow() || prefs.lang() == 2 ? 5 : 4;
         return (int) ((rows * prefs.keyHeightDp() + 8) * dp);
     }
 
@@ -360,7 +370,15 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         theme = prefs.pack() == 1 ? Theme.SHADOW : Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
-        keyboard.glideEnabled = prefs.bool("glide", true);
+        lang = prefs.lang();
+        hiPicks = prefs.hiPicks();
+        boolean showLang = prefs.bool("hindi", true), stop = lang == 2;
+        if (showLang != Layouts.showLang || stop != Layouts.hindiStop) {
+            Layouts.showLang = showLang;
+            Layouts.hindiStop = stop;
+            keyboard.reload();
+        }
+        keyboard.glideEnabled = prefs.bool("glide", true) && lang == 0;
         keyboard.trailEnabled = prefs.bool("trail", true);
         strip.setTheme(theme);
         for (View v : new View[]{emojiGrid, emojiTabs, clipList, snipList, calcPad, editPad, bizPad})
@@ -426,6 +444,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         glideWord = false;
         glidePreview = null;
         selectMode = false;
+        emojiSearch = false;
         if (!restarting) showPanel(P_NONE);
 
         int cls = info.inputType & InputType.TYPE_MASK_CLASS;
@@ -439,14 +458,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         noAutoCorrect = noSuggest || urlOrEmail || !prefs.autoCorrect() || var == InputType.TYPE_TEXT_VARIATION_FILTER
                 || (info.inputType & InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0;
         noAutoCaps = urlOrEmail || isPassword || !prefs.autoCaps();
-        noLearn = isPassword || !prefs.learnWords()
+        noLearn = isPassword || !prefs.learnWords() || prefs.incognito()
                 || (info.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0;
 
         if (cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE || cls == InputType.TYPE_CLASS_DATETIME)
             keyboard.setPage(Layouts.SYM1);
-        else keyboard.setPage(Layouts.ALPHA);
+        else keyboard.setPage(alphaPage());
 
-        keyboard.setSpaceLabel(isPassword ? "private" : (noLearn ? "incognito" : "space"));
+        keyboard.setSpaceLabel(spaceLabel());
         configureEnter(info);
         keyboard.setShift(KeyboardView.SHIFT_OFF);
         updateShift();
@@ -510,6 +529,92 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return Character.isLetter(cp) || (s.equals("'") && composing.length() > 0) || (Character.isDigit(cp) && composing.length() > 0);
     }
 
+    private int alphaPage() { return lang == 2 ? Layouts.HINDI : Layouts.ALPHA; }
+
+    private static final String[] LANG_NAMES = {"English", "Hinglish → हिंदी", "हिंदी"};
+
+    private String spaceLabel() {
+        if (isPassword) return "private";
+        if (noLearn) return "incognito";
+        return Layouts.showLang ? LANG_NAMES[lang] : "space";
+    }
+
+    /** Globe key: English → Hinglish → हिंदी keys → English */
+    private void cycleLang() {
+        commitComposing();
+        int next = (lang + 1) % 3;
+        prefs.setInt("lang", next);
+        applySettings();
+        keyboard.setPage(alphaPage());
+        keyboard.setShift(KeyboardView.SHIFT_OFF);
+        keyboard.setSpaceLabel(spaceLabel());
+        updateShift();
+        updateStrip();
+    }
+
+    private void toggleIncognito() {
+        boolean on = !prefs.incognito();
+        prefs.setBool("incognito", on);
+        EditorInfo info = getCurrentInputEditorInfo();
+        noLearn = isPassword || !prefs.learnWords() || on
+                || (info != null && (info.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0);
+        keyboard.setSpaceLabel(spaceLabel());
+        feedback(true);
+        toast(on ? "Incognito on — nothing is learned or saved to clipboard history" : "Incognito off");
+        updateStrip();
+    }
+
+    /** The orb at the start of the bar. Hold it to switch incognito on/off. */
+    private StripView.Cell orb(Runnable tap) {
+        StripView.Cell c = StripView.Cell.icon(GlassPainter.IC_SPARKLE, tap);
+        c.longAction = this::toggleIncognito;
+        c.active = prefs.incognito();
+        return c;
+    }
+
+    // ---------------- emoji search
+
+    private void startEmojiSearch() {
+        showPanel(P_NONE);
+        emojiSearch = true;
+        emojiQuery.setLength(0);
+        if (keyboard.page() != Layouts.ALPHA) keyboard.setPage(Layouts.ALPHA);
+        keyboard.setShift(KeyboardView.SHIFT_OFF);
+        updateStrip();
+    }
+
+    private void endEmojiSearch(boolean backToEmoji) {
+        emojiSearch = false;
+        emojiQuery.setLength(0);
+        if (keyboard.page() != alphaPage()) keyboard.setPage(alphaPage());
+        if (backToEmoji) showPanel(P_EMOJI); else updateStrip();
+    }
+
+    private void insertEmoji(String e) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        ic.commitText(e, 1);
+        prefs.pushRecentEmoji(e);
+        feedback(false);
+    }
+
+    /** Emoji offered for a typed word: finish the word, then add the emoji ("happy 😊 "). */
+    private void wordThenEmoji(String e) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        ic.beginBatchEdit();
+        if (composing.length() > 0) finishWord(ic, false, null);
+        CharSequence before = ic.getTextBeforeCursor(1, 0);
+        boolean gap = before == null || before.length() == 0 || Character.isWhitespace(before.charAt(0));
+        ic.commitText((gap ? "" : " ") + e + " ", 1);
+        ic.endBatchEdit();
+        prefs.pushRecentEmoji(e);
+        lastEditTime = lastSpaceTime = SystemClock.uptimeMillis();
+        autoSpaced = true;
+        updateShift();
+        updateStrip();
+    }
+
     // ================================================================= swipe typing
 
     private boolean glideWord;                 // composing text came from a swipe
@@ -536,6 +641,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         glidePreview = null;
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
+        if (emojiSearch) { updateStrip(); return; }
         if (words.isEmpty()) { updateStrip(); return; }
         lastEditTime = SystemClock.uptimeMillis();
         toolbarForced = false;
@@ -578,7 +684,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onText(String s) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
+        if (emojiSearch) {
+            if (Character.isLetterOrDigit(s.codePointAt(0)) || s.equals(" ")) emojiQuery.append(s.toLowerCase());
+            updateStrip();
+            return;
+        }
         lastEditTime = SystemClock.uptimeMillis();
+        if (lang == 2 && s.length() == 1 && Translit.isDevMark(s.charAt(0))) {
+            // a vowel sign with no letter before it becomes the full vowel (ा -> आ at the start of a word)
+            CharSequence b1 = ic.getTextBeforeCursor(1, 0);
+            int prevCp = b1 == null || b1.length() == 0 ? 0 : b1.charAt(0);
+            if (!Translit.isConsonant(prevCp)) {
+                String ind = Translit.independentFor(s);
+                if (ind != null) s = ind;
+                else if (prevCp == 0 || Character.isWhitespace(prevCp)) return;   // ं ् etc. need a letter first
+            }
+        }
         toolbarForced = false;
         boolean wasAutoSpaced = autoSpaced;
         autoSpaced = false;
@@ -590,7 +711,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             ic.endBatchEdit();
         }
         glideWord = false;
-        if (!noSuggest && isWordChar(s)) {
+        if (!noSuggest && lang != 2 && isWordChar(s)) {
             lastCorrOriginal = null;
             composing.append(s);
             ic.setComposingText(composing, 1);
@@ -598,7 +719,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return;
         }
         // Separator / symbol: finish the current word first (with autocorrect for punctuation).
-        boolean sentencePunct = s.equals(".") || s.equals(",") || s.equals("!") || s.equals("?") || s.equals(";") || s.equals(":");
+        boolean sentencePunct = s.equals(".") || s.equals(",") || s.equals("!") || s.equals("?") || s.equals(";") || s.equals(":") || s.equals("।");
         ic.beginBatchEdit();
         if (composing.length() > 0) finishWord(ic, sentencePunct && !noAutoCorrect, null);
         if (sentencePunct) {
@@ -615,7 +736,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         ic.endBatchEdit();
         lastCorrOriginal = null;
-        if (s.equals(".") || s.equals("!") || s.equals("?")) { prevWord = null; prevWord2 = null; }
+        if (s.equals(".") || s.equals("!") || s.equals("?") || s.equals("।")) { prevWord = null; prevWord2 = null; }
         if (s.codePointCount(0, s.length()) >= 1 && isEmoji(s)) prefs.pushRecentEmoji(s);
         updateShift();
         updateStrip();
@@ -631,8 +752,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private String finishWord(InputConnection ic, boolean correct, String forced) {
         String typed = composing.toString();
         String out = typed;
+        boolean hinglish = lang == 1 && Translit.isRoman(typed);
         if (forced != null) out = forced;
-        else if (correct) {
+        else if (hinglish) {
+            String hi = Translit.best(typed, hiPicks);
+            if (hi != null) out = hi;
+        } else if (correct && lang == 0) {
             String fix = dict.autocorrect(typed, prevWord);
             if (fix != null) out = fix;
         }
@@ -641,7 +766,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         composing.setLength(0);
         if (!out.equals(typed) && forced == null) { lastCorrOriginal = typed; lastCorrReplacement = out; }
         else lastCorrOriginal = null;
-        if (!noLearn) dict.learn(out.contains(" ") ? out.substring(out.lastIndexOf(' ') + 1) : out, prevWord, prevWord2);
+        if (!noLearn && lang == 0) dict.learn(out.contains(" ") ? out.substring(out.lastIndexOf(' ') + 1) : out, prevWord, prevWord2);
         gainXp(out, glideWord);
         prevWord2 = prevWord;
         prevWord = out;
@@ -659,8 +784,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             case Key.ENTER: handleEnter(ic); break;
             case Key.SYMBOLS: commitComposing(); keyboard.setPage(Layouts.SYM1); break;
             case Key.SYMBOLS2: keyboard.setPage(Layouts.SYM2); break;
-            case Key.ALPHA: keyboard.setPage(Layouts.ALPHA); updateShift(); break;
-            case Key.EMOJI: commitComposing(); showPanel(P_EMOJI); break;
+            case Key.ALPHA: keyboard.setPage(emojiSearch ? Layouts.ALPHA : alphaPage()); updateShift(); break;
+            case Key.EMOJI:
+                if (emojiSearch) { endEmojiSearch(true); break; }
+                commitComposing(); showPanel(P_EMOJI); break;
+            case Key.LANG: if (emojiSearch) endEmojiSearch(false); cycleLang(); break;
         }
     }
 
@@ -671,6 +799,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void handleSpace(InputConnection ic) {
         if (ic == null) return;
+        if (emojiSearch) { emojiQuery.append(' '); updateStrip(); return; }
         toolbarForced = false;
         ic.beginBatchEdit();
         long now = SystemClock.uptimeMillis();
@@ -702,9 +831,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         } else {
             CharSequence before = ic.getTextBeforeCursor(2, 0);
             if (prefs.doubleSpacePeriod() && now - lastSpaceTime < 1200 && before != null && before.length() == 2
-                    && before.charAt(1) == ' ' && Character.isLetterOrDigit(before.charAt(0))) {
+                    && before.charAt(1) == ' ' && (Character.isLetterOrDigit(before.charAt(0)) || Translit.isDevMark(before.charAt(0)))) {
                 ic.deleteSurroundingText(1, 0);
-                ic.commitText(". ", 1);
+                ic.commitText(lang == 0 ? ". " : "। ", 1);
                 prevWord = null; prevWord2 = null;
             } else {
                 ic.commitText(" ", 1);
@@ -749,6 +878,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void handleDelete(InputConnection ic) {
         if (ic == null) return;
+        if (emojiSearch) {
+            if (emojiQuery.length() > 0) emojiQuery.setLength(emojiQuery.length() - 1);
+            updateStrip();
+            return;
+        }
         toolbarForced = false;
         if (glideWord && composing.length() > 0) {
             glideWord = false;
@@ -787,6 +921,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void handleEnter(InputConnection ic) {
         if (ic == null) return;
+        if (emojiSearch) { endEmojiSearch(true); return; }
         commitComposing();
         EditorInfo info = getCurrentInputEditorInfo();
         int action = info.imeOptions & EditorInfo.IME_MASK_ACTION;
@@ -852,6 +987,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void updateShift() {
         if (keyboard == null) return;
         if (keyboard.page() != Layouts.ALPHA || keyboard.shiftState() == KeyboardView.SHIFT_LOCK) return;
+        if (lang != 0 && !emojiSearch) { if (keyboard.shiftState() == KeyboardView.SHIFT_ON && composing.length() == 0) keyboard.setShift(KeyboardView.SHIFT_OFF); return; }
         InputConnection ic = getCurrentInputConnection();
         EditorInfo info = getCurrentInputEditorInfo();
         if (ic == null || info == null || noAutoCaps || composing.length() > 0) return;
@@ -882,8 +1018,20 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             StripView.Cell mic = StripView.Cell.icon(GlassPainter.IC_MIC, this::stopVoice);
             mic.active = true;
             cells.add(mic);
-            cells.add(StripView.Cell.title(partialVoice.isEmpty() ? "Listening… (" + prefs.voiceLang() + ")" : partialVoice));
+            cells.add(StripView.Cell.title(partialVoice.isEmpty() ? "Listening… (" + (lang != 0 ? "hi-IN" : prefs.voiceLang()) + ")" : partialVoice));
             cells.add(StripView.Cell.icon(GlassPainter.IC_CLOSE, this::stopVoice));
+            strip.setCells(cells);
+            return;
+        }
+        if (emojiSearch) {
+            cells.add(StripView.Cell.icon(GlassPainter.IC_CLOSE, () -> endEmojiSearch(true)));
+            String q = emojiQuery.toString();
+            List<String> res = EmojiWords.search(q, 6);
+            StripView.Cell qc = StripView.Cell.chip(GlassPainter.IC_SEARCH, q.isEmpty() ? "Search emoji" : q, null);
+            qc.active = true;
+            cells.add(qc);
+            if (!q.isEmpty() && res.isEmpty()) cells.add(StripView.Cell.title("No match"));
+            for (String e : res) { final String em = e; cells.add(StripView.Cell.word(em, false, () -> insertEmoji(em))); }
             strip.setCells(cells);
             return;
         }
@@ -895,7 +1043,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 1. Inline maths: "250*12=" -> tap to insert 3000
         String math = Calc.inlineResult(before == null ? null : before.toString() + composing);
         if (math != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             final String res = math;
             cells.add(StripView.Cell.chip(GlassPainter.IC_CALC, "= " + Calc.format(Double.parseDouble(res), true), () -> {
                 commitComposing();
@@ -910,9 +1058,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 1b. Business shortcut typed -> chip
         String[] bs = bizShortcut();
         if (bs != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             String label = bs[0].equals("pay") ? (bs[1].isEmpty() ? "UPI payment details" : "Payment request for ₹" + Calc.format(Double.parseDouble(bs[1]), true))
-                    : bs[0].equals("hours") ? "Shop hours & location" : "Payment QR code";
+                    : bs[0].equals("hours") ? "Shop hours & location" : bs[0].equals("price") ? "Your price list" : "Payment QR code";
             final String[] fs = bs;
             StripView.Cell ch = StripView.Cell.chip(bs[0].equals("hours") ? GlassPainter.IC_CLOCK : GlassPainter.IC_RUPEE, label + " — tap or space", () -> {
                 InputConnection c2 = getCurrentInputConnection();
@@ -930,7 +1078,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 2. Quick-text shortcut typed -> chip to expand
         Prefs.Snippet sn = snippetForToken();
         if (sn != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             cells.add(StripView.Cell.chip(GlassPainter.IC_SNIPPET, sn.title + " — tap or press space", () -> {
                 commitComposing();
                 InputConnection c2 = getCurrentInputConnection();
@@ -944,7 +1092,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 3. Recently copied text -> paste chip (like Gboard, but we keep history forever)
         boolean recentClip = lastClipText != null && SystemClock.uptimeMillis() - lastClipTime < 60000 && !isPassword;
         if (composing.length() == 0 && recentClip && !toolbarForced) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             final String clip = lastClipText;
             StripView.Cell pc = StripView.Cell.chip(GlassPainter.IC_PASTE, clip.replace('\n', ' '), () -> {
                 InputConnection c2 = getCurrentInputConnection();
@@ -968,7 +1116,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
         // 3b. Swipe typing: live guess while swiping, alternatives after
         if (keyboard.isGliding() && glidePreview != null) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             if (glidePreview.isEmpty()) cells.add(StripView.Cell.title("…"));
             else {
                 String g = caseForGlide(glidePreview.get(0));
@@ -980,7 +1128,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return;
         }
         if (glideWord && composing.length() > 0) {
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             String cur = composing.toString();
             List<String> alts = glideAlts;
             if (alts.size() > 0) { final String a0 = alts.get(0); cells.add(StripView.Cell.word(a0, false, () -> pickGlideAlt(a0))); }
@@ -998,11 +1146,34 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return;
         }
 
+        // 4a. Hinglish: the Hindi spellings, with what you typed on the left
+        if (!noSuggest && lang == 1 && composing.length() > 0 && !toolbarForced && Translit.isRoman(composing.toString())) {
+            String typed = composing.toString();
+            List<String> hi = Translit.candidates(typed, hiPicks);
+            cells.add(orb(this::forceToolbar));
+            cells.add(StripView.Cell.word(typed, hi.isEmpty() || hi.get(0).equals(typed), () -> pickSuggestion(typed)));
+            int shown = 0;
+            for (int i = 0; i < hi.size() && shown < 3; i++) {
+                final String h = hi.get(i);
+                if (h.equals(typed)) continue;
+                cells.add(StripView.Cell.word(h, shown == 0 && !hi.get(0).equals(typed), () -> pickSuggestion(h)));
+                shown++;
+            }
+            String[] em = EmojiWords.forWord(typed);
+            if (em.length > 0) {
+                final String e0 = em[0];
+                if (cells.size() >= 5) cells.remove(cells.size() - 1);
+                cells.add(StripView.Cell.word(e0, false, () -> wordThenEmoji(e0)));
+            }
+            strip.setCells(cells);
+            return;
+        }
+
         // 4. Word suggestions while typing
         if (!noSuggest && composing.length() > 0 && !toolbarForced) {
             String typed = composing.toString();
             List<String> sug = dict.suggest(typed, prevWord);
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+            cells.add(orb(this::forceToolbar));
             String best = sug.isEmpty() ? typed : sug.get(0);
             boolean willCorrect = !noAutoCorrect && dict.autocorrect(typed, prevWord) != null;
             List<String> order = new ArrayList<>();
@@ -1018,11 +1189,17 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 order.add(typed); primary.add(true);
                 for (String s : sug) if (order.size() < 4 && !s.equals(typed) && !s.equals(second)) { order.add(s); primary.add(false); }
             }
+            String[] em = EmojiWords.forWord(typed);
+            if (em.length > 0) {
+                // offer an emoji in the last slot (never in place of the main suggestion)
+                while (order.size() >= 4 && !primary.get(order.size() - 1)) { order.remove(order.size() - 1); primary.remove(primary.size() - 1); break; }
+            }
             for (int i = 0; i < order.size(); i++) {
                 String label = order.get(i);
                 final String word = label.startsWith("“") ? typed : label;
                 cells.add(StripView.Cell.word(label, primary.get(i), () -> pickSuggestion(word)));
             }
+            if (em.length > 0) { final String e0 = em[0]; cells.add(StripView.Cell.word(e0, false, () -> wordThenEmoji(e0))); }
             strip.setCells(cells);
             return;
         }
@@ -1030,7 +1207,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 5. Next-word predictions after a space
         boolean atGap = before == null || before.length() == 0
                 || Character.isWhitespace(before.charAt(before.length() - 1));
-        if (!noSuggest && composing.length() == 0 && !toolbarForced && atGap) {
+        if (!noSuggest && lang == 0 && composing.length() == 0 && !toolbarForced && atGap) {
             List<String> pred = dict.predict(prevWord2, prevWord);
             if (!pred.isEmpty() && pred.size() < 4) {
                 String[] fill = prevWord == null ? new String[]{"I", "The", "I'm", "I'll", "Hi", "Thank"}
@@ -1043,7 +1220,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 }
             }
             if (!pred.isEmpty()) {
-                cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::forceToolbar));
+                cells.add(orb(this::forceToolbar));
                 for (int i = 0; i < pred.size(); i++) {
                     final String w = pred.get(i);
                     cells.add(StripView.Cell.word(w, i == 0, () -> pickPrediction(w)));
@@ -1063,7 +1240,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         if (prefs.pack() == 0 && prefs.darkGlass()) {
             // the AI orb stays at the start of the bar, even in toolbar mode
-            cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, () -> { toolbarForced = false; updateStrip(); }));
+            cells.add(orb(() -> { toolbarForced = false; updateStrip(); }));
         }
         if (prefs.pack() == 1) {
             int xp = prefs.integer("xp", 0), lv = level(xp);
@@ -1163,16 +1340,23 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         CharSequence before = ic.getTextBeforeCursor(30, 0);
         if (before == null) return null;
         String t = before.toString() + composing;
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:^|\\s);(pay|hours|qr)(?:\\s*([\\d,]+(?:\\.\\d{1,2})?))?$",
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:^|\\s);(pay|hours|qr|price|prices|rates)(?:\\s*([\\d,]+(?:\\.\\d{1,2})?))?$",
                 java.util.regex.Pattern.CASE_INSENSITIVE).matcher(t);
         if (!m.find()) return null;
         String kind = m.group(1).toLowerCase(), amt = m.group(2) == null ? "" : m.group(2).replace(",", "");
-        if (kind.equals("hours") && !amt.isEmpty()) return null;
+        if (kind.equals("prices") || kind.equals("rates")) kind = "price";
+        if ((kind.equals("hours") || kind.equals("price")) && !amt.isEmpty()) return null;
+        if (kind.equals("price") && prefs.products().isEmpty()) return null;
         return new String[]{kind, amt, String.valueOf(t.length() - m.start() - (Character.isWhitespace(t.charAt(m.start())) ? 1 : 0))};
     }
 
     private void runBizShortcut(InputConnection ic, String[] sc) {
         int len = Integer.parseInt(sc[2]);
+        if (sc[0].equals("price")) {
+            ic.deleteSurroundingText(len, 0);
+            ic.commitText(Business.priceListText(prefs, prefs.products()), 1);
+            return;
+        }
         if (sc[0].equals("hours")) {
             ic.deleteSurroundingText(len, 0);
             ic.commitText(Business.hoursText(prefs, java.util.Calendar.getInstance()), 1);
@@ -1350,6 +1534,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void pickSuggestion(String word) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
+        String typedNow = composing.toString();
+        if (lang == 1 && Translit.isRoman(typedNow) && !noLearn) {
+            String key = typedNow.toLowerCase() + "\u0001" + word;
+            hiPicks.put(key, (hiPicks.containsKey(key) ? hiPicks.get(key) : 0) + 3);
+            prefs.saveHiPicks(hiPicks);
+        }
         ic.beginBatchEdit();
         finishWord(ic, false, word);
         lastCorrOriginal = null;
@@ -1399,12 +1589,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         List<List<PadView.Btn>> tabRows = new ArrayList<>();
         List<PadView.Btn> tabs = new ArrayList<>();
         tabs.add(new PadView.Btn("abc", null, GlassPainter.IC_KEYBOARD).weight(1.3f));
+        tabs.add(new PadView.Btn("find", null, GlassPainter.IC_SEARCH).weight(1.1f));
         for (int i = 0; i < Emojis.TABS.length; i++) tabs.add(new PadView.Btn("t" + i, Emojis.TABS[i], 0));
         tabs.add(new PadView.Btn("del", null, GlassPainter.IC_DEL).weight(1.3f).repeating());
         tabRows.add(tabs);
         emojiTabs.setRows(tabRows);
         emojiTabs.setOnPress(b -> {
             if (b.id.equals("abc")) showPanel(P_NONE);
+            else if (b.id.equals("find")) startEmojiSearch();
             else if (b.id.equals("del")) handleDelete(getCurrentInputConnection());
             else showEmojiTab(Integer.parseInt(b.id.substring(1)));
         });
@@ -1419,6 +1611,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         clipList.setOnCard(new CardList.OnCard() {
             @Override public void tap(CardList.Card c) {
                 if (panel == P_STATS) return;
+                if (panel == P_PRICE) {
+                    if (c.tag instanceof Integer) priceAdd((Integer) c.tag, 1);
+                    return;
+                }
                 if (panel == P_DETECT) {
                     InputConnection ic = getCurrentInputConnection();
                     if (ic != null && c.tag instanceof Business.Found) { commitComposing(); ic.commitText(((Business.Found) c.tag).value, 1); }
@@ -1429,6 +1625,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             }
             @Override public void icon(CardList.Card c, int i) {
                 if (panel == P_DETECT && c.tag instanceof Business.Found) { detectedAction((Business.Found) c.tag, c.icons[i]); return; }
+                if (panel == P_PRICE) {
+                    if (!(c.tag instanceof Integer)) return;
+                    int idx = (Integer) c.tag;
+                    if (c.icons[i] == GlassPainter.IC_PLUS) priceAdd(idx, 1);
+                    else if (c.icons[i] == GlassPainter.IC_CLOSE) priceAdd(idx, -1);
+                    else {   // send just this item's price
+                        List<Prefs.Product> ps = prefs.products();
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null && idx < ps.size()) {
+                            Prefs.Product p = ps.get(idx);
+                            commitComposing();
+                            ic.commitText(p.name + " — " + Business.rupees(p.price) + (p.unit.isEmpty() ? "" : " / " + p.unit), 1);
+                        }
+                    }
+                    return;
+                }
                 if (panel == P_STATS || c.tag == null) return;
                 List<Prefs.Clip> clips = prefs.clips();
                 int idx = (Integer) c.tag;
@@ -1497,10 +1709,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             List<List<PadView.Btn>> r = new ArrayList<>();
             r.add(row(new PadView.Btn("req", "Request payment", GlassPainter.IC_RUPEE).style(GlassPainter.STYLE_ACTION),
                     new PadView.Btn("qr", "Payment QR", GlassPainter.IC_QR)));
-            r.add(row(new PadView.Btn("hours", "Shop hours & location", GlassPainter.IC_CLOCK),
+            r.add(row(new PadView.Btn("prices", "Price list & order", GlassPainter.IC_GRID),
                     new PadView.Btn("upi", "Send UPI ID", GlassPainter.IC_SEND)));
-            r.add(row(new PadView.Btn("setup", "Business details", GlassPainter.IC_SHOP).style(GlassPainter.STYLE_FUNC),
-                    new PadView.Btn("kb", "Keyboard", GlassPainter.IC_KEYBOARD).style(GlassPainter.STYLE_FUNC)));
+            r.add(row(new PadView.Btn("hours", "Shop hours & location", GlassPainter.IC_CLOCK),
+                    new PadView.Btn("setup", "Business details", GlassPainter.IC_SHOP).style(GlassPainter.STYLE_FUNC)));
             bizPad.setRows(r);
         }
         bizPad.setOnPress(b -> {
@@ -1516,6 +1728,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 case "hours": if (ic != null) { commitComposing(); ic.commitText(Business.hoursText(prefs, java.util.Calendar.getInstance()), 1); } break;
                 case "upi": if (bizReady() && ic != null) { commitComposing(); ic.commitText(Business.paymentText(prefs, 0), 1); } break;
                 case "setup": openSettings("business"); break;
+                case "prices": showPanel(P_PRICE); break;
                 case "kb": showPanel(P_NONE); break;
             }
         });
@@ -1533,6 +1746,35 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         emojiScroll.scrollTo(0, 0);
         for (PadView.Btn b : emojiTabs.rows().get(0)) b.selected = b.id.equals("t" + i);
         emojiTabs.invalidate();
+    }
+
+    private void priceAdd(int idx, int delta) {
+        int q = (cart.containsKey(idx) ? cart.get(idx) : 0) + delta;
+        if (q <= 0) cart.remove(idx); else cart.put(idx, q);
+        orderSent = -1;
+        feedback(false);
+        refreshPrices();
+        updateStrip();
+    }
+
+    private void refreshPrices() {
+        List<Prefs.Product> ps = prefs.products();
+        cart.keySet().removeIf(k -> k >= ps.size());
+        List<CardList.Card> cards = new ArrayList<>();
+        for (int i = 0; i < ps.size(); i++) {
+            Prefs.Product p = ps.get(i);
+            int q = cart.containsKey(i) ? cart.get(i) : 0;
+            CardList.Card c = new CardList.Card();
+            c.title = p.name;
+            c.body = Business.rupees(p.price) + (p.unit.isEmpty() ? "" : " / " + p.unit)
+                    + (q > 0 ? "   ·   in order × " + q + " = " + Business.rupees(p.price * q) : "");
+            c.badge = q > 0 ? "× " + q : null;
+            c.icons = q > 0 ? new int[]{GlassPainter.IC_SEND, GlassPainter.IC_CLOSE, GlassPainter.IC_PLUS}
+                    : new int[]{GlassPainter.IC_SEND, GlassPainter.IC_PLUS};
+            c.tag = i;
+            cards.add(c);
+        }
+        clipList.setCards(cards, "Add your products and prices in Glass Keys settings → Price list");
     }
 
     private void refreshClips() {
@@ -1569,7 +1811,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         panel = p;
         keyboard.setVisibility(p == P_NONE ? View.VISIBLE : View.GONE);
         emojiPanel.setVisibility(p == P_EMOJI ? View.VISIBLE : View.GONE);
-        clipScroll.setVisibility(p == P_CLIP || p == P_STATS || p == P_DETECT ? View.VISIBLE : View.GONE);
+        if (p != P_NONE) emojiSearch = false;
+        clipScroll.setVisibility(p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE ? View.VISIBLE : View.GONE);
         snipScroll.setVisibility(p == P_SNIP ? View.VISIBLE : View.GONE);
         calcPanel.setVisibility(p == P_CALC ? View.VISIBLE : View.GONE);
         editPad.setVisibility(p == P_EDIT ? View.VISIBLE : View.GONE);
@@ -1578,11 +1821,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (p == P_CLIP) { refreshClips(); clipScroll.scrollTo(0, 0); }
         if (p == P_STATS) { refreshStats(); clipScroll.scrollTo(0, 0); }
         if (p == P_DETECT) { refreshDetected(); clipScroll.scrollTo(0, 0); }
+        if (p == P_PRICE) { refreshPrices(); clipScroll.scrollTo(0, 0); }
         if (p == P_SNIP) { refreshSnippets(); snipScroll.scrollTo(0, 0); }
         if (p == P_CALC) calcDisplay.invalidate();
         if (p == P_EDIT) { selectMode = false; editPad.setRows(editRows()); }
         if (p == P_NONE) updateShift();
-        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT) ? clipScroll
+        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE) ? clipScroll
                 : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : p == P_BIZ ? bizPad : editPad;
         if (prefs.glassRipple()) {
             shown.setAlpha(0f);
@@ -1611,6 +1855,45 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             case P_DETECT:
                 cells.add(StripView.Cell.title("Found in what you copied · tap to insert"));
                 break;
+            case P_PRICE: {
+                List<Prefs.Product> ps = prefs.products();
+                if (ps.isEmpty()) {
+                    cells.add(StripView.Cell.title("Price list"));
+                    cells.add(StripView.Cell.icon(GlassPainter.IC_PLUS, () -> openSettings("prices")));
+                    break;
+                }
+                int items = 0;
+                for (int q : cart.values()) items += q;
+                if (items == 0) {
+                    cells.add(StripView.Cell.chip(GlassPainter.IC_SEND, "Send price list", () -> {
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) { commitComposing(); ic.commitText(Business.priceListText(prefs, prefs.products()), 1); }
+                    }));
+                    cells.add(StripView.Cell.title("Tap items to build an order"));
+                } else {
+                    final double total = Business.orderTotal(ps, cart);
+                    if (orderSent == total && !Business.upi(prefs).isEmpty()) {
+                        StripView.Cell rq = StripView.Cell.chip(GlassPainter.IC_RUPEE, "Request " + Business.rupees(total), () -> requestPayment(total));
+                        rq.active = true;
+                        cells.add(rq);
+                    } else {
+                        StripView.Cell oc = StripView.Cell.chip(GlassPainter.IC_SEND, "Send order · " + Business.rupees(total), () -> {
+                            InputConnection ic = getCurrentInputConnection();
+                            if (ic == null) return;
+                            commitComposing();
+                            ic.commitText(Business.orderText(prefs, prefs.products(), cart), 1);
+                            orderSent = total;
+                            updateStrip();
+                        });
+                        oc.active = true;
+                        cells.add(oc);
+                    }
+                    cells.add(StripView.Cell.title(items + (items == 1 ? " item" : " items")));
+                    cells.add(StripView.Cell.icon(GlassPainter.IC_TRASH, () -> { cart.clear(); orderSent = -1; refreshPrices(); updateStrip(); }));
+                }
+                cells.add(StripView.Cell.icon(GlassPainter.IC_GEAR, () -> openSettings("prices")));
+                break;
+            }
             case P_CLIP:
                 cells.add(StripView.Cell.title("Clipboard · pinned items never expire"));
                 cells.add(StripView.Cell.icon(GlassPainter.IC_TRASH, () -> {
@@ -1945,7 +2228,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             CharSequence t = d.getItemAt(0).coerceToText(this);
             if (t == null || t.length() == 0) return;
             String s = t.toString();
-            prefs.addClip(s);
+            if (!prefs.incognito()) prefs.addClip(s);
             lastClipText = s;
             lastClipTime = SystemClock.uptimeMillis();
             lastClipFound = Business.detect(s);
@@ -2005,7 +2288,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         });
         Intent it = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         it.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        it.putExtra(RecognizerIntent.EXTRA_LANGUAGE, prefs.voiceLang());
+        it.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang != 0 ? "hi-IN" : prefs.voiceLang());
         it.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         it.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         listening = true;

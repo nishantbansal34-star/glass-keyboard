@@ -360,16 +360,29 @@ public class KeyboardView extends View {
         boolean relayout = this.numberRow != numberRow || this.oneHanded != oneHanded;
         this.numberRow = numberRow;
         this.oneHanded = oneHanded;
-        if (relayout) { rows = Layouts.build(page, numberRow); requestLayout(); layoutKeys(); }
+        if (relayout) { rows = buildRows(); requestLayout(); layoutKeys(); }
         invalidate();
     }
 
     public int rowCount() { return rows.size(); }
     public int page() { return page; }
 
+    private List<List<Key>> buildRows() {
+        return Layouts.build(page, numberRow, page == Layouts.HINDI && shift != SHIFT_OFF);
+    }
+
+    /** Rebuild the current page (after the language / globe key changed). */
+    public void reload() {
+        rows = buildRows();
+        layoutKeys();
+        updateDecoderLayout();
+        invalidate();
+    }
+
     public void setPage(int p) {
         page = p;
-        rows = Layouts.build(p, numberRow);
+        if (p == Layouts.HINDI && shift != SHIFT_OFF) shift = SHIFT_OFF;
+        rows = buildRows();
         layoutKeys();
         updateDecoderLayout();
         invalidate();
@@ -378,7 +391,12 @@ public class KeyboardView extends View {
     public int shiftState() { return shift; }
 
     public void setShift(int s) {
-        if (shift != s) { shift = s; invalidate(); }
+        if (shift != s) {
+            boolean flip = page == Layouts.HINDI && ((shift == SHIFT_OFF) != (s == SHIFT_OFF));
+            shift = s;
+            if (flip) { rows = buildRows(); layoutKeys(); }
+            invalidate();
+        }
     }
 
     public void setEnter(int icon, String label) {
@@ -565,6 +583,9 @@ public class KeyboardView extends View {
                 return;
             case Key.EMOJI:
                 gp.drawIcon(c, GlassPainter.IC_EMOJI, cx, cy, icon * 0.95f, col);
+                return;
+            case Key.LANG:
+                gp.drawIcon(c, GlassPainter.IC_GLOBE, cx, cy, icon * 0.9f, col);
                 return;
             case Key.SPACE:
                 Ptr sp = ptrFor(k);
@@ -757,7 +778,7 @@ public class KeyboardView extends View {
         @Override public void run() {
             Ptr p = longPressTarget;
             if (p == null || p.consumed || p.key == null) return;
-            if (p.key.code == Key.SPACE) {
+            if (p.key.code == Key.SPACE || p.key.code == Key.LANG) {
                 if (!p.spaceSwipe) { p.consumed = true; listener.onSpaceLongPress(); }
                 return;
             }
@@ -838,9 +859,9 @@ public class KeyboardView extends View {
                 } else if (k.code == Key.SHIFT) {
                     p.consumed = true;
                     handleShiftDown();
-                } else if (k.popups != null || k.hint != null || k.code == Key.SPACE) {
+                } else if (k.popups != null || k.hint != null || k.code == Key.SPACE || k.code == Key.LANG) {
                     longPressTarget = p;
-                    h.postDelayed(longPress, k.code == Key.SPACE ? 500 : 330);
+                    h.postDelayed(longPress, k.code == Key.SPACE || k.code == Key.LANG ? 500 : 330);
                 }
                 invalidateAll();
                 return true;
@@ -999,7 +1020,7 @@ public class KeyboardView extends View {
         long now = SystemClock.uptimeMillis();
         shiftHeld = true;
         shiftUsedWhileHeld = false;
-        if (page != Layouts.ALPHA) return;
+        if (page != Layouts.ALPHA && page != Layouts.HINDI) return;
         if (shift == SHIFT_ON && now - lastShiftTap < 350) setShift(SHIFT_LOCK);
         else if (shift == SHIFT_OFF) setShift(SHIFT_ON);
         else setShift(SHIFT_OFF);
