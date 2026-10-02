@@ -252,8 +252,11 @@ public class SettingsActivity extends Activity {
         look.addView(hs);
 
         look.addView(label("Glass style"));
-        look.addView(choice(new String[]{"Premium dark", "Bright jelly"}, new String[]{"1", "0"},
-                prefs.darkGlass() ? "1" : "0", v -> prefs.setBool("darkglass", v.equals("1"))));
+        look.addView(choice(new String[]{"Immersive", "Premium dark", "Bright jelly"}, new String[]{"2", "1", "0"},
+                prefs.immersive() ? "2" : prefs.darkGlass() ? "1" : "0", v -> {
+                    prefs.setBool("immersive", v.equals("2"));
+                    prefs.setBool("darkglass", !v.equals("0"));
+                }));
         look.addView(label("Background"));
         look.addView(choice(new String[]{"Wallpaper", "Real wallpaper", "Graphite", "Bloom", "My photo"}, new String[]{"4", "5", "3", "1", "2"},
                 String.valueOf(prefs.bgMode()), v -> {

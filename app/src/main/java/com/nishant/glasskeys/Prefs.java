@@ -52,6 +52,8 @@ public class Prefs {
     /** 0 = flowing colours, 1 = built-in bloom picture, 2 = my photo */
     public int bgMode() { return integer("bgmode", 3); }   // 3 = pure black (AMOLED)
     public boolean darkGlass() { return bool("darkglass", true); }
+    /** Thick chrome-rimmed glass on black, letters glowing through the glass. */
+    public boolean immersive() { return bool("immersive", true) && darkGlass(); }
     public int photoDim() { return integer("photodim", 55); }  // percent
     public int photoBlur() { return integer("photoblur", 1); }
     public boolean capsLabels() { return bool("capslabels2", false); }

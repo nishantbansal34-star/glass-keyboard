@@ -181,6 +181,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             }
             gp.setPack(prefs.pack());
             gp.setAmoled(prefs.darkGlass());
+            gp.setImmersive(prefs.immersive());
             // bright photo behind the glass -> frosted light glass with dark text, automatically
             if (!shadow && prefs.bgMode() == 2 && liquid != null && liquid.photoLuma > 0.6f) {
                 theme = theme.lightVariant();
@@ -205,7 +206,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         @Override protected void onDraw(Canvas c) {
             boolean motion = prefs.glassRipple();
-            liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
+            if (gp.immersiveActive()) c.drawColor(0xFF000000);   // immersive glass sits on pure black
+            else liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
             gp.setSource(liquid.source(), liquid.sourceScaleX(getWidth()), liquid.sourceScaleY(getHeight()));
             android.graphics.Bitmap soft = liquid.softSource();
             gp.setSoftSource(soft, soft.getWidth() / (float) Math.max(1, getWidth()), soft.getHeight() / (float) Math.max(1, getHeight()));
@@ -222,7 +224,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void tintNavBar() {
         Window w = getWindow() != null ? getWindow().getWindow() : null;
-        if (w != null && liquid != null) w.setNavigationBarColor(liquid.bottomColor(theme));
+        if (w != null && liquid != null) w.setNavigationBarColor(gp.immersiveActive() ? 0xFF000000 : liquid.bottomColor(theme));
     }
 
     @Override

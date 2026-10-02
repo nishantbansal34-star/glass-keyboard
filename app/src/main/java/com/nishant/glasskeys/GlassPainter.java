@@ -3,6 +3,7 @@ package com.nishant.glasskeys;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.Typeface;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
@@ -212,6 +213,28 @@ public class GlassPainter {
         if (a != amoled) { amoled = a; clearSprites(); }
     }
 
+    /** Immersive chrome-glass look (Liquid Glass pack only). */
+    public boolean immersive = false;
+    private Immersive imm;
+    private int lastRad;
+
+    public void setImmersive(boolean on) {
+        if (on != immersive) { immersive = on; clearSprites(); }
+    }
+
+    public boolean immersiveActive() { return immersive && pack == 0; }
+
+    /** Letter light behind the glass of the key that was just drawn. */
+    public void drawGlyphGlow(Canvas c, RectF r, String s, float size, Typeface tf) {
+        if (!immersiveActive() || imm == null) return;
+        imm.drawGlyphGlow(c, r, lastRad, s, size, tf);
+    }
+
+    public void drawFaceGlow(Canvas c, RectF r) {
+        if (!immersiveActive() || imm == null) return;
+        imm.drawFaceGlow(c, r, lastRad);
+    }
+
     public void setRoot(android.view.View root) { rootView = root; }
 
     /** Kept for compatibility with the backdrop; this look refracts the main source only. */
@@ -232,7 +255,7 @@ public class GlassPainter {
 
     public void setOrigin(float x, float y) { originX = x; originY = y; }
 
-    public void clearSprites() { overlayCache.clear(); shadowCache.clear(); }
+    public void clearSprites() { overlayCache.clear(); shadowCache.clear(); if (imm != null) imm.clear(); }
 
     private void drawRefraction(Canvas c, RectF r, float mag) {
         if (refrSrc == null || refrSrc.isRecycled()) return;
@@ -254,6 +277,15 @@ public class GlassPainter {
         int rad = Math.round(Math.min(radius, Math.min(w, h) / 2f));
 
         if (pack == 1) { drawShadowKey(c, r, w, h, rad, style, pressed, t, glow); return; }
+        if (immersive) {
+            if (imm == null) imm = new Immersive(dp);
+            lastRad = rad;
+            int tint = style == STYLE_ACTIVE ? (0x59000000 | (t.accent & 0xFFFFFF))
+                    : style == STYLE_ACTION ? (0x40000000 | (t.accent & 0xFFFFFF)) : 0;
+            float press = Math.max(pressAmt, pressed ? 1f : 0f);
+            imm.drawKey(c, r, w, h, rad, style == STYLE_FUNC, press, tint);
+            return;
+        }
         if (!amoled) {
             Bitmap sh = shadow(w, h, rad, t.dark);
             float pad = 12 * dp;

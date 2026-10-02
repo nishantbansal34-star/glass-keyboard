@@ -561,6 +561,12 @@ public class KeyboardView extends View {
         RectF r = k.rect;
         float cx = r.centerX(), cy = r.centerY();
         int col = theme.text;
+        boolean imm = gp.immersiveActive();
+        if (imm) {
+            col = 0xFFFFFFFF;
+            boolean glyph = k.isChar() && k.label.length() > 0;
+            if (!glyph && k.code != Key.SPACE) gp.drawFaceGlow(c, r);
+        }
         float icon = Math.min(r.height() * 0.5f, 24 * dp);
         switch (k.code) {
             case Key.SHIFT:
@@ -598,6 +604,7 @@ public class KeyboardView extends View {
         String s = k.label;
         boolean letter = s.length() == 1 && Character.isLetter(s.charAt(0));
         if (letter && (shift != SHIFT_OFF || capsLabels)) s = s.toUpperCase();
+        if (imm) gp.drawGlyphGlow(c, r, s, r.height() * 0.4f, TF_REG);
         label(c, s, cx, cy, r.height() * (letter ? 0.4f : 0.4f), col, false);
         if (k.hint != null) {
             hintPaint.setColor(theme.subText);
