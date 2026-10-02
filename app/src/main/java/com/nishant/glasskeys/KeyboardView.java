@@ -88,7 +88,8 @@ public class KeyboardView extends View {
     private final Map<Key, Spring> pressSpring = new IdentityHashMap<>();
     private final Map<Key, Spring> appear = new IdentityHashMap<>();
     private final Map<Key, Long> appearAt = new IdentityHashMap<>();
-    private static class Drop { Key key; String label; final Spring s = new Spring(520f, 0.58f); }
+    private static class Drop { Key key; String label; final Spring s = new Spring(1100f, 0.85f); }
+    private long lastOverlayFrame;
     private final List<Drop> drops = new ArrayList<>();
     private long lastFrame;
     public LiquidBackdrop backdrop;
@@ -521,7 +522,7 @@ public class KeyboardView extends View {
                 gp.pressAmt = pv;
                 float[] ti = touchInfo.get(k);
                 if (ti != null) {
-                    float age = ((SystemClock.uptimeMillis() % 1000000) - ti[2]) / 380f;
+                    float age = ((SystemClock.uptimeMillis() % 1000000) - ti[2]) / 220f;
                     if (age < 0) age = 1f;
                     gp.touchX = r.left + ti[0];
                     gp.touchY = r.top + ti[1];
@@ -545,15 +546,10 @@ public class KeyboardView extends View {
             gp.drawIcon(c, GlassPainter.IC_EXPAND, sideBtnB.centerX(), sideBtnB.centerY(), 20 * dp, theme.text);
         }
 
-        // droplet previews live in the overlay; keep it in step
-        for (int i = drops.size() - 1; i >= 0; i--) {
-            Drop d = drops.get(i);
-            if (d.s.step(dt)) animating = true;
-            else if (d.s.target == 0f) drops.remove(i);
-        }
+        // droplet previews animate on the overlay by themselves (no full keyboard redraws)
         boolean trailAlive = gn > 0 && (gliding || glideEnd >= 0);
         if (overlay != null && (!drops.isEmpty() || popupPtr != null || trailAlive)) overlay.invalidate();
-        if (animating || !drops.isEmpty() || (trailAlive && !gliding)) postInvalidateOnAnimation(); else lastFrame = 0;
+        if (animating) postInvalidateOnAnimation(); else lastFrame = 0;
     }
 
     private boolean isPressed(Key k) {
@@ -652,6 +648,16 @@ public class KeyboardView extends View {
         c.translate(getLeft(), offsetY);
         gp.setOrigin(getLeft(), offsetY);
         float minTop = -offsetY + 3 * dp;
+        long onow = SystemClock.uptimeMillis();
+        float odt = lastOverlayFrame == 0 ? 0.016f : Math.min(0.05f, (onow - lastOverlayFrame) / 1000f);
+        lastOverlayFrame = onow;
+        boolean dropsMoving = false;
+        for (int i = drops.size() - 1; i >= 0; i--) {
+            Drop d = drops.get(i);
+            if (d.s.step(odt)) dropsMoving = true;
+            else if (d.s.target == 0f) drops.remove(i);
+        }
+        if (dropsMoving && overlay != null) overlay.postInvalidateOnAnimation(); else if (!dropsMoving) lastOverlayFrame = 0;
         drawTrail(c);
         if (popupPtr != null && popupPtr.popup) {
             drawPopup(c);
@@ -679,7 +685,7 @@ public class KeyboardView extends View {
         float rb = Math.min(b.height(), b.width()) * 0.34f, rk = 11 * dp;
         dropPath.reset();
         dropPath.addRoundRect(b, rb, rb, android.graphics.Path.Direction.CW);
-        if (b.bottom < k.top + rk) {
+        if (false) {
             partPath.reset();
             partPath.addRoundRect(k, rk, rk, android.graphics.Path.Direction.CW);
             dropPath.op(partPath, android.graphics.Path.Op.UNION);

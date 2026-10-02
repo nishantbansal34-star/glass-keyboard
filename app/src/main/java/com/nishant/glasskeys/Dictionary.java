@@ -72,7 +72,23 @@ public class Dictionary {
         index = m;
         words = w;
         freq = fr;
+        byLen = bucketByLength(w);
         loaded = true;
+    }
+
+    /** Words grouped by length, so the one-typo search only looks at words of a similar length. */
+    private String[][] byLen = new String[0][];
+
+    private static String[][] bucketByLength(String[] w) {
+        int max = 0;
+        for (String s : w) max = Math.max(max, s.length());
+        int[] n = new int[max + 2];
+        for (String s : w) n[s.length()]++;
+        String[][] b = new String[max + 2][];
+        for (int i = 0; i < b.length; i++) b[i] = new String[n[i]];
+        int[] k = new int[max + 2];
+        for (String s : w) b[s.length()][k[s.length()]++] = s;
+        return b;
     }
 
     // ---- accessors for the swipe recogniser
@@ -86,6 +102,7 @@ public class Dictionary {
         Map<String, Integer> m = new HashMap<>();
         for (int i = 0; i < sortedWords.length; i++) m.put(sortedWords[i], freqs[i]);
         index = m;
+        byLen = bucketByLength(sortedWords);
         loaded = true;
     }
 
@@ -179,9 +196,10 @@ public class Dictionary {
             }
             // Typo corrections (one edit away), only worth it for 2+ letters
             if (low.length() >= 2) {
-                for (int k = 0; k < words.length; k++) {
-                    String w = words[k];
-                    if (Math.abs(w.length() - low.length()) > 1 || seen.containsKey(w)) continue;
+                String[][] bl = byLen;
+                for (int L = Math.max(1, low.length() - 1); L <= low.length() + 1 && L < bl.length; L++)
+                for (String w : bl[L]) {
+                    if (seen.containsKey(w)) continue;
                     if (w.charAt(0) != low.charAt(0) && low.length() > 3 && w.length() > 3
                             && w.charAt(1) != low.charAt(1)) continue;
                     if (editDistanceAtMost1(low, w)) {
@@ -282,7 +300,7 @@ public class Dictionary {
         if (learned.size() > 9000) learned = trim(learned, 7000);
         // slow forgetting: habits you've dropped fade out over time
         if (++learnsSinceDecay >= 600) { learnsSinceDecay = 0; decay(); }
-        if (++dirty >= 8) flush();
+        if (++dirty >= 40) flush();
     }
 
     private static Map<String, Integer> trim(Map<String, Integer> m, int keepN) {
@@ -322,13 +340,18 @@ public class Dictionary {
         bigrams = keep;
     }
 
+    private static final java.util.concurrent.ExecutorService SAVER = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     public void flush() {
         dirty = 0;
         if (prefs == null) return;
-        prefs.saveLearned(learned);
-        prefs.saveBigrams(bigrams);
-        prefs.saveTrigrams(trigrams);
-        prefs.saveCaseForms(caseForms);
+        final Map<String, Integer> l = new HashMap<>(learned), b = new HashMap<>(bigrams), t = new HashMap<>(trigrams);
+        final Map<String, String> cf = new HashMap<>(caseForms);
+        final Prefs p = prefs;
+        // building the JSON for thousands of words took long enough to stall typing; do it off the UI thread
+        SAVER.execute(() -> {
+            try { p.saveLearned(l); p.saveBigrams(b); p.saveTrigrams(t); p.saveCaseForms(cf); } catch (Exception ignored) { }
+        });
     }
 
     public void reloadLearned() {

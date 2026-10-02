@@ -92,7 +92,6 @@ public class StripView extends View {
             }
             if (changed) transStart = android.os.SystemClock.uptimeMillis(); else oldTexts.clear();
         }
-        orbAwakeUntil = android.os.SystemClock.uptimeMillis() + 9000;
         cells.clear();
         cells.addAll(list);
         pressed = null;

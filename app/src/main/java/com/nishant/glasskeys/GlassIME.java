@@ -230,9 +230,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (root == null || liquid == null) return;
         float nx = (x + keyboard.getLeft()) / Math.max(1, root.getWidth());
         float ny = (y + strip.getHeight()) / Math.max(1, root.getHeight());
-        liquid.touch(nx, ny);
-        root.invalidate();
-        keyboard.invalidate();
+        // (the moving light pool is gone: it redrew the whole keyboard every frame while typing)
     }
 
     private boolean liveBlurActive;
