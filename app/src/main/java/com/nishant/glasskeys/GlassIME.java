@@ -206,7 +206,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         @Override protected void onDraw(Canvas c) {
             boolean motion = prefs.glassRipple();
-            if (gp.immersiveActive()) c.drawColor(0xFF000000);   // immersive glass sits on pure black
+            if (gp.immersiveActive() || gp.pack == 2) c.drawColor(0xFF000000);   // immersive glass / Still sit on pure black
             else liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
             gp.setSource(liquid.source(), liquid.sourceScaleX(getWidth()), liquid.sourceScaleY(getHeight()));
             android.graphics.Bitmap soft = liquid.softSource();
@@ -224,7 +224,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void tintNavBar() {
         Window w = getWindow() != null ? getWindow().getWindow() : null;
-        if (w != null && liquid != null) w.setNavigationBarColor(gp.immersiveActive() ? 0xFF000000 : liquid.bottomColor(theme));
+        if (w != null && liquid != null) w.setNavigationBarColor(gp.immersiveActive() || gp.pack == 2 ? 0xFF000000 : liquid.bottomColor(theme));
     }
 
     @Override
@@ -367,7 +367,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     private void applySettings() {
-        theme = prefs.pack() == 1 ? Theme.SHADOW : Theme.get(prefs.theme());
+        theme = prefs.pack() == 1 ? Theme.SHADOW : prefs.pack() == 2 ? Theme.STILL : Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
         lang = prefs.lang();
@@ -397,7 +397,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private void styleWindow() {
         Window w = getWindow() != null ? getWindow().getWindow() : null;
         if (w == null) return;
-        w.setNavigationBarColor(liquid != null ? liquid.bottomColor(theme) : theme.base);
+        w.setNavigationBarColor(gp.pack == 2 || gp.immersiveActive() ? 0xFF000000 : liquid != null ? liquid.bottomColor(theme) : theme.base);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             int flags = w.getDecorView().getSystemUiVisibility();
             if (theme.dark) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;

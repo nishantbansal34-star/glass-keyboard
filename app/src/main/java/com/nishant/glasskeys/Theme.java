@@ -37,6 +37,10 @@ public class Theme {
     public static final Theme SHADOW = new Theme("Shadow Realm", 0xFF07050F,
             new int[]{0xFF3A1A8C, 0xFF6A3DF0, 0xFF1A0F40}, 0xFFEFE8FF, 0xFF8B5CFF, true);
 
+    /** Still pack: quiet, text-first monochrome on pure black (pairs with the Still launcher). */
+    public static final Theme STILL = new Theme("Still", 0xFF000000,
+            new int[]{0xFF0A0A0A, 0xFF111111, 0xFF080808}, 0xFFE8E8E8, 0xFFFFFFFF, true);
+
     /** Same accent, frosted light glass with dark text (for bright wallpapers). */
     public Theme lightVariant() {
         if (!dark) return this;

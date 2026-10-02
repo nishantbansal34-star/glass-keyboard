@@ -220,10 +220,10 @@ public class SettingsActivity extends Activity {
 
         // --- Theme pack (kept separate from the clean Liquid Glass options)
         LinearLayout packCard = card("Theme pack");
-        TextView packHelp = text("Liquid Glass is the clean look. Shadow Realm is a dark-fantasy pack with violet flame keys and a typing level that grows as you write.", 13, false);
+        TextView packHelp = text("Liquid Glass is the clean look. Shadow Realm is a dark-fantasy pack with violet flame keys and a typing level that grows as you write. Still is quiet and text-first: plain letters on pure black, no glass or glow — made to match the Still launcher.", 13, false);
         packHelp.setAlpha(0.7f);
         packCard.addView(packHelp);
-        packCard.addView(choice(new String[]{"Liquid Glass", "Shadow Realm"}, new String[]{"0", "1"},
+        packCard.addView(choice(new String[]{"Liquid Glass", "Shadow Realm", "Still"}, new String[]{"0", "1", "2"},
                 String.valueOf(prefs.pack()), v -> prefs.setInt("pack", Integer.parseInt(v))));
 
         // --- Look

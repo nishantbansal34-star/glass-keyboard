@@ -134,6 +134,7 @@ public class StripView extends View {
     private final Paint orbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private static final Typeface TF_REG = Typeface.create("sans-serif", Typeface.NORMAL);
     private static final Typeface TF_MED = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static final Typeface TF_LIGHT = Typeface.create("sans-serif-light", Typeface.NORMAL);
 
     private boolean premium() { return gp.amoled && gp.pack == 0; }
 
@@ -181,7 +182,7 @@ public class StripView extends View {
     protected void onDraw(Canvas c) {
         float H = getHeight(), W = getWidth();
         gp.setOriginFromView(this);
-        div.setColor(premium() ? (theme.dark ? 0x1FFFFFFF : 0x261B1F2A) : theme.dark ? 0x40FFFFFF : 0x401B1F2A);
+        div.setColor(gp.pack == 2 ? 0x1AFFFFFF : premium() ? (theme.dark ? 0x1FFFFFFF : 0x261B1F2A) : theme.dark ? 0x40FFFFFF : 0x401B1F2A);
         if (cells.isEmpty()) return;
 
         // Layout of the glass: a round button for the leading ✦ cell, a capsule for the rest.
@@ -259,7 +260,8 @@ public class StripView extends View {
                 tp.setColor(tc);
                 tp.setTextSize((cell.title ? 14 : prem ? 16.5f : 17) * dp);
                 tp.setTypeface(cell.primary ? TF_MED : cell.title ? Typeface.DEFAULT : TF_REG);
-                if (theme.dark && !prem) tp.setShadowLayer(3 * dp, 0, 1 * dp, 0x59000000); else tp.clearShadowLayer();
+                if (theme.dark && !prem && gp.pack != 2) tp.setShadowLayer(3 * dp, 0, 1 * dp, 0x59000000); else tp.clearShadowLayer();
+                if (gp.pack == 2) tp.setTypeface(cell.primary ? TF_REG : TF_LIGHT);
                 float avail = (cr - cl) - (cell.icon != 0 ? 36 * dp : 14 * dp);
                 String s = TextUtils.ellipsize(cell.text, tp, Math.max(avail, 10), TextUtils.TruncateAt.END).toString();
                 float tx = (cl + cr) / 2 + (cell.icon != 0 ? 11 * dp : 0);

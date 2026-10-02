@@ -151,7 +151,7 @@ public class KeyboardView extends View {
     private float[] rlx = new float[400], rly = new float[400], rrx = new float[400], rry = new float[400];
 
     // blue light palette for the trail
-    private static final int TR_HALO = 0x1450FF, TR_GLOW = 0x2F7DFF, TR_BODY = 0x62A8FF, TR_CORE = 0xEEF7FF;
+    private int TR_HALO = 0x1450FF, TR_GLOW = 0x2F7DFF, TR_BODY = 0x62A8FF, TR_CORE = 0xEEF7FF;
 
     /**
      * Glowing blue trail that follows the finger: a continuous ribbon, thick and bright under the
@@ -222,6 +222,8 @@ public class KeyboardView extends View {
             glowBlur = new android.graphics.BlurMaskFilter(5 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
         }
         boolean dark = theme.dark;
+        if (gp.pack == 2) { TR_HALO = 0x3A3A3A; TR_GLOW = 0x8A8A8A; TR_BODY = 0xD0D0D0; TR_CORE = 0xFFFFFF; }
+        else { TR_HALO = 0x1450FF; TR_GLOW = 0x2F7DFF; TR_BODY = 0x62A8FF; TR_CORE = 0xEEF7FF; }
         ribbonPaint.setStyle(Paint.Style.FILL);
         ribbonPaint.setXfermode(dark ? screenMode : null);
         if (m >= 2) {
@@ -510,7 +512,7 @@ public class KeyboardView extends View {
             glow = Math.min(1f, glow + pv * 0.7f);
             boolean premium = gp.amoled && gp.pack == 0;
             // premium glass compresses slightly; other styles swell like liquid
-            float sc = (premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
+            float sc = (gp.pack == 2 ? 1f : premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
             float ty = (1f - a) * 14 * dp;
             c.save();
             c.translate(r.centerX(), r.centerY() + ty);
@@ -562,6 +564,7 @@ public class KeyboardView extends View {
         float cx = r.centerX(), cy = r.centerY();
         int col = theme.text;
         boolean imm = gp.immersiveActive();
+        if (gp.pack == 2) col = k.isChar() ? 0xFFE8E8E8 : 0xFF8E8E8E;
         if (imm) {
             col = 0xFFFFFFFF;
             boolean glyph = k.isChar() && k.label.length() > 0;
@@ -620,17 +623,19 @@ public class KeyboardView extends View {
 
     private static final Typeface TF_REG = Typeface.create("sans-serif", Typeface.NORMAL);
     private static final Typeface TF_MED = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    private static final Typeface TF_LIGHT = Typeface.create("sans-serif-light", Typeface.NORMAL);
 
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
         boolean premium = gp.pack == 0 && gp.amoled;
-        text.setTypeface(premium ? (bold ? TF_MED : TF_REG) : TF_MED);
-        if (premium && theme.dark) text.setShadowLayer(2.2f * dp, 0, 0.6f * dp, ((color >>> 24) * 0x73 / 255) << 24);
+        text.setTypeface(gp.pack == 2 ? (bold ? TF_REG : TF_LIGHT) : premium ? (bold ? TF_MED : TF_REG) : TF_MED);
+        if (gp.pack == 2) text.clearShadowLayer();
+        else if (premium && theme.dark) text.setShadowLayer(2.2f * dp, 0, 0.6f * dp, ((color >>> 24) * 0x73 / 255) << 24);
         else if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
         else if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);
-        text.setFakeBoldText(bold && !premium);
+        text.setFakeBoldText(bold && !premium && gp.pack != 2);
         Paint.FontMetrics fm = text.getFontMetrics();
         c.drawText(s, cx, cy - (fm.ascent + fm.descent) / 2, text);
         text.setFakeBoldText(false);

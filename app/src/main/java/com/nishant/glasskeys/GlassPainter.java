@@ -213,6 +213,28 @@ public class GlassPainter {
         if (a != amoled) { amoled = a; clearSprites(); }
     }
 
+    /**
+     * Still: no glass, no glow. Keys are just their letters on black; a faint fill appears only
+     * while pressed, the space bar and list cards get a hairline outline so they can be found.
+     */
+    private final Paint stillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private void drawStill(Canvas c, RectF r, int w, int h, int rad, int style, boolean pressed) {
+        boolean wide = w > h * 2.6f;
+        stillPaint.setStyle(Paint.Style.FILL);
+        if (style == STYLE_ACTIVE) { stillPaint.setColor(0x26FFFFFF); c.drawRoundRect(r, rad, rad, stillPaint); }
+        else if (style == STYLE_ACTION) { stillPaint.setColor(0x1AFFFFFF); c.drawRoundRect(r, rad, rad, stillPaint); }
+        if (pressed) { stillPaint.setColor(0x1FFFFFFF); c.drawRoundRect(r, rad, rad, stillPaint); }
+        if (wide && variant != -1) {
+            stillPaint.setStyle(Paint.Style.STROKE);
+            stillPaint.setStrokeWidth(Math.max(1f, 0.8f * dp));
+            stillPaint.setColor(0x2EFFFFFF);
+            float i = stillPaint.getStrokeWidth() / 2;
+            c.drawRoundRect(r.left + i, r.top + i, r.right - i, r.bottom - i, rad, rad, stillPaint);
+            stillPaint.setStyle(Paint.Style.FILL);
+        }
+    }
+
     /** Immersive chrome-glass look (Liquid Glass pack only). */
     public boolean immersive = false;
     private Immersive imm;
@@ -277,6 +299,7 @@ public class GlassPainter {
         int rad = Math.round(Math.min(radius, Math.min(w, h) / 2f));
 
         if (pack == 1) { drawShadowKey(c, r, w, h, rad, style, pressed, t, glow); return; }
+        if (pack == 2) { drawStill(c, r, w, h, rad, style, pressed); return; }
         if (immersive) {
             if (imm == null) imm = new Immersive(dp);
             lastRad = rad;
@@ -819,6 +842,17 @@ public class GlassPainter {
 
     /** Glass that is a little more opaque (so what is inside stays readable), e.g. the droplet preview. */
     public void drawBubblePath(Canvas c, Path sh, RectF r, Theme t) {
+        if (pack == 2) {
+            stillPaint.setStyle(Paint.Style.FILL);
+            stillPaint.setColor(0xF5121212);
+            c.drawPath(sh, stillPaint);
+            stillPaint.setStyle(Paint.Style.STROKE);
+            stillPaint.setStrokeWidth(Math.max(1f, 0.8f * dp));
+            stillPaint.setColor(0x40FFFFFF);
+            c.drawPath(sh, stillPaint);
+            stillPaint.setStyle(Paint.Style.FILL);
+            return;
+        }
         c.save();
         c.translate(0, 3 * dp);
         shadow.setColor(t.dark ? 0x40000000 : 0x261B2A4A);
