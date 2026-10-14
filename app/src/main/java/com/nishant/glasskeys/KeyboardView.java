@@ -2,6 +2,7 @@ package com.nishant.glasskeys;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
@@ -167,7 +168,7 @@ public class KeyboardView extends View {
             if (global <= 0) { gn = 0; glideEnd = -1; return; }
             global = global * global * (3 - 2 * global); // smoothstep
         }
-        final float life = 420f;
+        final float life = 340f;
         long cut = now - (long) life;
         // 1. find where the tail currently is, interpolated between samples so it glides, not jumps
         int first = gn - 1;
@@ -217,47 +218,63 @@ public class KeyboardView extends View {
         }
         if (m >= 1) sw[m - 1] = maxW;
 
+        // ---- per-theme look: quiet, thin and soft; fades out along its length toward the tail
         if (haloBlur == null) {
-            haloBlur = new android.graphics.BlurMaskFilter(14 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
-            glowBlur = new android.graphics.BlurMaskFilter(5 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+            haloBlur = new android.graphics.BlurMaskFilter(6 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
+            glowBlur = new android.graphics.BlurMaskFilter(2.5f * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
         }
         boolean dark = theme.dark;
-        if (gp.pack == 2) { TR_HALO = 0x3A3A3A; TR_GLOW = 0x8A8A8A; TR_BODY = 0xD0D0D0; TR_CORE = 0xFFFFFF; }
-        else { TR_HALO = 0x1450FF; TR_GLOW = 0x2F7DFF; TR_BODY = 0x62A8FF; TR_CORE = 0xEEF7FF; }
+        int body, glow;            // colours
+        float bodyA, glowA, glowScale, coreA, headA, headR;
+        switch (gp.pack) {
+            case 1:  body = 0xC9B6FF; glow = 0x8B5CFF; bodyA = 0.80f; glowA = 0.45f; glowScale = 2.6f; coreA = 0.55f; headA = 0.35f; headR = 7; break;   // Shadow Realm
+            case 2:  body = 0xD6D6D6; glow = 0x000000; bodyA = 0.55f; glowA = 0f;    glowScale = 0f;   coreA = 0f;    headA = 0f;    headR = 0; break;    // Still: a pencil line
+            case 3:  body = 0xF4F6FA; glow = 0xFFFFFF; bodyA = 0.62f; glowA = 0.22f; glowScale = 2.4f; coreA = 0f;    headA = 0.28f; headR = 5; break;    // Soft Glass: frosted white
+            default: body = 0xCFE3FF; glow = 0x6FA8FF; bodyA = 0.70f; glowA = 0.30f; glowScale = 2.6f; coreA = 0.55f; headA = 0.30f; headR = 6;          // Liquid Glass: cool light
+        }
+        if (!dark) { body = 0x3A4A60; glow = 0x6F8FC0; }
+        float width = gp.pack == 2 ? 2.4f : gp.pack == 3 ? 3.6f : 4.2f;   // dp at the fingertip
+        // scale the sampled widths (computed for an 8dp trail) down to this theme's width
+        float k = width / 8f;
+        for (int i = 0; i < m; i++) sw[i] *= k;
         ribbonPaint.setStyle(Paint.Style.FILL);
         ribbonPaint.setXfermode(dark ? screenMode : null);
         if (m >= 2) {
-            // wide soft halo
-            buildRibbon(m, 4.4f);
-            ribbonPaint.setMaskFilter(haloBlur);
-            ribbonPaint.setColor(((int) ((dark ? 195 : 110) * global) << 24) | TR_HALO);
-            c.drawPath(ribbon, ribbonPaint);
-            // glow
-            buildRibbon(m, 1.9f);
-            ribbonPaint.setMaskFilter(glowBlur);
-            ribbonPaint.setColor(((int) ((dark ? 215 : 150) * global) << 24) | TR_GLOW);
-            c.drawPath(ribbon, ribbonPaint);
-            ribbonPaint.setMaskFilter(null);
-            // body
+            // fade along the stroke: transparent at the tail, full at the finger
+            float tx = sx[0], ty = sy[0], hx = sx[m - 1], hy = sy[m - 1];
+            if (Math.hypot(hx - tx, hy - ty) < 1) { hx = tx + 1; }
+            if (glowA > 0) {
+                buildRibbon(m, glowScale);
+                ribbonPaint.setMaskFilter(glowBlur);
+                ribbonPaint.setShader(new LinearGradient(tx, ty, hx, hy, glow & 0x00FFFFFF, 0xFF000000 | glow, Shader.TileMode.CLAMP));
+                ribbonPaint.setAlpha((int) (255 * glowA * global));
+                c.drawPath(ribbon, ribbonPaint);
+                ribbonPaint.setMaskFilter(null);
+            }
             buildRibbon(m, 1f);
-            ribbonPaint.setColor(((int) (215 * global) << 24) | TR_BODY);
+            ribbonPaint.setShader(new LinearGradient(tx, ty, hx, hy, body & 0x00FFFFFF, 0xFF000000 | body, Shader.TileMode.CLAMP));
+            ribbonPaint.setAlpha((int) (255 * bodyA * global));
             c.drawPath(ribbon, ribbonPaint);
-            // hot core
-            buildRibbon(m, 0.42f);
-            ribbonPaint.setColor(((int) (235 * global) << 24) | (dark ? TR_CORE : 0xDDEBFF));
-            c.drawPath(ribbon, ribbonPaint);
+            if (coreA > 0) {
+                buildRibbon(m, 0.38f);
+                ribbonPaint.setShader(new LinearGradient(tx, ty, hx, hy, 0x00FFFFFF, 0xFFFFFFFF, Shader.TileMode.CLAMP));
+                ribbonPaint.setAlpha((int) (255 * coreA * global));
+                c.drawPath(ribbon, ribbonPaint);
+            }
+            ribbonPaint.setShader(null);
+            ribbonPaint.setAlpha(255);
         }
-        // glowing head under the fingertip
-        float hr = 15 * dp;
-        headPaint.setXfermode(dark ? screenMode : null);
-        headPaint.setShader(new RadialGradient(headX, headY, hr,
-                new int[]{((int) (230 * global) << 24) | TR_CORE, ((int) (170 * global) << 24) | TR_BODY,
-                        ((int) (70 * global) << 24) | TR_GLOW, 0x00000000 | TR_HALO},
-                new float[]{0f, 0.22f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        c.drawCircle(headX, headY, hr, headPaint);
-        headPaint.setShader(null);
+        // a soft point of light under the fingertip (not a ball)
+        if (headA > 0) {
+            float hr = headR * dp;
+            headPaint.setXfermode(dark ? screenMode : null);
+            headPaint.setShader(new RadialGradient(headX, headY, hr,
+                    new int[]{((int) (255 * headA * global) << 24) | body, 0x00000000 | glow}, null, Shader.TileMode.CLAMP));
+            c.drawCircle(headX, headY, hr, headPaint);
+            headPaint.setShader(null);
+            headPaint.setXfermode(null);
+        }
         ribbonPaint.setXfermode(null);
-        headPaint.setXfermode(null);
         // keep animating the overlay so the tail keeps catching up even when the finger is still
         if (overlay != null) overlay.postInvalidateOnAnimation();
     }
