@@ -208,7 +208,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             boolean motion = prefs.glassRipple();
             if (gp.immersiveActive() || gp.pack == 2) c.drawColor(0xFF000000);   // immersive glass / Still sit on pure black
             else liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
-            if (gp.pack == 3) c.drawColor(0x30000000);   // Soft Glass: a slightly deeper, calmer backdrop
+            if (gp.pack == 3) c.drawColor(0x6B000000);   // matches the reference: dark backdrop, colour still glowing through   // Soft Glass: a slightly deeper, calmer backdrop
             gp.setSource(liquid.source(), liquid.sourceScaleX(getWidth()), liquid.sourceScaleY(getHeight()));
             android.graphics.Bitmap soft = liquid.softSource();
             gp.setSoftSource(soft, soft.getWidth() / (float) Math.max(1, getWidth()), soft.getHeight() / (float) Math.max(1, getHeight()));

@@ -308,7 +308,6 @@ public class GlassPainter {
         // corner ≈ 30% of the key width, a soft squircle (measured from the reference)
         float rr = Math.min(Math.min(w, h) * 0.33f, 15 * dp);
         squircle(softPath, r.left, r.top, r.right, r.bottom, rr);
-        boolean src = softSourceReady();
         softPaint.setShader(null);
         softPaint.setStyle(Paint.Style.FILL);
         float hair = Math.max(1f, 0.7f * dp);
@@ -320,19 +319,14 @@ public class GlassPainter {
         c.drawPath(softPath, softPaint);
         softPaint.setStyle(Paint.Style.FILL);
 
-        // 2. the key is see-through: the background itself, lifted by ~10% white
-        if (src) {
-            softBody.setShader(softShader);
-            softBody.setAlpha(255);
-            c.drawPath(softPath, softBody);
-            softBody.setShader(null);
-        }
+        // 2. the key is see-through: the keyboard view is transparent, so the real backdrop is already
+        //    behind it — a ~10% white veil lifts it exactly like the reference glass
         int body;
         switch (style) {
             case STYLE_ACTION: body = 0xF50A84FF; break;
             case STYLE_DANGER: body = 0xEBA7303A; break;
             case STYLE_ACTIVE: body = 0xF0E5E5EA; break;
-            default: body = src ? 0x19FFFFFF : 0xFF36353A;
+            default: body = 0x1CFFFFFF;
         }
         softPaint.setColor(body);
         c.drawPath(softPath, softPaint);
@@ -345,13 +339,6 @@ public class GlassPainter {
         //    tinted by whatever colour is behind that edge
         float in = hair * 0.9f;
         squircle(softInner, r.left + in, r.top + in, r.right - in, r.bottom - in, Math.max(0f, rr - in));
-        if (src) {
-            softEdge.setShader(softShader);
-            softEdge.setStrokeWidth(hair * 1.4f);
-            softEdge.setAlpha(0x22);
-            c.drawPath(softInner, softEdge);
-            softEdge.setShader(null);
-        }
         softPaint.setStyle(Paint.Style.STROKE);
         softPaint.setStrokeWidth(hair);
         softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom,
