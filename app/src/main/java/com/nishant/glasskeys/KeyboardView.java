@@ -610,7 +610,7 @@ public class KeyboardView extends View {
         boolean letter = s.length() == 1 && Character.isLetter(s.charAt(0));
         if (letter && (shift != SHIFT_OFF || capsLabels)) s = s.toUpperCase();
         if (imm) gp.drawGlyphGlow(c, r, s, r.height() * 0.4f, TF_REG);
-        label(c, s, cx, cy, r.height() * (letter ? 0.4f : 0.4f), col, false);
+        label(c, s, cx, cy, r.height() * (gp.pack == 3 && letter ? 0.48f : 0.4f), col, false);
         if (k.hint != null) {
             hintPaint.setColor(theme.subText);
             hintPaint.setTextSize(r.height() * 0.22f);

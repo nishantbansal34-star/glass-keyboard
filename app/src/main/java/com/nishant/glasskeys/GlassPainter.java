@@ -236,46 +236,127 @@ public class GlassPainter {
     }
 
     /**
-     * Soft Glass: rounded dark-glass keys floating over a softly blurred background,
-     * a hairline of light on the top edge, blue for the action key and red for delete.
+     * Soft Glass (modelled on iOS-style dark glass): squircle keys of translucent graphite that let the
+     * colours behind them through, a dark hairline outline, and an inner rim that catches the background
+     * light (brightest along the top and bottom edges).
      */
     private final Paint softPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint softBody = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint softEdge = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF softR = new RectF();
+    private final Path softPath = new Path(), softInner = new Path();
+    private final Matrix softM = new Matrix();
+    private BitmapShader softShader;
+    private Bitmap softShaderSrc;
+
+    {
+        // seen through frosted glass: colours a little muted and dimmer
+        android.graphics.ColorMatrix body = new android.graphics.ColorMatrix();
+        body.setSaturation(1.0f);
+        softBody.setColorFilter(new android.graphics.ColorMatrixColorFilter(body));
+        // the rim concentrates light: richer, brighter colour
+        android.graphics.ColorMatrix edge = new android.graphics.ColorMatrix();
+        edge.setSaturation(1.7f);
+        edge.postConcat(new android.graphics.ColorMatrix(new float[]{
+                1.6f, 0, 0, 0, 40, 0, 1.6f, 0, 0, 40, 0, 0, 1.6f, 0, 44, 0, 0, 0, 1, 0}));
+        softEdge.setColorFilter(new android.graphics.ColorMatrixColorFilter(edge));
+        softEdge.setStyle(Paint.Style.STROKE);
+    }
+
+    /** Continuous-curvature ("squircle") rounded rectangle, like iOS keys. */
+    private static void squircle(Path p, float l, float t, float r, float b, float rad) {
+        p.reset();
+        float w = r - l, h = b - t;
+        rad = Math.min(rad, Math.min(w, h) / 2f);
+        if (rad <= 0.5f) { p.addRect(l, t, r, b, Path.Direction.CW); return; }
+        // corner extends a bit further than a circular arc and eases into the straight edges
+        float e = Math.min(rad * 1.15f, Math.min(w, h) / 2f);
+        final int N = 10;
+        final double n = 2.5;   // superellipse exponent (measured from the reference keys)
+        float[] dx = new float[N + 1], dy = new float[N + 1];
+        for (int i = 0; i <= N; i++) {
+            double ang = i * (Math.PI / 2) / N;
+            dx[i] = (float) (e * (1 - Math.pow(Math.cos(ang), 2.0 / n)));
+            dy[i] = (float) (e * (1 - Math.pow(Math.sin(ang), 2.0 / n)));
+        }
+        // top-left: left edge -> top edge
+        p.moveTo(l + dx[0], t + dy[0]);
+        for (int i = 1; i <= N; i++) p.lineTo(l + dx[i], t + dy[i]);
+        // top-right: top edge -> right edge
+        for (int i = N; i >= 0; i--) p.lineTo(r - dx[i], t + dy[i]);
+        // bottom-right: right edge -> bottom edge
+        for (int i = 0; i <= N; i++) p.lineTo(r - dx[i], b - dy[i]);
+        // bottom-left: bottom edge -> left edge
+        for (int i = N; i >= 0; i--) p.lineTo(l + dx[i], b - dy[i]);
+        p.close();
+    }
+
+    private boolean softSourceReady() {
+        if (refrSrc == null || refrSrc.isRecycled()) return false;
+        if (softShaderSrc != refrSrc) {
+            softShader = new BitmapShader(refrSrc, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            softShaderSrc = refrSrc;
+        }
+        softM.reset();
+        softM.setScale(1f / srcScaleX, 1f / srcScaleY);
+        softM.postTranslate(-originX, -originY);
+        softShader.setLocalMatrix(softM);
+        return true;
+    }
 
     private void drawSoft(Canvas c, RectF r, int w, int h, int rad, int style, boolean pressed) {
-        float rr = Math.max(rad, Math.min(Math.min(w, h) * 0.3f, 15 * dp));
-        if (rr > Math.min(w, h) / 2f) rr = Math.min(w, h) / 2f;
-        // soft contact shadow
+        // corner ≈ 30% of the key width, a soft squircle (measured from the reference)
+        float rr = Math.min(Math.min(w, h) * 0.33f, 15 * dp);
+        squircle(softPath, r.left, r.top, r.right, r.bottom, rr);
+        boolean src = softSourceReady();
         softPaint.setShader(null);
         softPaint.setStyle(Paint.Style.FILL);
-        softPaint.setColor(0x33000000);
-        softR.set(r.left, r.top + 1.2f * dp, r.right, r.bottom + 1.2f * dp);
-        c.drawRoundRect(softR, rr, rr, softPaint);
-        // body: translucent graphite glass, or the accent colours
+        float hair = Math.max(1f, 0.7f * dp);
+
+        // 1. dark hairline just outside the key
+        softPaint.setStyle(Paint.Style.STROKE);
+        softPaint.setStrokeWidth(hair * 1.3f);
+        softPaint.setColor(0x47000000);
+        c.drawPath(softPath, softPaint);
+        softPaint.setStyle(Paint.Style.FILL);
+
+        // 2. the key is see-through: the background itself, lifted by ~10% white
+        if (src) {
+            softBody.setShader(softShader);
+            softBody.setAlpha(255);
+            c.drawPath(softPath, softBody);
+            softBody.setShader(null);
+        }
         int body;
         switch (style) {
-            case STYLE_ACTION: body = 0xF20A84FF; break;
-            case STYLE_DANGER: body = 0xF0B0323C; break;
-            case STYLE_ACTIVE: body = 0xE6E9EAEE; break;
-            default: body = variant == -1 ? 0x8C34363B : 0xD93A3C41;
+            case STYLE_ACTION: body = 0xF50A84FF; break;
+            case STYLE_DANGER: body = 0xEBA7303A; break;
+            case STYLE_ACTIVE: body = 0xF0E5E5EA; break;
+            default: body = src ? 0x19FFFFFF : 0xFF36353A;
         }
         softPaint.setColor(body);
-        c.drawRoundRect(r, rr, rr, softPaint);
-        // a whisper of vertical sheen so it reads as glass, not paint
-        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom, 0x14FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-        c.drawRoundRect(r, rr, rr, softPaint);
-        softPaint.setShader(null);
+        c.drawPath(softPath, softPaint);
         if (pressed) {
-            softPaint.setColor(style == STYLE_KEY || style == STYLE_FUNC ? 0x2EFFFFFF : 0x26FFFFFF);
-            c.drawRoundRect(r, rr, rr, softPaint);
+            softPaint.setColor(0x24FFFFFF);
+            c.drawPath(softPath, softPaint);
         }
-        // hairline rim: brighter along the top edge, fading towards the bottom
-        float sw = Math.max(1f, 0.8f * dp);
+
+        // 3. edges catch light: a bright 1px line along the top, a fainter one along the bottom,
+        //    tinted by whatever colour is behind that edge
+        float in = hair * 0.9f;
+        squircle(softInner, r.left + in, r.top + in, r.right - in, r.bottom - in, Math.max(0f, rr - in));
+        if (src) {
+            softEdge.setShader(softShader);
+            softEdge.setStrokeWidth(hair * 1.4f);
+            softEdge.setAlpha(0x22);
+            c.drawPath(softInner, softEdge);
+            softEdge.setShader(null);
+        }
         softPaint.setStyle(Paint.Style.STROKE);
-        softPaint.setStrokeWidth(sw);
-        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom, 0x4DFFFFFF, 0x0DFFFFFF, Shader.TileMode.CLAMP));
-        softR.set(r.left + sw / 2, r.top + sw / 2, r.right - sw / 2, r.bottom - sw / 2);
-        c.drawRoundRect(softR, rr - sw / 2, rr - sw / 2, softPaint);
+        softPaint.setStrokeWidth(hair);
+        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom,
+                new int[]{0x2EFFFFFF, 0x05FFFFFF, 0x05FFFFFF, 0x17FFFFFF}, new float[]{0f, 0.18f, 0.82f, 1f}, Shader.TileMode.CLAMP));
+        c.drawPath(softInner, softPaint);
         softPaint.setShader(null);
         softPaint.setStyle(Paint.Style.FILL);
     }
