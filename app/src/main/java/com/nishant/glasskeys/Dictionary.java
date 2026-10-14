@@ -30,6 +30,15 @@ public class Dictionary {
     private volatile boolean loaded;
     private int dirty;
 
+    /** Chat words people type on purpose: never "corrected". */
+    private static final java.util.Set<String> SLANG = new java.util.HashSet<>(java.util.Arrays.asList(
+            "ok", "okk", "okkk", "okie", "okey", "k", "kk", "hmm", "hmmm", "hm", "plz", "pls", "plzz", "thx", "thnx", "ty", "tq",
+            "gm", "gn", "bro", "sis", "ya", "yaa", "yup", "yep", "nope", "lol", "lmao", "btw", "idk", "omg", "brb", "ttyl",
+            "haan", "han", "ji", "na", "nahi", "nhi", "acha", "accha", "achha", "theek", "thik", "bhai", "yaar", "yr", "sahi",
+            "hai", "hain", "ho", "kya", "kyu", "kyun", "kab", "kaha", "kahan", "abhi", "kal", "aaj", "toh", "bhi", "mein",
+            "main", "hum", "tum", "aap", "ka", "ki", "ke", "ko", "se", "pe", "par", "wala", "wali", "sir", "ma'am", "mam",
+            "msg", "pic", "pics", "vid", "asap", "fyi", "tmrw", "tmr", "gud", "nyc", "wid", "u", "ur", "r", "n", "y"));
+
     private static final Map<String, String> FIXES = new HashMap<>();
     static {
         String[] f = {"i", "I", "im", "I'm", "ive", "I've", "dont", "don't",
@@ -38,7 +47,9 @@ public class Dictionary {
                 "wouldnt", "wouldn't", "thats", "that's", "whats", "what's", "lets", "let's", "youre", "you're",
                 "theyre", "they're", "arent", "aren't", "teh", "the", "adn", "and", "recieve", "receive",
                 "definately", "definitely", "seperate", "separate", "tommorow", "tomorrow", "untill", "until",
-                "wich", "which", "becuase", "because", "thier", "their", "alot", "a lot"};
+                "wich", "which", "becuase", "because", "thier", "their", "alot", "a lot", "helo", "hello",
+                "occured", "occurred", "goverment", "government", "acheive", "achieve", "beleive", "believe",
+                "freind", "friend", "wierd", "weird", "truely", "truly", "untill", "until", "begining", "beginning"};
         for (int i = 0; i < f.length; i += 2) FIXES.put(f[i], f[i + 1]);
     }
 
@@ -73,6 +84,7 @@ public class Dictionary {
         words = w;
         freq = fr;
         byLen = bucketByLength(w);
+        try { lm.load(ctx.getAssets().open("ngrams.txt")); } catch (Exception ignored) { }
         loaded = true;
     }
 
@@ -106,6 +118,9 @@ public class Dictionary {
         loaded = true;
     }
 
+    /** Test hook: load the built-in context model from a file. */
+    void loadModel(java.io.InputStream in) { lm.load(in); }
+
     public boolean isLoaded() { return loaded; }
     public String[] words() { return words; }
     public int[] freqs() { return freq; }
@@ -132,9 +147,11 @@ public class Dictionary {
     }
 
     public double bigramScore(String prev, String w) {
-        if (prev == null) return 0;
-        Integer c = bigrams.get(prev.toLowerCase() + " " + w);
-        return c == null ? 0 : Math.min(3.0, Math.log(1 + c));
+        String p = prev == null || prev.isEmpty() ? START : prev.toLowerCase();
+        Integer c = bigrams.get(p + " " + w);
+        double mine = c == null ? 0 : Math.log(1 + c);
+        double base = Math.log(1 + lm.prob(null, p, w) * 200);   // built-in conversation model
+        return Math.min(3.0, Math.max(mine, base));
     }
 
     public boolean isWord(String w) {
@@ -165,66 +182,162 @@ public class Dictionary {
     }
 
     private static class Cand implements Comparable<Cand> {
-        String w; int s;
+        String w; int s; float typo;
         Cand(String w, int s) { this.w = w; this.s = s; }
         public int compareTo(Cand o) { return Integer.compare(o.s, s); }
     }
 
-    /** Up to 3 suggestions for the word being typed. Index 0 is the "best" (autocorrect) candidate. */
-    public List<String> suggest(String typed, String prevWord) {
+    // ================================================================== ranking
+    // Scores are in "zipf × 100" units (log10 frequency per billion words × 100): the word list's own
+    // scale, so "the" ≈ 770 and a rare word ≈ 250. Context and typos move a word up or down that scale.
+
+    final LangModel lm = new LangModel();
+
+    /** log-probability score of w given the previous words: built-in context model + your habits. */
+    private double contextScore(String prev2, String prev, String w) {
+        Integer f = index.get(w);
+        double zipf = f != null ? f / 100.0 : 0;
+        int lc = learnedCount(w);
+        if (f == null && lc >= 2) zipf = 3.4 + Math.log10(1 + lc) * 0.8;   // your own words
+        if (zipf <= 0) return -1e9;
+        double pu = Math.pow(10, zipf - 9);
+        String p1 = prev == null || prev.isEmpty() ? START : prev.toLowerCase();
+        String p2 = prev2 == null ? (p1.equals(START) ? null : START) : prev2.toLowerCase();
+        double p = pu;
+        if (lm.hasContext(p2, p1)) p = 0.6 * lm.prob(p2, p1, w) + 0.4 * pu;
+        double s = 100 * (Math.log10(p) + 9);
+        // what YOU write
+        if (lc > 0) s += 45 * Math.log(1 + lc) + 2.5 * Math.min(lc, 80);
+        Integer pb = bigrams.get(p1 + " " + w);
+        if (pb != null) s += 70 * Math.log(1 + pb);
+        if (p2 != null) {
+            Integer pt = trigrams.get(p2 + " " + p1 + " " + w);
+            if (pt != null) s += 90 * Math.log(1 + pt);
+        }
+        return s;
+    }
+
+    private static float maxTypo(int len) { return len <= 2 ? 0.6f : len <= 4 ? 1.1f : len <= 7 ? 2.0f : 2.6f; }
+
+    /** Penalty for each unit of typing-error cost. */
+    private static final double TYPO = 165;
+
+    /** Candidates for what you meant by `typed`, best first. */
+    private List<Cand> rank(String typed, String prev, String prev2, boolean forAutocorrect) {
+        String low = typed.toLowerCase();
+        Map<String, Cand> best = new HashMap<>();
+        if (!loaded) return new ArrayList<>();
+        float maxT = maxTypo(low.length());
+        char c0 = low.charAt(0);
+
+        // 1. exact word and completions (incl. completions with a typo in the part typed so far)
+        int i = Arrays.binarySearch(words, low);
+        if (i < 0) i = -i - 1;
+        // cheap pass first (frequency only), full context scoring for the strongest ~60 + context words
+        int start = i;
+        List<Cand> pre = new ArrayList<>();
+        for (int n = 0; i < words.length && n < 6000 && words[i].startsWith(low); i++, n++)
+            pre.add(new Cand(words[i], freq[i] - (words[i].length() - low.length()) * 9));
+        Collections.sort(pre);
+        java.util.Set<String> want = new java.util.HashSet<>();
+        for (int k = 0; k < Math.min(60, pre.size()); k++) want.add(pre.get(k).w);
+        String cp1 = prev == null || prev.isEmpty() ? START : prev.toLowerCase();
+        LangModel.Next nb = lm.bi.get(cp1);
+        if (nb != null) for (String w : nb.w) if (w.startsWith(low)) want.add(w);
+        String cp2 = prev2 == null ? (cp1.equals(START) ? null : START) : prev2.toLowerCase();
+        if (cp2 != null) { LangModel.Next nt = lm.tri.get(cp2 + " " + cp1); if (nt != null) for (String w : nt.w) if (w.startsWith(low)) want.add(w); }
+        String bp = cp1 + " " + low;
+        for (String k : bigrams.keySet()) if (k.startsWith(bp)) want.add(k.substring(cp1.length() + 1));
+        for (String w : want) {
+            if (!index.containsKey(w)) continue;
+            double sc = contextScore(prev2, prev, w) - (w.length() - low.length()) * 9;
+            if (w.equals(low)) sc += 60;
+            put(best, w, sc, 0f);
+        }
+        int exactCompletions = 0;
+        for (Cand cc : best.values()) if (cc.s > 250) exactCompletions++;
+        if (!forAutocorrect && low.length() >= 4 && exactCompletions < 2) {
+            int[] bk = bucket(c0);
+            if (bk != null) for (int k = bk[0]; k < bk[1]; k++) {
+                String w = words[k];
+                if (w.length() <= low.length() + 1 || w.startsWith(low)) continue;
+                if (w.length() > 1 && low.length() > 1) {
+                    char w1 = w.charAt(1), t1 = low.charAt(1);
+                    if (w1 != t1 && w1 != low.charAt(2 < low.length() ? 2 : 1) && !LangModel.near(w1, t1)) continue;
+                }
+                float pc = LangModel.prefixCost(low, w, 1.0f);
+                if (pc > 1.0f) continue;
+                double s = contextScore(prev2, prev, w) - pc * TYPO - (w.length() - low.length()) * 9 - 25;
+                put(best, w, s, pc);
+            }
+        }
+        // 2. what you might have meant: neighbouring-key slips, swaps, missed/extra letters
+        if (low.length() >= 2) {
+            int extra = low.length() >= 8 ? 2 : 1;
+            String[][] bl = byLen;
+            int[] bag = new int[27];
+            for (int q = 0; q < low.length(); q++) { char ch = low.charAt(q); bag[ch >= 'a' && ch <= 'z' ? ch - 'a' : 26]++; }
+            int allowMiss = (int) Math.floor(maxT / 0.55f);
+            int[] tmpBag = new int[27];
+            for (int L = Math.max(1, low.length() - extra); L <= low.length() + extra && L < bl.length; L++)
+                for (String w : bl[L]) {
+                    char w0 = w.charAt(0);
+                    if (w0 != c0 && !LangModel.near(w0, c0) && !(low.length() > 1 && w0 == low.charAt(1))) continue;
+                    // second letter: same, a neighbour, or one of the letters around it (swap / missed letter)
+                    if (low.length() > 2 && w.length() > 1) {
+                        char w1 = w.charAt(1), t1 = low.charAt(1);
+                        if (w1 != t1 && w1 != c0 && w1 != low.charAt(2) && !LangModel.near(w1, t1)) continue;
+                    }
+                    // quick reject: too many typed letters that the word doesn't even contain
+                    System.arraycopy(bag, 0, tmpBag, 0, 27);
+                    int miss = 0;
+                    for (int q = 0; q < w.length(); q++) { char ch = w.charAt(q); int ix = ch >= 'a' && ch <= 'z' ? ch - 'a' : 26; if (tmpBag[ix] > 0) tmpBag[ix]--; }
+                    for (int q = 0; q < 27; q++) miss += tmpBag[q];
+                    if (miss > allowMiss) continue;
+                    float tc = LangModel.cost(low, w, maxT);
+                    if (tc > maxT || tc == 0f) continue;
+                    double s = contextScore(prev2, prev, w) - tc * TYPO;
+                    if (low.length() <= 3) s -= 60;    // very short input: corrections are guesswork
+                    put(best, w, s, tc);
+                }
+        }
+        // 3. your own words (names, brands, Hinglish) that aren't in the word list
+        for (Map.Entry<String, Integer> e : learned.entrySet()) {
+            String w = e.getKey();
+            if (e.getValue() < 2 || index.containsKey(w)) continue;
+            if (w.startsWith(low)) put(best, w, contextScore(prev2, prev, w) - (w.length() - low.length()) * 6 + 40, 0f);
+            else if (low.length() >= 3) {
+                float tc = LangModel.cost(low, w, maxT);
+                if (tc <= maxT) put(best, w, contextScore(prev2, prev, w) - tc * TYPO + 40, tc);
+            }
+        }
+        List<Cand> out = new ArrayList<>(best.values());
+        Collections.sort(out);
+        return out;
+    }
+
+    private static void put(Map<String, Cand> m, String w, double s, float typo) {
+        Cand c = m.get(w);
+        if (c == null || c.s < s) { c = new Cand(w, (int) Math.round(s)); c.typo = typo; m.put(w, c); }
+    }
+
+    public List<String> suggest(String typed, String prevWord) { return suggest(typed, prevWord, null); }
+
+    /** Up to 4 suggestions for the word being typed, best first. */
+    public List<String> suggest(String typed, String prevWord, String prevWord2) {
         List<String> out = new ArrayList<>();
         if (typed.isEmpty()) return out;
         String low = typed.toLowerCase();
-        List<Cand> cands = new ArrayList<>();
-        Map<String, Boolean> seen = new HashMap<>();
-
         String fix = FIXES.get(low);
-        if (fix != null) { cands.add(new Cand(fix, 100000)); seen.put(fix.toLowerCase(), true); }
-
-        if (loaded) {
-            // Prefix completions
-            int i = Arrays.binarySearch(words, low);
-            if (i < 0) i = -i - 1;
-            for (int n = 0; i < words.length && n < 4000 && words[i].startsWith(low); i++, n++) {
-                String w = words[i];
-                if (seen.containsKey(w)) continue;
-                int s = score(w) - (w.length() - low.length()) * 12 + bigramBoost(prevWord, w);
-                if (w.equals(low)) s += 400;
-                else if (learnedCount(w) >= 2) s += 220;   // you've typed this before: likely again
-                cands.add(new Cand(w, s));
-                seen.put(w, true);
-            }
-            // Typo corrections (one edit away), only worth it for 2+ letters
-            if (low.length() >= 2) {
-                String[][] bl = byLen;
-                for (int L = Math.max(1, low.length() - 1); L <= low.length() + 1 && L < bl.length; L++)
-                for (String w : bl[L]) {
-                    if (seen.containsKey(w)) continue;
-                    if (w.charAt(0) != low.charAt(0) && low.length() > 3 && w.length() > 3
-                            && w.charAt(1) != low.charAt(1)) continue;
-                    if (editDistanceAtMost1(low, w)) {
-                        // spelling fixes of very short input are guesswork; your own words should win
-                        int pen = low.length() <= 2 ? 260 : low.length() == 3 ? 150 : 60;
-                        cands.add(new Cand(w, score(w) - pen + bigramBoost(prevWord, w)));
-                        seen.put(w, true);
-                    }
-                }
-            }
-        }
-        for (Map.Entry<String, Integer> e : learned.entrySet()) {
-            String w = e.getKey();
-            if (e.getValue() >= 2 && w.startsWith(low) && !seen.containsKey(w)) {
-                cands.add(new Cand(w, score(w) + 220 - (w.length() - low.length()) * 6));
-                seen.put(w, true);
-            }
-        }
-        Collections.sort(cands);
-        for (Cand c : cands) {
+        if (fix != null) out.add(matchCaseFix(typed, fix));
+        for (Cand c : rank(typed, prevWord, prevWord2, false)) {
             if (out.size() >= 4) break;
             String shown = matchCase(typed, c.w);
             // typed in lowercase? use your usual capitalisation (NRRL, Nishant, WhatsApp)
             if (typed.equals(typed.toLowerCase()) && caseForms.containsKey(c.w)) shown = caseForms.get(c.w);
-            out.add(shown);
+            boolean dup = false;
+            for (String o : out) if (o.equalsIgnoreCase(shown)) dup = true;
+            if (!dup) out.add(shown);
         }
         return out;
     }
@@ -235,47 +348,80 @@ public class Dictionary {
         return c == null ? 0 : Math.min(c, 20) * 25;
     }
 
-    /** Autocorrect: returns the replacement for a finished word, or null to leave it alone. */
-    public String autocorrect(String typed, String prev) {
+    public String autocorrect(String typed, String prev) { return autocorrect(typed, prev, null); }
+
+    /**
+     * Autocorrect: returns the replacement for a finished word, or null to leave it alone.
+     * Only fixes when the intended word is clearly more likely than anything else.
+     */
+    public String autocorrect(String typed, String prev, String prev2) {
         String low = typed.toLowerCase();
         String fix = FIXES.get(low);
         if (fix != null) return fix.equals(typed) ? null : matchCaseFix(typed, fix);
         if (!loaded || typed.length() < 2 || isWord(typed)) return null;
         for (int i = 0; i < typed.length(); i++) if (!Character.isLetter(typed.charAt(i)) && typed.charAt(i) != '\'') return null;
-        List<String> s = suggest(typed, prev);
-        for (String c : s) {
-            String cl = c.toLowerCase();
-            if (cl.length() >= low.length() - 1 && cl.length() <= low.length() + 1
-                    && editDistanceAtMost1(low, cl) && score(cl) > 300) return c;
+        if (SLANG.contains(low)) return null;
+        // shouting/ACRONYMS and mixed case (iPhone, GSTIN) are probably intentional
+        if (typed.length() > 1 && typed.equals(typed.toUpperCase())) return null;
+        List<Cand> r = rank(typed, prev, prev2, true);
+        Cand top = null, second = null;
+        for (Cand c : r) {
+            if (c.w.length() < low.length() - 2) continue;
+            if (top == null) top = c; else { second = c; break; }
         }
-        return null;
+        if (top == null || top.typo <= 0f) return null;
+        float limit = low.length() <= 3 ? 0.6f : low.length() <= 5 ? 1.1f : 2.0f;
+        if (top.typo > limit) return null;
+        if (top.s < 230) return null;                       // too rare to be a confident guess
+        if (second != null && top.s - second.s < 45) return null;   // two plausible fixes: let you pick
+        String out = matchCase(typed, top.w);
+        if (typed.equals(low) && caseForms.containsKey(top.w)) out = caseForms.get(top.w);
+        return out;
     }
 
     public List<String> predict(String prev) { return predict(null, prev); }
 
     /**
-     * Next-word predictions from YOUR writing: three-word phrases first ("thank you" -> "for"),
-     * then word pairs, and at the start of a sentence, how you usually begin ("Hi", "Namaste").
+     * Next-word predictions: the built-in conversation model ("thank you" -> "for", "let me" -> "know")
+     * blended with YOUR phrases and word pairs; at the start of a sentence, how people (and you) begin.
      */
     public List<String> predict(String prev2, String prev) {
         List<String> out = new ArrayList<>();
         String p1 = (prev == null || prev.isEmpty()) ? START : prev.toLowerCase();
-        Map<String, Integer> score = new HashMap<>();
-        if (prev2 != null && prev != null) {
-            String p = prev2.toLowerCase() + " " + p1 + " ";
-            for (Map.Entry<String, Integer> e : trigrams.entrySet())
-                if (e.getKey().startsWith(p) && e.getValue() >= 2) score.merge(e.getKey().substring(p.length()), e.getValue() * 4, Integer::sum);
+        String p2 = prev2 == null ? (p1.equals(START) ? null : START) : prev2.toLowerCase();
+        Map<String, Double> score = new HashMap<>();
+        // candidates from the built-in model
+        LangModel.Next b = lm.bi.get(p1);
+        if (b != null) for (String w : b.w) score.put(w, 0.0);
+        if (p2 != null) {
+            LangModel.Next t = lm.tri.get(p2 + " " + p1);
+            if (t != null) for (String w : t.w) score.put(w, 0.0);
         }
-        String p = p1 + " ";
+        // ... and from what you write
+        String pre = p1 + " ";
         for (Map.Entry<String, Integer> e : bigrams.entrySet())
-            if (e.getKey().startsWith(p) && (e.getValue() >= 2 || !p1.equals(START)))
-                score.merge(e.getKey().substring(p.length()), e.getValue(), Integer::sum);
+            if (e.getKey().startsWith(pre) && (e.getValue() >= 2 || !p1.equals(START))) score.put(e.getKey().substring(pre.length()), 0.0);
+        if (p2 != null) {
+            String pt = p2 + " " + p1 + " ";
+            for (Map.Entry<String, Integer> e : trigrams.entrySet())
+                if (e.getKey().startsWith(pt)) score.put(e.getKey().substring(pt.length()), 0.0);
+        }
         List<Cand> c = new ArrayList<>();
-        for (Map.Entry<String, Integer> e : score.entrySet()) c.add(new Cand(e.getKey(), e.getValue()));
+        for (String w : score.keySet()) {
+            if (w.isEmpty() || w.equals(p1)) continue;
+            double pb = lm.prob(p2, p1, w);
+            double s = pb > 0 ? 100 * (Math.log10(pb) + 9) : 100 * (Math.log10(1e-5) + 9);
+            int lc = learnedCount(w);
+            Integer ub = bigrams.get(p1 + " " + w);
+            if (ub != null) s += 110 * Math.log(1 + ub);
+            if (p2 != null) { Integer ut = trigrams.get(p2 + " " + p1 + " " + w); if (ut != null) s += 140 * Math.log(1 + ut); }
+            if (lc > 0) s += 10 * Math.log(1 + lc);
+            c.add(new Cand(w, (int) Math.round(s)));
+        }
         Collections.sort(c);
         for (Cand x : c) {
             if (out.size() >= 4) break;
-            String w = x.w.equals("i") ? "I" : form(x.w);
+            String w = x.w.equals("i") ? "I" : x.w.startsWith("i'") ? "I" + x.w.substring(1) : form(x.w);
             if (p1.equals(START) && w.length() > 0) w = Character.toUpperCase(w.charAt(0)) + w.substring(1);
             out.add(w);
         }
@@ -363,6 +509,7 @@ public class Dictionary {
 
     private static String matchCase(String typed, String w) {
         if (w.equals("i")) return "I";
+        if (w.startsWith("i'")) w = "I" + w.substring(1);
         if (typed.length() > 1 && typed.equals(typed.toUpperCase()) && !typed.equals(typed.toLowerCase()))
             return w.toUpperCase();
         if (Character.isUpperCase(typed.charAt(0)) && w.length() > 0)

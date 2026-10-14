@@ -759,7 +759,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             String hi = Translit.best(typed, hiPicks);
             if (hi != null) out = hi;
         } else if (correct && lang == 0) {
-            String fix = dict.autocorrect(typed, prevWord);
+            String fix = dict.autocorrect(typed, prevWord, prevWord2);
             if (fix != null) out = fix;
         }
         ic.setComposingText(out, 1);
@@ -1173,10 +1173,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 4. Word suggestions while typing
         if (!noSuggest && composing.length() > 0 && !toolbarForced) {
             String typed = composing.toString();
-            List<String> sug = dict.suggest(typed, prevWord);
+            List<String> sug = dict.suggest(typed, prevWord, prevWord2);
             cells.add(orb(this::forceToolbar));
             String best = sug.isEmpty() ? typed : sug.get(0);
-            boolean willCorrect = !noAutoCorrect && dict.autocorrect(typed, prevWord) != null;
+            boolean willCorrect = !noAutoCorrect && dict.autocorrect(typed, prevWord, prevWord2) != null;
             List<String> order = new ArrayList<>();
             List<Boolean> primary = new ArrayList<>();
             if (willCorrect) {
