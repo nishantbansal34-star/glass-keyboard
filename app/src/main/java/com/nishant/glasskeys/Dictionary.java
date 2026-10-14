@@ -223,6 +223,9 @@ public class Dictionary {
         return s;
     }
 
+    /** Prior for swipe typing, in zipf units: how likely w is here (built-in model + your habits). */
+    public double swipePrior(String prev2, String prev, String w) { return contextScore(prev2, prev, w) / 100.0; }
+
     private static float maxTypo(int len) { return len <= 2 ? 0.6f : len <= 4 ? 1.1f : len <= 7 ? 2.0f : 2.6f; }
 
     /** Penalty for each unit of typing-error cost. */

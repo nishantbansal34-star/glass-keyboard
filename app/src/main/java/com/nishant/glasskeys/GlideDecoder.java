@@ -40,21 +40,36 @@ public class GlideDecoder {
         public int compareTo(Cand o) { return Double.compare(cost, o.cost); }
     }
 
+    // context for the next swipe (set by the keyboard service)
+    private volatile String ctxPrev, ctxPrev2;
+    public void setContext(String prev, String prev2) { ctxPrev = prev; ctxPrev2 = prev2; }
+
+    // tuning (key-width units)
+    static float START_R = 1.25f, END_R = 1.35f, SIGMA = 0.5f, W_ALIGN = 0.5f, W_SHAPE = 0.8f, W_END = 0.9f, W_START = 0.5f, LAMBDA = 2.0f;
+
     /** px/py are in key-width units. Returns the best words, best first. */
     public synchronized Result decode(float[] px, float[] py, int n, String prevWord, boolean partial) {
         Result res = new Result();
         if (n < 2) return res;
+        String prev = prevWord != null ? prevWord : ctxPrev, prev2 = prevWord != null ? null : ctxPrev2;
         float[][] user = resample(px, py, n);
+        for (int ki = 0; ki < 26; ki++) {
+            if (!has[ki]) continue;
+            for (int j = 0; j < N; j++) {
+                float dx = user[0][j] - kx[ki], dy = user[1][j] - ky[ki];
+                d2[ki][j] = dx * dx + dy * dy;
+            }
+        }
         float sx = user[0][0], sy = user[1][0];
         float ex = user[0][N - 1], ey = user[1][N - 1];
         float pathLen = length(px, py, n);
 
-        // letters whose keys are near the start / end of the swipe
+        // letters whose keys are near the start / end of the swipe (generous: fingers start a bit off)
         boolean[] startOk = new boolean[26], endOk = new boolean[26];
         for (int i = 0; i < 26; i++) {
             if (!has[i]) continue;
-            startOk[i] = dist(sx, sy, kx[i], ky[i]) < 1.05f;
-            endOk[i] = partial || dist(ex, ey, kx[i], ky[i]) < 1.1f;
+            startOk[i] = dist(sx, sy, kx[i], ky[i]) < START_R;
+            endOk[i] = partial || dist(ex, ey, kx[i], ky[i]) < END_R;
         }
 
         List<Cand> cands = new ArrayList<>();
@@ -67,16 +82,12 @@ public class GlideDecoder {
             if (range == null) continue;
             for (int k = range[0]; k < range[1]; k++) {
                 String w = words[k];
-                // rare 2-3 letter tokens (abbreviations, junk) just get in the way when swiping
-                if (w.length() <= 3 && freq[k] < 380 && !learned.containsKey(w)) continue;
-                if (w.length() <= 5 && freq[k] < 250 && !learned.containsKey(w)) continue;
+                // rare short tokens (abbreviations, junk) just get in the way when swiping
+                if (w.length() <= 3 && freq[k] < 360 && !learned.containsKey(w)) continue;
+                if (w.length() <= 5 && freq[k] < 240 && !learned.containsKey(w)) continue;
                 double c = score(w, user, endOk, pathLen, partial);
                 if (c < 0) continue;
-                double f = freq[k] / 100.0;                       // zipf-like 1.5 .. 7.7
-                Integer lc = learned.get(w);
-                if (lc != null) f += Math.min(2.2, Math.log(1 + lc) * 0.55);
-                c -= 0.55 * f;
-                c -= dict.bigramScore(prevWord, w) * 0.4;
+                c -= LAMBDA * dict.swipePrior(prev2, prev, w);
                 cands.add(new Cand(w, c));
             }
         }
@@ -88,7 +99,7 @@ public class GlideDecoder {
             if (b < 0 || b >= 26 || !startOk[b]) continue;
             double c = score(w, user, endOk, pathLen, partial);
             if (c < 0) continue;
-            cands.add(new Cand(w, c - 0.55 * (4.2 + Math.min(1.5, e.getValue() * 0.15))));
+            cands.add(new Cand(w, c - LAMBDA * dict.swipePrior(prev2, prev, w)));
         }
         Collections.sort(cands);
         for (Cand c : cands) {
@@ -98,10 +109,13 @@ public class GlideDecoder {
         return res;
     }
 
-    /** Path distance cost for one word, or -1 if the word can't match the swipe. */
+    private final float[] dpPrev = new float[N], dpCur = new float[N];
+    private final float[][] d2 = new float[26][N];   // squared distance from each key to each path point
+
+    /** Path cost for one word (lower = better), or -1 if the word can't be what was swiped. */
     private double score(String w, float[][] user, boolean[] endOk, float pathLen, boolean partial) {
         int L = w.length();
-        if (L < 1 || L > 20) return -1;
+        if (L < 1 || L > 22) return -1;
         // collapse the word into its key sequence ("hello" -> h e l o)
         int[] seq = new int[L];
         int m = 0;
@@ -114,42 +128,50 @@ public class GlideDecoder {
             if (m == 0 || seq[m - 1] != c) seq[m++] = c;
         }
         if (m == 0) return -1;
-        if (m == 1 && pathLen > 1.2f) return -1;
+        if (m == 1 && pathLen > 1.3f) return -1;
         if (!endOk[seq[m - 1]]) return -1;
 
-        // ideal path length should roughly match what the finger drew
+        // the ideal path length should roughly match what the finger drew
         float ideal = 0;
         for (int i = 1; i < m; i++) ideal += dist(kx[seq[i - 1]], ky[seq[i - 1]], kx[seq[i]], ky[seq[i]]);
-        if (!partial && (ideal > pathLen * 1.9f + 1.2f || ideal < pathLen * 0.45f - 1.2f)) return -1;
+        if (!partial && (ideal > pathLen * 2.0f + 1.4f || ideal < pathLen * 0.4f - 1.4f)) return -1;
 
-        // every key must be passed near, in order: take the first close approach (its local minimum)
-        int j = 0;
-        float thr = 0.95f;
-        for (int i = 0; i < m; i++) {
-            float bx = kx[seq[i]], by = ky[seq[i]];
-            int k = j;
-            while (k < N && dist(user[0][k], user[1][k], bx, by) >= thr) k++;
-            if (k >= N) return -1;
-            while (k + 1 < N && dist(user[0][k + 1], user[1][k + 1], bx, by) < dist(user[0][k], user[1][k], bx, by)) k++;
-            j = k;
+        // 1. alignment: every letter is matched, in order, to the closest point of the path it can reach
+        //    (soft — a letter cut short at a corner costs a little instead of ruling the word out)
+        float inv = 1f / (SIGMA * SIGMA);
+        float[] r0 = d2[seq[0]];
+        for (int j = 0; j < N; j++) {
+            dpPrev[j] = r0[j] * inv;
+            if (j > 0 && dpPrev[j - 1] < dpPrev[j]) dpPrev[j] = dpPrev[j - 1];   // running min (monotonic)
         }
+        for (int i = 1; i < m; i++) {
+            float[] ri = d2[seq[i]];
+            float best = Float.MAX_VALUE;
+            for (int j = 0; j < N; j++) {
+                float v = (j > 0 ? dpPrev[j - 1] : dpPrev[0] + 1f) + Math.min(ri[j] * inv, 9f);
+                if (v < best) best = v;
+                dpCur[j] = best;
+            }
+            System.arraycopy(dpCur, 0, dpPrev, 0, N);
+        }
+        double align = dpPrev[N - 1] / m;
+        if (align > 6.0) return -1;
 
-        // location distance between resampled paths
+        // 2. shape/location: resampled finger path vs the ideal path through the key centres
         float[] ix = new float[m], iy = new float[m];
         for (int i = 0; i < m; i++) { ix[i] = kx[seq[i]]; iy[i] = ky[seq[i]]; }
         float[][] ideal2 = m == 1 ? single(ix[0], iy[0]) : resample(ix, iy, m);
         double sum = 0;
         for (int k = 0; k < N; k++) sum += dist(user[0][k], user[1][k], ideal2[0][k], ideal2[1][k]);
         double mean = sum / N;
-        double c = (mean / 0.32) * (mean / 0.32);
+        double c = W_ALIGN * align * 2.2 + W_SHAPE * (mean / 0.34) * (mean / 0.34);
         // where the finger lifts is deliberate: weigh the last letter extra (and the first a little)
         if (!partial) {
             float de = dist(user[0][N - 1], user[1][N - 1], ix[m - 1], iy[m - 1]);
-            c += 1.6 * (de / 0.45) * (de / 0.45);
+            c += W_END * (de / 0.48) * (de / 0.48);
         }
         float ds = dist(user[0][0], user[1][0], ix[0], iy[0]);
-        c += 0.6 * (ds / 0.45) * (ds / 0.45);
-        // letters spread along the path should be passed close by, not just roughly
+        c += W_START * (ds / 0.48) * (ds / 0.48);
         return c;
     }
 

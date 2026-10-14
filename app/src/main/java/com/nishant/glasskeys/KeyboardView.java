@@ -228,12 +228,12 @@ public class KeyboardView extends View {
         float bodyA, glowA, glowScale, coreA, headA, headR;
         switch (gp.pack) {
             case 1:  body = 0xC9B6FF; glow = 0x8B5CFF; bodyA = 0.80f; glowA = 0.45f; glowScale = 2.6f; coreA = 0.55f; headA = 0.35f; headR = 7; break;   // Shadow Realm
-            case 2:  body = 0xD6D6D6; glow = 0x000000; bodyA = 0.55f; glowA = 0f;    glowScale = 0f;   coreA = 0f;    headA = 0f;    headR = 0; break;    // Still: a pencil line
-            case 3:  body = 0xF4F6FA; glow = 0xFFFFFF; bodyA = 0.62f; glowA = 0.22f; glowScale = 2.4f; coreA = 0f;    headA = 0.28f; headR = 5; break;    // Soft Glass: frosted white
-            default: body = 0xCFE3FF; glow = 0x6FA8FF; bodyA = 0.70f; glowA = 0.30f; glowScale = 2.6f; coreA = 0.55f; headA = 0.30f; headR = 6;          // Liquid Glass: cool light
+            case 2:  body = 0xD6D6D6; glow = 0x000000; bodyA = 0.62f; glowA = 0f;    glowScale = 0f;   coreA = 0f;    headA = 0f;    headR = 0; break;    // Still: a pencil line
+            case 3:  body = 0xF4F6FA; glow = 0xFFFFFF; bodyA = 0.66f; glowA = 0.24f; glowScale = 2.0f; coreA = 0.35f; headA = 0.30f; headR = 7; break;    // Soft Glass: frosted white
+            default: body = 0xCFE3FF; glow = 0x6FA8FF; bodyA = 0.72f; glowA = 0.32f; glowScale = 2.1f; coreA = 0.55f; headA = 0.32f; headR = 8;          // Liquid Glass: cool light
         }
         if (!dark) { body = 0x3A4A60; glow = 0x6F8FC0; }
-        float width = gp.pack == 2 ? 2.4f : gp.pack == 3 ? 3.6f : 4.2f;   // dp at the fingertip
+        float width = gp.pack == 2 ? 4.2f : gp.pack == 3 ? 6.2f : 6.8f;   // dp at the fingertip
         // scale the sampled widths (computed for an 8dp trail) down to this theme's width
         float k = width / 8f;
         for (int i = 0; i < m; i++) sw[i] *= k;
@@ -932,7 +932,7 @@ public class KeyboardView extends View {
                             addGlidePoint(e.getHistoricalX(i, hh), e.getHistoricalY(i, hh), e.getHistoricalEventTime(hh));
                         addGlidePoint(x, y, now);
                         if (rippleEnabled) listener.onTouchPoint(x, y);
-                        if (now - lastPreview > 90) {
+                        if (now - lastPreview > 120) {
                             lastPreview = now;
                             listener.onGlidePreview(decodeGlide(true));
                         }

@@ -1056,6 +1056,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     // ================================================================= strip
 
     private void updateStrip() {
+        if (keyboard != null && keyboard.decoder != null) keyboard.decoder.setContext(prevWord, prevWord2);
         if (strip == null) return;
         List<StripView.Cell> cells = new ArrayList<>();
         if (listening) {
