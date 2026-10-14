@@ -41,6 +41,10 @@ public class Theme {
     public static final Theme STILL = new Theme("Still", 0xFF000000,
             new int[]{0xFF0A0A0A, 0xFF111111, 0xFF080808}, 0xFFE8E8E8, 0xFFFFFFFF, true);
 
+    /** Soft Glass pack: graphite glass keys, blue action, red delete. */
+    public static final Theme SOFT = new Theme("Soft Glass", 0xFF1C1C1E,
+            new int[]{0xFF2C2C30, 0xFF3A3A40, 0xFF26262A}, 0xFFFFFFFF, 0xFF0A84FF, true);
+
     /** Same accent, frosted light glass with dark text (for bright wallpapers). */
     public Theme lightVariant() {
         if (!dark) return this;

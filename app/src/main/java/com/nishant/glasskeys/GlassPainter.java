@@ -21,7 +21,7 @@ import java.util.Random;
  * with a bright refracting rim and a specular highlight. Also draws all the line icons.
  */
 public class GlassPainter {
-    public static final int STYLE_KEY = 0, STYLE_FUNC = 1, STYLE_ACTION = 2, STYLE_ACTIVE = 3;
+    public static final int STYLE_KEY = 0, STYLE_FUNC = 1, STYLE_ACTION = 2, STYLE_ACTIVE = 3, STYLE_DANGER = 4;
 
     private final float dp;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -235,6 +235,51 @@ public class GlassPainter {
         }
     }
 
+    /**
+     * Soft Glass: rounded dark-glass keys floating over a softly blurred background,
+     * a hairline of light on the top edge, blue for the action key and red for delete.
+     */
+    private final Paint softPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF softR = new RectF();
+
+    private void drawSoft(Canvas c, RectF r, int w, int h, int rad, int style, boolean pressed) {
+        float rr = Math.max(rad, Math.min(Math.min(w, h) * 0.3f, 15 * dp));
+        if (rr > Math.min(w, h) / 2f) rr = Math.min(w, h) / 2f;
+        // soft contact shadow
+        softPaint.setShader(null);
+        softPaint.setStyle(Paint.Style.FILL);
+        softPaint.setColor(0x33000000);
+        softR.set(r.left, r.top + 1.2f * dp, r.right, r.bottom + 1.2f * dp);
+        c.drawRoundRect(softR, rr, rr, softPaint);
+        // body: translucent graphite glass, or the accent colours
+        int body;
+        switch (style) {
+            case STYLE_ACTION: body = 0xF20A84FF; break;
+            case STYLE_DANGER: body = 0xF0B0323C; break;
+            case STYLE_ACTIVE: body = 0xE6E9EAEE; break;
+            default: body = variant == -1 ? 0x8C34363B : 0xD93A3C41;
+        }
+        softPaint.setColor(body);
+        c.drawRoundRect(r, rr, rr, softPaint);
+        // a whisper of vertical sheen so it reads as glass, not paint
+        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom, 0x14FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rr, rr, softPaint);
+        softPaint.setShader(null);
+        if (pressed) {
+            softPaint.setColor(style == STYLE_KEY || style == STYLE_FUNC ? 0x2EFFFFFF : 0x26FFFFFF);
+            c.drawRoundRect(r, rr, rr, softPaint);
+        }
+        // hairline rim: brighter along the top edge, fading towards the bottom
+        float sw = Math.max(1f, 0.8f * dp);
+        softPaint.setStyle(Paint.Style.STROKE);
+        softPaint.setStrokeWidth(sw);
+        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom, 0x4DFFFFFF, 0x0DFFFFFF, Shader.TileMode.CLAMP));
+        softR.set(r.left + sw / 2, r.top + sw / 2, r.right - sw / 2, r.bottom - sw / 2);
+        c.drawRoundRect(softR, rr - sw / 2, rr - sw / 2, softPaint);
+        softPaint.setShader(null);
+        softPaint.setStyle(Paint.Style.FILL);
+    }
+
     /** Immersive chrome-glass look (Liquid Glass pack only). */
     public boolean immersive = false;
     private Immersive imm;
@@ -300,6 +345,7 @@ public class GlassPainter {
 
         if (pack == 1) { drawShadowKey(c, r, w, h, rad, style, pressed, t, glow); return; }
         if (pack == 2) { drawStill(c, r, w, h, rad, style, pressed); return; }
+        if (pack == 3) { drawSoft(c, r, w, h, rad, style, pressed); return; }
         if (immersive) {
             if (imm == null) imm = new Immersive(dp);
             lastRad = rad;
@@ -842,6 +888,18 @@ public class GlassPainter {
 
     /** Glass that is a little more opaque (so what is inside stays readable), e.g. the droplet preview. */
     public void drawBubblePath(Canvas c, Path sh, RectF r, Theme t) {
+        if (pack == 3) {
+            softPaint.setShader(null);
+            softPaint.setStyle(Paint.Style.FILL);
+            softPaint.setColor(0xF5484A50);
+            c.drawPath(sh, softPaint);
+            softPaint.setStyle(Paint.Style.STROKE);
+            softPaint.setStrokeWidth(Math.max(1f, 0.8f * dp));
+            softPaint.setColor(0x40FFFFFF);
+            c.drawPath(sh, softPaint);
+            softPaint.setStyle(Paint.Style.FILL);
+            return;
+        }
         if (pack == 2) {
             stillPaint.setStyle(Paint.Style.FILL);
             stillPaint.setColor(0xF5121212);

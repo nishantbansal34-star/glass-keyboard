@@ -499,7 +499,8 @@ public class KeyboardView extends View {
             if (a <= 0.01f) continue;
 
             int style = GlassPainter.STYLE_KEY;
-            if (k.code == Key.ENTER) style = gp.pack == 1 ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_FUNC;
+            if (k.code == Key.ENTER) style = gp.pack == 1 || gp.pack == 3 ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_FUNC;
+            else if (k.code == Key.DELETE && gp.pack == 3) style = GlassPainter.STYLE_DANGER;
             else if (k.code == Key.SHIFT && shift == SHIFT_LOCK) style = GlassPainter.STYLE_ACTIVE;
             else if (k.isFunction()) style = GlassPainter.STYLE_FUNC;
 
@@ -512,7 +513,7 @@ public class KeyboardView extends View {
             glow = Math.min(1f, glow + pv * 0.7f);
             boolean premium = gp.amoled && gp.pack == 0;
             // premium glass compresses slightly; other styles swell like liquid
-            float sc = (gp.pack == 2 ? 1f : premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
+            float sc = (gp.pack >= 2 ? 1f : premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
             float ty = (1f - a) * 14 * dp;
             c.save();
             c.translate(r.centerX(), r.centerY() + ty);
@@ -565,6 +566,7 @@ public class KeyboardView extends View {
         int col = theme.text;
         boolean imm = gp.immersiveActive();
         if (gp.pack == 2) col = k.isChar() ? 0xFFE8E8E8 : 0xFF8E8E8E;
+        if (gp.pack == 3) col = (k.code == Key.SHIFT && shift == SHIFT_LOCK) ? 0xFF1C1C1E : 0xFFFFFFFF;
         if (imm) {
             col = 0xFFFFFFFF;
             boolean glyph = k.isChar() && k.label.length() > 0;
@@ -574,7 +576,7 @@ public class KeyboardView extends View {
         switch (k.code) {
             case Key.SHIFT:
                 int id = shift == SHIFT_OFF ? GlassPainter.IC_SHIFT : shift == SHIFT_ON ? GlassPainter.IC_SHIFT_ON : GlassPainter.IC_CAPS;
-                gp.drawIcon(c, id, cx, cy, icon, shift == SHIFT_LOCK ? 0xFFFFFFFF : col);
+                gp.drawIcon(c, id, cx, cy, icon, shift == SHIFT_LOCK && gp.pack != 3 ? 0xFFFFFFFF : col);
                 return;
             case Key.DELETE:
                 Ptr p = ptrFor(k);
@@ -627,15 +629,15 @@ public class KeyboardView extends View {
 
     private void label(Canvas c, String s, float cx, float cy, float size, int color, boolean bold) {
         boolean premium = gp.pack == 0 && gp.amoled;
-        text.setTypeface(gp.pack == 2 ? (bold ? TF_REG : TF_LIGHT) : premium ? (bold ? TF_MED : TF_REG) : TF_MED);
-        if (gp.pack == 2) text.clearShadowLayer();
+        text.setTypeface(gp.pack == 2 ? (bold ? TF_REG : TF_LIGHT) : gp.pack == 3 ? TF_REG : premium ? (bold ? TF_MED : TF_REG) : TF_MED);
+        if (gp.pack >= 2) text.clearShadowLayer();
         else if (premium && theme.dark) text.setShadowLayer(2.2f * dp, 0, 0.6f * dp, ((color >>> 24) * 0x73 / 255) << 24);
         else if (gp.pack == 1) text.setShadowLayer(6 * dp, 0, 0, ((color >>> 24) * 0xB3 / 255) << 24 | 0x8B5CFF);
         else if (theme.dark && !gp.amoled) text.setShadowLayer(3 * dp, 0, 1 * dp, ((color >>> 24) * 0x66 / 255) << 24);
         else text.clearShadowLayer();
         text.setColor(color);
         text.setTextSize(size);
-        text.setFakeBoldText(bold && !premium && gp.pack != 2);
+        text.setFakeBoldText(bold && !premium && gp.pack < 2);
         Paint.FontMetrics fm = text.getFontMetrics();
         c.drawText(s, cx, cy - (fm.ascent + fm.descent) / 2, text);
         text.setFakeBoldText(false);
