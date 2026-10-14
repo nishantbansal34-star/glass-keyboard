@@ -235,8 +235,9 @@ public class StripView extends View {
             float cl = Math.max(r.left, capsule.left + 4 * dp), cr = Math.min(r.right, capsule.right - 4 * dp);
             if (cell.chip || cell.active) {
                 RectF g = new RectF(cl + 2 * dp, top + 5 * dp, cr - 2 * dp, bot - 5 * dp);
-                gp.drawGlass(c, g, g.height() / 2, cell.active ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_ACTIVE,
-                        cell == pressed, theme);
+                // Soft Glass uses a light fill for STYLE_ACTIVE (caps lock): keep chips dark glass there so white text reads
+                int chipStyle = cell.active ? GlassPainter.STYLE_ACTION : gp.pack == 3 ? GlassPainter.STYLE_FUNC : GlassPainter.STYLE_ACTIVE;
+                gp.drawGlass(c, g, g.height() / 2, chipStyle, cell == pressed, theme);
             } else if (cell == pressed) {
                 fill.setColor(theme.dark ? 0x26FFFFFF : 0x331B1F2A);
                 RectF g = new RectF(cl + 2 * dp, top + 5 * dp, cr - 2 * dp, bot - 5 * dp);

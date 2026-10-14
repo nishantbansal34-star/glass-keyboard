@@ -25,6 +25,15 @@ final class Phrases {
         }
     }
 
+    /** Words too common to show a phrase on their own ("is the", "i will"). */
+    private static final java.util.Set<String> STOP = new java.util.HashSet<>(java.util.Arrays.asList(
+            "i", "me", "my", "you", "your", "we", "our", "he", "she", "it", "its", "they", "them", "their", "this", "that", "these",
+            "the", "a", "an", "is", "am", "are", "was", "were", "be", "been", "do", "does", "did", "have", "has", "had", "will",
+            "would", "can", "could", "shall", "should", "may", "to", "of", "in", "on", "at", "for", "with", "from", "by", "and",
+            "or", "but", "so", "if", "not", "no", "yes", "what", "when", "where", "how", "who", "which", "why", "there", "here",
+            "all", "any", "some", "just", "also", "very", "too", "hai", "ho", "ka", "ki", "ke", "ko", "se", "me", "mein", "to",
+            "bhi", "aur", "ya", "na", "ji", "hi", "hello", "ok", "okay"));
+
     private static final java.util.regex.Pattern WORD = java.util.regex.Pattern.compile("[a-z0-9]+(?:'[a-z]+)?");
     private final List<P> builtin = new ArrayList<>();
 
@@ -60,6 +69,11 @@ final class Phrases {
             for (int k = Math.min(5, sentence.size()); k >= 2; k--) {
                 int at = find(p.toks, sentence, sentence.size() - k, k);
                 if (at < 0) continue;
+                // need at least one real word in the match (not just "is the"), unless it's the whole sentence so far
+                boolean meaningful = false;
+                for (int q = sentence.size() - k; q < sentence.size(); q++) if (!STOP.contains(sentence.get(q))) { meaningful = true; break; }
+                boolean whole = at == 0 && k == sentence.size();
+                if (!meaningful && !(whole && k >= 3)) continue;
                 int restFrom = at + k;
                 if (p.toks.length - restFrom < 2) break;
                 boolean wholeSentence = at == 0 && k == sentence.size();
