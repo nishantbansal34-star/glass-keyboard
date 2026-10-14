@@ -147,8 +147,58 @@ public class Prefs {
             }
             n++;
         }
+        ed.putLong("learnEdit", System.currentTimeMillis());
         ed.commit();
         return n;
+    }
+
+    // ---------- orders ----------
+    public static class Order {
+        public long id, time;
+        public String items, note, app;
+        public double total;
+        public boolean paid, delivered;
+    }
+
+    public List<Order> orders() {
+        List<Order> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONArray(sp.getString("orders", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.getJSONObject(i);
+                Order r = new Order();
+                r.id = o.optLong("id"); r.time = o.optLong("t"); r.items = o.optString("items"); r.note = o.optString("note");
+                r.app = o.optString("app"); r.total = o.optDouble("total", 0); r.paid = o.optBoolean("paid"); r.delivered = o.optBoolean("del");
+                out.add(r);
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    public void saveOrders(List<Order> list) {
+        JSONArray a = new JSONArray();
+        try {
+            for (Order r : list) {
+                JSONObject o = new JSONObject();
+                o.put("id", r.id); o.put("t", r.time); o.put("items", r.items); o.put("note", r.note == null ? "" : r.note);
+                o.put("app", r.app == null ? "" : r.app); o.put("total", r.total); o.put("paid", r.paid); o.put("del", r.delivered);
+                a.put(o);
+            }
+        } catch (Exception ignored) { }
+        sp.edit().putString("orders", a.toString()).apply();
+    }
+
+    /** Newest first; keeps the latest 300. */
+    public Order addOrder(String items, double total, String app) {
+        List<Order> l = orders();
+        Order r = new Order();
+        r.time = System.currentTimeMillis();
+        r.id = r.time;
+        r.items = items; r.total = total; r.app = app == null ? "" : app; r.note = "";
+        l.add(0, r);
+        while (l.size() > 300) l.remove(l.size() - 1);
+        saveOrders(l);
+        return r;
     }
 
     // ---------- clipboard ----------
@@ -287,8 +337,23 @@ public class Prefs {
         sp.edit().putString("caseforms", o.toString()).apply();
     }
 
+    /** Words you've told the keyboard (by undoing a fix) never to autocorrect. */
+    public java.util.Set<String> noCorrect() {
+        java.util.Set<String> s = new java.util.HashSet<>();
+        String v = sp.getString("nocorrect", "");
+        if (!v.isEmpty()) for (String w : v.split("\u0001")) if (!w.isEmpty()) s.add(w);
+        return s;
+    }
+
+    public void saveNoCorrect(java.util.Set<String> s) { sp.edit().putString("nocorrect", String.join("\u0001", s)).apply(); }
+
+    /** Settings changed learned data: the keyboard should reload it next time it opens. */
+    public void markLearnEdited() { sp.edit().putLong("learnEdit", System.currentTimeMillis()).apply(); }
+    public long learnEdit() { return sp.getLong("learnEdit", 0); }
+
     public void clearLearned() {
         sp.edit().remove("learned").remove("bigrams").remove("trigrams").remove("caseforms").remove("hiPicks").apply();
+        markLearnEdited();
     }
 
     public List<String> recentEmoji() {

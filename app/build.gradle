@@ -2,14 +2,30 @@ plugins {
     id 'com.android.application'
 }
 
+// -Pplay builds the Google Play version: newest target SDK, no "All files access",
+// commercially licensed language data, signed with a private upload key from CI secrets.
+def play = project.hasProperty('play')
+if (play) {
+    // same manifest minus the wallpaper-file permissions Play doesn't allow for keyboards
+    def src = file('src/main/AndroidManifest.xml').text
+    def out = file("$buildDir/playManifest/AndroidManifest.xml")
+    out.parentFile.mkdirs()
+    out.text = src.readLines().findAll { !it.contains('MANAGE_EXTERNAL_STORAGE') && !it.contains('READ_EXTERNAL_STORAGE') }.join('\n')
+}
+
 android {
     namespace 'com.nishant.glasskeys'
-    compileSdk 34
+    compileSdk play ? 36 : 34
+    buildFeatures { buildConfig true }
+    if (play) sourceSets.main.manifest.srcFile "$buildDir/playManifest/AndroidManifest.xml"
+    // Play build leaves out the conversation model that includes non-commercial data (uses ngrams_safe.txt)
+    if (play) androidResources { ignoreAssetsPattern '!ngrams.txt:!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~' }
 
     defaultConfig {
         applicationId 'com.nishant.glasskeys'
         minSdk 26
-        targetSdk 34
+        targetSdk play ? 36 : 34
+        buildConfigField 'boolean', 'PLAY', play ? 'true' : 'false'
         versionCode (System.getenv("GITHUB_RUN_NUMBER") ? System.getenv("GITHUB_RUN_NUMBER").toInteger() : 1)
         versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
@@ -23,12 +39,21 @@ android {
             keyAlias 'glasskeys'
             keyPassword 'glasskeys'
         }
+        // private upload key for Google Play (only present in CI secrets, never in the repo)
+        if (System.getenv('PLAY_KEYSTORE')) {
+            upload {
+                storeFile file(System.getenv('PLAY_KEYSTORE'))
+                storePassword System.getenv('PLAY_STORE_PASSWORD')
+                keyAlias System.getenv('PLAY_KEY_ALIAS') ?: 'upload'
+                keyPassword System.getenv('PLAY_KEY_PASSWORD') ?: System.getenv('PLAY_STORE_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.personal
+            signingConfig play ? (signingConfigs.findByName('upload') ?: null) : signingConfigs.personal
         }
         debug {
             signingConfig signingConfigs.personal

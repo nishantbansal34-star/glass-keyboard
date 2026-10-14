@@ -1,0 +1,2059 @@
+B	^	7110	i:1276 please:1210 can:798 have:390 did:388 i'll:316 what:144 i'm:116 let's:100 thank:98
+B	a	586	lot:25 few:24 great:23 good:22 new:17 little:17 nice:16 very:14 small:11 review:11
+B	aa	44	jao:20 jayega:10 gaya:10 raha:4
+B	aaj	26	shaam:10 payment:4 order:4 kaam:4 delivery:4
+B	aaoge	12	?:12
+B	aap	14	kaise:14
+B	aata	8	hoon:8
+B	aayega	30	?:30
+B	abhi	14	bhejta:6 busy:4 aata:4
+B	ability	7	to:7
+B	able	20	to:20
+B	about	78	the:27 it:11 you:6 to:4 a:4 what:3 this:3 that:3 how:3 his:3
+B	above	4	the:4
+B	access	6	to:6
+B	accha	4	theek:4
+B	according	17	to:17
+B	account	6	of:4 for:2
+B	across	11	the:11
+B	act	4	of:4
+B	addition	5	to:5
+B	address	94	?:80 with:10 bhej:4
+B	after	59	lunch:28 the:15 a:7 all:5 that:2 he:2
+B	again	6	?:4 and:2
+B	against	19	the:13 his:2 her:2 a:2
+B	agra	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	ahead	6	!:4 of:2
+B	all	111	the:49 of:14 that:6 right:4 kinds:4 good:4 this:3 these:3 rights:3 over:3
+B	almost	4	there:4
+B	along	14	the:8 with:6
+B	also	33	do:10 be:5 available:4 the:3 a:3 to:2 in:2 have:2 been:2
+B	although	6	the:4 it:2
+B	always	4	been:2 be:2
+B	am	216	on:54 at:48 having:28 to:10 sorry:10 busy:10 fine:8 tired:4 sick:4 proud:4
+B	among	8	the:8
+B	amount	12	of:8 ?:4
+B	an	110	hour:80 important:5 order:4 old:3 individual:3 example:3 opportunity:2 open:2 increase:2 end:2
+B	analysis	6	of:6
+B	and	890	the:163 a:38 i:37 then:26 he:23 that:21 in:19 to:18 it:18 your:17
+B	anniversary	4	!:4
+B	any	14	other:5 of:5 time:2 more:2
+B	anything	22	else:12 ?:8 to:2
+B	approach	4	to:4
+B	are	299	you:148 available:22 not:20 the:14 free:14 open:10 also:9 a:6 in:5 right:4
+B	around	16	the:11 her:3 and:2
+B	as	522	soon:85 possible:84 a:75 the:55 well:27 he:22 if:15 she:14 i:14 an:14
+B	ask	40	my:16 the:8 mom:4 didi:4 dad:4 bhai:4
+B	aspects	5	of:5
+B	associated	10	with:10
+B	at	380	the:177 pm:28 least:19 a:17 home:16 what:10 all:10 her:9 delhi:8 agra:8
+B	attempt	5	to:5
+B	attention	4	to:4
+B	available	55	?:28 in:11 next:10 to:2 for:2 at:2
+B	aware	4	of:4
+B	away	10	from:10
+B	baad	8	mein:8
+B	baat	18	karte:14 nahi:4
+B	back	60	to:36 in:5 and:5 of:4 on:3 into:3 from:2 at:2
+B	bahut	16	dhanyavaad:4 bahut:4 badhiya:4 accha:4
+B	baje	4	aaoge:4
+B	balloons	94	?:84 party:10
+B	band	4	hai:4
+B	bank	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	bas	4	minute:4
+B	based	18	on:18
+B	basis	6	of:4 for:2
+B	batata	4	hoon:4
+B	be	221	there:67 a:21 delivered:14 the:13 available:10 used:9 late:8 able:8 in:6 seen:5
+B	became	5	a:3 the:2
+B	because	51	of:13 the:8 it:7 they:6 i:5 he:5 she:3 you:2 we:2
+B	become	6	a:4 the:2
+B	been	64	sent:14 processed:10 dispatched:10 a:7 the:4 delivered:4 cancelled:4 in:3 used:2 so:2
+B	before	32	the:11 he:4 dispatch:4 i:3 you:2 we:2 they:2 she:2 it:2
+B	began	10	to:10
+B	beginning	5	of:3 to:2
+B	behind	9	the:5 him:2 her:2
+B	being	7	a:3 the:2 in:2
+B	believe	6	that:4 in:2
+B	best	38	price:12 wishes:10 rate:10 for:4 to:2
+B	better	16	now:8 today:4 than:4
+B	between	27	the:20 them:3 two:2 a:2
+B	beyond	4	the:4
+B	bhai	52	sab:10 kya:10 to:8 kal:6 done:6 ko:4 call:4 !:4
+B	bhej	144	do:64 dena:38 diya:18 diye:10 denge:10 dunga:4
+B	bhejta	6	hoon:6
+B	bill	218	?:80 tomorrow:28 today:28 by:28 in:16 bhej:16 as:12 has:10
+B	birthday	52	decoration:10 !:10 have:8 sir:4 my:4 didi:4 dear:4 buddy:4 bhai:4
+B	body	4	of:2 and:2
+B	bol	24	do:24
+B	book	4	of:2 is:2
+B	both	11	the:6 of:3 in:2
+B	breakfast	12	?:8 together:4
+B	bring	129	the:121 balloons:8
+B	brother	12	to:8 call:4
+B	buddy	4	!:4
+B	bulk	10	orders:10
+B	busy	26	right:10 now:8 today:4 hoon:4
+B	but	181	the:22 i:21 it:17 he:13 she:8 not:8 also:8 they:7 that:6 in:6
+B	buy	4	this:4
+B	by	297	evening:144 the:87 a:22 tomorrow:6 courier:6 an:5 his:4 which:3 this:3 their:3
+B	bye	4	take:4
+B	call	392	me:184 you:148 ?:40 later:4 karta:4 karo:4 karna:4 kar:4
+B	called	6	the:4 a:2
+B	came	19	to:8 from:3 up:2 out:2 in:2 back:2
+B	can	922	you:735 we:68 be:49 not:35 i:8 also:5 do:4 see:3 only:3 use:2
+B	can't	14	make:10 talk:4
+B	cancel	4	the:4
+B	care	16	of:14 for:2
+B	case	8	of:8
+B	cash	14	on:14
+B	catalogue	84	?:80 bhej:4
+B	chai	12	?:8 together:4
+B	chal	10	raha:10
+B	chalo	8	theek:4 milte:4
+B	change	8	in:4 the:2 of:2
+B	changes	5	in:5
+B	charge	12	?:10 of:2
+B	check	328	the:278 and:20 balloons:12 your:6 once:4 karke:4 ?:4
+B	checked	128	the:120 balloons:8
+B	children	4	of:2 and:2
+B	chinta	4	mat:4
+B	christmas	4	!:4
+B	close	6	to:6
+B	closed	10	on:10
+B	coffee	12	?:8 together:4
+B	collect	128	the:120 balloons:8
+B	colour	14	do:10 available:4
+B	come	97	in:14 ?:14 on:10 to:9 at:8 tonight:4 tomorrow:4 today:4 this:4 soon:4
+B	comes	4	to:2 from:2
+B	coming	24	today:10 tonight:4 tomorrow:4 ?:4 to:2
+B	compared	7	to:4 with:3
+B	concept	4	of:4
+B	confirm	138	the:130 balloons:8
+B	congrats	4	!:4
+B	congratulations	14	on:10 !:4
+B	content	4	of:2 may:2
+B	context	4	of:4
+B	continue	4	to:4
+B	continued	4	to:4
+B	control	6	of:4 over:2
+B	cost	4	of:4
+B	costume	4	?:4
+B	could	67	not:27 be:16 have:6 see:5 you:4 do:3 only:2 hear:2 get:2
+B	couple	5	of:5
+B	course	4	of:4
+B	create	4	a:4
+B	customer	12	to:8 call:4
+B	dad	12	to:8 call:4
+B	day	23	?:10 !:8 of:3 and:2
+B	deal	6	with:4 of:2
+B	dear	4	!:4
+B	decided	4	to:4
+B	decoration	10	items:10
+B	decorations	10	and:10
+B	defined	4	by:2 as:2
+B	degree	4	of:4
+B	dekhta	4	hoon:4
+B	delhi	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	deliver	308	the:280 ?:10 balloons:8 it:6 tomorrow:4
+B	delivered	14	tomorrow:10 ?:4
+B	delivery	42	is:20 charge:10 available:8 ho:4
+B	department	5	of:5
+B	der	4	mein:4
+B	described	5	in:3 as:2
+B	details	200	?:80 tomorrow:28 today:28 by:28 in:16 as:12 on:6 of:2
+B	development	10	of:8 and:2
+B	did	468	you:354 not:67 my:16 the:11 mom:4 didi:4 dad:4 bhai:4 it:2 he:2
+B	didi	20	to:8 ko:4 call:4 !:4
+B	difference	5	between:3 in:2
+B	differences	4	in:2 between:2
+B	difficult	5	to:5
+B	dinner	12	?:8 together:4
+B	discount	4	?:4
+B	dispatch	10	it:6 today:4
+B	diwali	18	to:10 !:8
+B	diya	34	hai:24 ?:10
+B	diye	10	hain:10
+B	do	230	you:95 not:74 bulk:10 it:9 with:5 so:4 me:4 home:4 ?:4 this:3
+B	documents	80	?:80
+B	does	35	not:31 the:2 it:2
+B	doge	4	?:4
+B	doing	20	?:18 so:2
+B	don't	28	think:10 know:10 worry:8
+B	done	8	please:4 ?:4
+B	down	28	the:10 to:6 and:4 on:3 at:3 in:2
+B	dozen	8	?:8
+B	dress	10	are:10
+B	drive	4	safe:4
+B	driving	4	will:4
+B	due	15	to:15
+B	dukaan	24	pe:20 band:4
+B	during	23	the:19 this:2 a:2
+B	each	17	other:11 of:6
+B	eaten	6	?:6
+B	effect	8	of:6 on:2
+B	effects	6	of:6
+B	eid	4	mubarak:4
+B	end	15	of:15
+B	enjoy	4	your:4
+B	enough	11	to:9 for:2
+B	et	36	al:36
+B	even	30	if:7 though:6 the:4 more:4 in:3 when:2 as:2 a:2
+B	evening	8	?:8
+B	every	5	day:3 time:2
+B	everyone	4	at:4
+B	everything	8	okay:4 is:4
+B	evidence	5	of:3 that:2
+B	example	5	of:5
+B	excited	8	today:4 now:4
+B	eyes	5	and:3 were:2
+B	face	5	of:3 and:2
+B	fact	10	that:10
+B	family	10	a:4 !:4 and:2
+B	fancy	10	dress:10
+B	far	9	as:4 from:3 more:2
+B	favour	4	?:4
+B	feedback	10	means:10
+B	feel	4	the:2 like:2
+B	feeling	54	okay:8 fine:8 better:8 tired:4 sick:4 happy:4 great:4 good:4 excited:4 busy:4
+B	felt	8	the:2 that:2 like:2 a:2
+B	few	6	years:2 minutes:2 days:2
+B	final	12	rate:4 price:4 amount:4
+B	find	15	the:4 a:4 out:3 that:2 it:2
+B	fine	20	now:8 today:4 thanks:4 thank:4
+B	first	11	time:5 to:2 of:2 and:2
+B	five	12	minutes:10 years:2
+B	focus	5	on:5
+B	followed	4	by:4
+B	food	14	?:8 together:4 and:2
+B	for	537	the:178 your:58 a:53 example:22 this:14 shopping:14 pieces:14 me:12 her:9 you:8
+B	form	12	of:10 a:2
+B	forms	5	of:5
+B	forward	130	the:120 balloons:8 to:2
+B	forwarded	64	the:60 balloons:4
+B	found	16	in:6 that:4 to:2 the:2 a:2
+B	free	18	above:10 now:4 ?:4
+B	friend	16	to:8 call:4 !:4
+B	from	189	the:104 a:17 am:10 his:8 her:6 you:4 this:4 their:4 one:4 which:3
+B	front	11	of:9 door:2
+B	full	18	address:10 set:4 of:4
+B	gave	8	me:2 him:2 her:2 a:2
+B	gaya	14	hai:10 hoon:4
+B	get	119	the:64 back:20 well:10 to:4 time:4 my:4 balloons:4 a:4 out:3 it:2
+B	ghar	14	pe:10 pahunch:4
+B	give	31	us:10 the:6 a:6 you:3 up:2 me:2 him:2
+B	given	11	the:4 to:3 in:2 by:2
+B	go	27	to:8 out:6 home:5 on:3 back:3 and:2
+B	god	4	is:2 and:2
+B	godown	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	going	81	to:73 on:8
+B	good	112	night:26 morning:18 luck:14 news:8 idea:8 evening:8 afternoon:8 today:4 now:4 job:4
+B	goods	80	?:80
+B	got	13	to:4 it:4 a:3 the:2
+B	great	28	day:8 year:6 today:4 thanks:4 now:4 deal:2
+B	group	5	of:5
+B	gst	14	number:10 bill:4
+B	haal	10	hai:10
+B	haan	18	bhai:10 theek:4 ji:4
+B	had	174	been:38 to:18 a:18 not:16 the:7 no:7 tea:4 never:4 lunch:4 food:4
+B	hai	58	?:48 kal:6 bhai:4
+B	hain	4	?:4
+B	half	6	of:4 a:2
+B	hand	7	and:3 to:2 on:2
+B	hands	4	of:2 and:2
+B	happened	7	?:4 to:3
+B	happy	94	birthday:42 diwali:18 returns:10 today:4 now:4 new:4 journey:4 holi:4 anniversary:4
+B	hard	4	to:4
+B	has	110	been:71 a:11 to:5 the:5 not:5 arrived:4 no:3 become:2 an:2 also:2
+B	have	1052	you:368 sent:80 shared:74 received:74 paid:64 forwarded:64 checked:64 a:64 been:40 to:24
+B	having	33	tea:4 lunch:4 food:4 dinner:4 coffee:4 chai:4 breakfast:4 a:3 to:2
+B	he	284	was:59 had:37 said:20 could:16 did:14 would:13 is:13 has:8 looked:5 knew:5
+B	head	6	of:3 and:3
+B	health	9	now:4 and:3 care:2
+B	hear	6	from:4 the:2
+B	hello	10	how:10
+B	help	15	you:9 me:6
+B	her	91	to:8 eyes:8 head:7 own:6 face:5 and:5 mother:4 hand:4 in:3 husband:3
+B	here	9	is:3 to:2 in:2 and:2
+B	hey	4	what's:4
+B	hi	10	how:10
+B	him	44	to:12 and:6 in:5 a:4 with:3 that:3 as:3 the:2 on:2 from:2
+B	his	112	own:11 head:10 eyes:9 hand:6 face:6 wife:5 hands:5 father:5 life:4 way:3
+B	history	10	of:8 and:2
+B	ho	38	jayega:20 ?:18
+B	holi	4	!:4
+B	home	41	in:9 delivery:8 ?:8 tomorrow:4 soon:4 by:4 to:2 and:2
+B	hoon	4	baad:4
+B	hope	8	to:6 that:2
+B	hospital	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	hour	8	?:8
+B	house	5	of:3 and:2
+B	how	147	much:35 are:23 many:13 to:12 was:10 can:9 is:8 the:6 about:4 ?:4
+B	hua	4	?:4
+B	human	6	rights:4 beings:2
+B	i	1724	will:515 have:456 am:224 want:52 think:51 was:44 need:36 do:32 had:22 don't:20
+B	i'll	316	reach:240 call:64 let:4 get:4 be:4
+B	i'm	116	going:48 feeling:40 really:4 on:4 good:4 fine:4 driving:4 busy:4 almost:4
+B	idea	7	of:5 that:2
+B	if	146	you:43 the:22 i:12 he:12 it:10 they:9 we:8 she:8 a:5 there:4
+B	impact	7	of:4 on:3
+B	importance	4	of:4
+B	important	5	to:5
+B	in	1218	the:431 a:97 an:91 some:88 ten:82 this:40 his:32 which:23 her:17 their:16
+B	including	4	the:4
+B	increase	6	in:4 the:2
+B	information	8	on:3 about:3 and:2
+B	instead	7	of:7
+B	interest	4	in:4
+B	interested	4	in:4
+B	into	79	the:46 a:16 his:5 her:4 their:2 my:2 an:2 account:2
+B	invoice	80	?:80
+B	involved	5	in:5
+B	is	628	the:146 a:61 not:46 this:25 it:22 available:22 to:18 that:18 an:14 no:11
+B	isse	4	kam:4
+B	it	471	is:112 was:92 today:34 will:23 would:15 as:14 by:13 to:11 has:10 and:10
+B	it's	20	fine:8 okay:4 better:4 a:4
+B	item	4	?:4
+B	items	14	are:14
+B	its	5	own:5
+B	jaldi	8	karo:4 bhejo:4
+B	ji	4	haan:4
+B	join	4	?:4
+B	journal	11	of:11
+B	just	26	as:8 a:6 reached:4 the:3 like:3 to:2
+B	ka	20	hai:10 diya:10
+B	kaam	4	ho:4
+B	kab	42	tak:30 doge:4 aayega:4 aaoge:4
+B	kahan	4	ho:4
+B	kaise	14	ho:10 hain:4
+B	kal	60	tak:16 milte:10 baat:10 photo:4 parcel:4 paise:4 order:4 maal:4 bill:4
+B	kam	14	karo:10 nahi:4
+B	kar	34	diya:14 rahe:4 lena:4 dunga:4 do:4 dena:4
+B	karke	4	batata:4
+B	karta	4	hoon:4
+B	karte	14	hain:14
+B	khana	4	khaya:4
+B	khaya	4	?:4
+B	kind	13	of:13
+B	kinds	8	of:8
+B	kitne	24	ka:20 baje:4
+B	knew	10	that:4 the:2 it:2 he:2
+B	know	53	if:16 what:7 the:7 that:7 when:4 how:4 you:2 it:2 i:2 about:2
+B	knowledge	6	of:4 and:2
+B	known	8	as:6 to:2
+B	ko	24	bol:24
+B	koi	4	baat:4
+B	kya	42	hai:10 haal:10 chal:10 rate:4 kar:4 hua:4
+B	lack	7	of:7
+B	last	4	time:2 night:2
+B	late	12	today:4 sorry:4 reply:4
+B	later	10	?:8 in:2
+B	law	4	of:2 and:2
+B	lead	5	to:5
+B	led	4	to:4
+B	left	5	the:3 to:2
+B	less	7	than:7
+B	let	79	me:49 you:21 us:3 the:2 him:2 her:2
+B	let's	100	meet:66 have:28 go:6
+B	letting	4	me:4
+B	level	7	of:7
+B	levels	5	of:5
+B	life	11	and:4 of:3 is:2 in:2
+B	like	54	a:17 the:10 to:7 that:5 this:4 it:3 you:2 i:2 he:2 an:2
+B	likely	7	to:7
+B	list	98	?:86 bhej:8 of:4
+B	living	5	in:3 room:2
+B	liya	4	?:4
+B	location	9	of:5 bhej:4
+B	long	13	time:7 as:4 and:2
+B	look	13	at:9 like:2 for:2
+B	looked	13	at:8 up:3 like:2
+B	looking	9	at:5 for:4
+B	loss	4	of:4
+B	lot	17	to:10 of:7
+B	love	20	you:16 with:2 and:2
+B	luck	6	for:6
+B	lunch	20	?:16 together:4
+B	maaf	4	karna:4
+B	maal	36	ready:10 aa:10 kab:8 bhej:8
+B	made	33	the:7 a:5 to:3 it:3 by:3 up:2 of:2 me:2 in:2 him:2
+B	main	28	theek:10 dukaan:10 nikal:4 aa:4
+B	make	57	the:31 it:15 a:7 sure:4
+B	making	4	the:2 a:2
+B	mall	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	man	10	who:4 of:2 in:2 and:2
+B	many	46	pieces:10 many:10 happy:10 of:8 years:2 times:2 people:2 other:2
+B	market	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	mat	8	lo:4 karo:4
+B	matter	6	of:4 how:2
+B	may	50	be:32 not:8 have:7 also:3
+B	maybe	4	later:4
+B	me	267	the:54 when:32 know:26 a:18 in:15 check:14 your:12 to:12 on:9 back:8
+B	mean	6	?:4 that:2
+B	means	20	a:10 of:5 that:3 to:2
+B	meet	150	in:24 at:22 on:16 tomorrow:14 you:8 tonight:8 today:8 this:8 soon:8 next:8
+B	mein	16	call:4 baat:4 aata:4 ?:4
+B	member	4	of:4
+B	members	6	of:6
+B	men	5	and:3 who:2
+B	merry	4	christmas:4
+B	message	4	kar:4
+B	might	19	be:11 have:6 not:2
+B	milte	14	hain:14
+B	minimum	14	order:14
+B	minutes	8	?:8
+B	miss	14	you:14
+B	missed	4	your:4
+B	mom	12	to:8 call:4
+B	monday	8	?:8
+B	money	80	?:80
+B	more	44	than:24 stock:4 of:3 likely:3 to:2 or:2 important:2 and:2 about:2
+B	morning	18	have:10 ?:8
+B	most	19	of:11 important:4 likely:2 common:2
+B	movie	4	?:4
+B	mubarak	4	!:4
+B	much	47	for:30 of:6 more:5 as:4 to:2
+B	mujhe	12	nahi:4 call:4 batao:4
+B	mummy	4	ko:4
+B	must	26	be:18 have:6 not:2
+B	my	175	way:69 friend:18 wife:13 sister:13 brother:13 order:8 own:5 pleasure:4 mother:4 life:4
+B	nahi	12	yaar:4 pata:4 hoga:4
+B	name	4	of:4
+B	nature	7	of:7
+B	near	4	the:4
+B	necessary	6	to:4 for:2
+B	need	98	to:22 ?:20 anything:18 a:6 your:4 the:4 some:4 more:4 money:4 it:4
+B	needed	7	to:7
+B	needs	6	to:4 of:2
+B	never	4	been:2 be:2
+B	new	48	york:22 year:10 stock:8 shop:6 zealand:2
+B	next	45	week:38 to:5 day:2
+B	nice	22	day:14 to:8
+B	night	14	take:10 sweet:4
+B	nikal	4	gaya:4
+B	no	69	problem:24 one:9 longer:8 worries:4 thanks:4 see:4 more:4 matter:3 doubt:3 way:2
+B	none	4	of:4
+B	not	291	be:30 have:19 know:16 to:15 yet:13 only:13 a:13 want:11 the:11 even:7
+B	note	4	that:4
+B	nothing	5	to:3 but:2
+B	now	47	?:24 will:10 call:4 that:3 the:2 i:2 and:2
+B	number	35	of:25 for:6 bhej:4
+B	of	1344	the:645 a:97 this:49 his:41 these:25 her:24 their:23 course:20 an:19 all:19
+B	off	12	the:8 to:2 his:2
+B	office	26	in:8 tomorrow:4 soon:4 by:4 ?:4 of:2
+B	ok	14	bhai:10 ji:4
+B	okay	38	sounds:10 now:8 ?:8 today:4 no:4 done:4
+B	on	503	the:174 my:75 a:29 sunday:28 monday:28 this:21 your:15 his:15 delivery:14 her:11
+B	once	7	again:3 the:2 more:2
+B	one	99	of:42 packet:8 who:4 dozen:4 available:4 another:4 to:3 thing:3 that:3 or:3
+B	only	32	a:7 the:5 one:5 to:4 in:3 if:2 for:2 by:2 be:2
+B	onto	4	the:4
+B	open	14	from:10 to:2 the:2
+B	opportunity	4	to:4
+B	or	83	the:13 a:10 in:7 to:5 other:5 not:5 more:5 even:4 two:3 her:3
+B	order	333	?:96 tomorrow:28 today:28 by:28 is:26 has:18 bhej:18 in:16 will:14 to:14
+B	other	18	hand:5 words:4 than:4 side:3 people:2
+B	our	25	website:10 shop:10 own:3 lives:2
+B	out	103	of:48 the:9 to:7 in:5 a:5 and:4 ?:4 that:3 on:3 for:3
+B	outside	6	the:4 of:2
+B	over	45	the:24 to:5 a:4 time:3 his:3 her:3 and:3
+B	pack	128	the:120 balloons:8
+B	packet	8	?:8
+B	pahunch	8	gaya:8
+B	paid	128	the:120 balloons:8
+B	paise	22	bhej:18 kab:4
+B	pakka	4	?:4
+B	papa	4	ko:4
+B	parcel	156	?:90 tomorrow:12 today:12 by:12 as:12 bhej:8 will:6 kab:4
+B	part	28	of:26 in:2
+B	parts	4	of:4
+B	party	16	decorations:10 supplies:4 content:2
+B	pata	4	nahi:4
+B	patients	5	with:5
+B	payment	236	?:80 today:20 by:20 tomorrow:16 in:16 received:14 on:14 kar:14 screenshot:10 is:8
+B	pe	40	hoon:20 aa:20
+B	people	23	who:6 to:3 in:3 are:3 with:2 were:2 of:2 and:2
+B	per	5	cent:5
+B	percent	5	of:5
+B	period	4	of:4
+B	photo	22	bhej:12 ?:6 bhejo:4
+B	photos	196	?:80 tomorrow:28 today:28 by:28 in:16 as:12 of:4
+B	pick	130	up:130
+B	piece	4	of:4
+B	pieces	28	?:18 do:10
+B	place	13	in:4 an:4 of:3 to:2
+B	please	1228	send:270 share:178 deliver:144 check:104 confirm:78 pick:64 pack:64 forward:64 collect:64 bring:64
+B	pm	8	?:8
+B	point	8	of:6 in:2
+B	possible	18	please:10 to:4 ?:4
+B	power	9	of:4 to:3 and:2
+B	presence	6	of:6
+B	price	202	list:150 of:40 ?:8 is:4
+B	prior	4	to:4
+B	process	5	of:5
+B	proud	8	of:8
+B	provide	5	a:3 the:2
+B	purpose	4	of:4
+B	put	12	the:3 it:3 on:2 in:2 a:2
+B	quality	4	of:4
+B	raha	14	hai:10 hoon:4
+B	rahe	4	ho:4
+B	range	6	of:6
+B	rate	50	lagao:10 kya:10 ?:8 for:6 of:4 list:4 hai:4 batao:4
+B	rates	4	have:4
+B	rather	14	than:14
+B	reach	255	the:181 home:20 delhi:20 agra:20 in:10 safely:4
+B	reached	12	home:10 the:2
+B	ready	17	hai:10 to:5 for:2
+B	really	8	sorry:4 ?:4
+B	reason	4	to:2 for:2
+B	receive	64	the:60 balloons:4
+B	received	158	the:130 thank:10 it:10 balloons:8
+B	red	4	one:4
+B	referred	5	to:5
+B	refund	16	has:10 the:6
+B	related	7	to:7
+B	relation	4	to:4
+B	relationship	7	between:4 with:3
+B	replace	14	it:14
+B	reply	4	soon:4
+B	required	6	to:4 for:2
+B	research	4	on:2 and:2
+B	respect	4	to:4
+B	response	5	to:5
+B	responsible	4	for:4
+B	rest	7	of:7
+B	result	9	of:6 in:3
+B	results	6	of:3 in:3
+B	return	18	this:8 it:6 to:4
+B	returned	4	to:4
+B	returns	10	of:10
+B	review	13	on:10 of:3
+B	right	21	now:13 to:6 of:2
+B	rights	7	reserved:3 of:2 and:2
+B	risk	4	of:4
+B	role	11	of:6 in:5
+B	running	4	late:4
+B	sab	24	theek:14 maal:6 badhiya:4
+B	sach	4	mein:4
+B	safe	4	journey:4
+B	said	27	to:7 that:5 the:4 he:3 with:2 it:2 in:2 as:2
+B	same	15	time:7 here:4 way:2 as:2
+B	sample	4	bhej:4
+B	samples	80	?:80
+B	saw	8	the:4 that:2 a:2
+B	say	8	that:6 to:2
+B	se	4	bhej:4
+B	see	140	the:69 you:37 also:7 this:4 that:4 balloons:4 what:3 it:2 if:2 how:2
+B	seem	6	to:6
+B	seemed	9	to:9
+B	seems	6	to:6
+B	seen	71	the:61 balloons:4 in:3 as:3
+B	send	526	the:374 me:74 it:40 you:16 balloons:12 your:10
+B	sense	9	of:9
+B	sent	146	the:130 balloons:8 you:6 to:2
+B	series	5	of:5
+B	seriously	4	?:4
+B	set	22	?:8 of:7 up:3 the:2 out:2
+B	shaam	10	tak:10
+B	shall	9	be:7 not:2
+B	share	324	the:300 your:14 balloons:8 of:2
+B	shared	74	the:70 balloons:4
+B	she	154	was:35 had:23 said:13 could:12 did:9 would:8 is:6 looked:4 knew:4 has:4
+B	shook	5	his:3 her:2
+B	shop	40	pe:10 in:8 is:6 tomorrow:4 soon:4 by:4 ?:4
+B	shopping	14	with:14
+B	should	54	be:24 i:10 not:7 have:5 we:4 go:4
+B	shown	8	in:6 that:2
+B	shows	5	the:3 that:2
+B	shukriya	4	bhai:4
+B	sick	8	today:4 now:4
+B	side	9	of:9
+B	similar	5	to:5
+B	since	12	the:8 it:2 i:2
+B	sir	4	!:4
+B	sister	12	to:8 call:4
+B	size	17	do:10 available:4 of:3
+B	so	76	much:18 that:14 i:7 the:4 many:4 he:4 far:4 you:3 we:3 they:3
+B	some	114	time:87 of:17 third:2 people:2 other:2 kind:2 cases:2
+B	someone	4	who:2 else:2
+B	something	8	to:3 that:3 else:2
+B	soon	93	as:85 ?:8
+B	sorry	56	for:24 i:18 it:10 yaar:4
+B	sort	6	of:6
+B	sounds	14	good:14
+B	source	4	of:4
+B	speedy	4	recovery:4
+B	start	4	now:4
+B	started	4	to:4
+B	state	8	of:6 and:2
+B	states	6	that:2 of:2 and:2
+B	station	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	stay	4	safe:4
+B	stock	94	?:90 has:4
+B	studies	4	of:2 in:2
+B	study	6	of:6
+B	subject	6	to:4 of:2
+B	success	4	!:4
+B	such	55	as:35 a:15 an:3 that:2
+B	sunday	8	?:8
+B	supplier	12	to:8 call:4
+B	support	6	the:2 of:2 for:2
+B	supposed	4	to:4
+B	sure	19	no:10 ?:4 that:3 you:2
+B	sweet	4	dreams:4
+B	system	7	of:3 is:2 and:2
+B	tak	56	aayega:26 bhej:16 aa:10 aaoge:4
+B	take	44	care:30 the:5 a:5 place:2 it:2
+B	taking	4	the:2 a:2
+B	talk	27	to:12 now:8 ?:4 about:3
+B	talking	5	about:3 to:2
+B	tea	12	?:8 together:4
+B	tell	55	my:16 the:9 you:5 me:5 mom:4 didi:4 dad:4 bhai:4 him:2 her:2
+B	ten	84	minutes:82 years:2
+B	tend	4	to:4
+B	tension	4	mat:4
+B	terms	9	of:9
+B	than	39	the:13 a:7 that:3 one:3 in:3 to:2 those:2 i:2 he:2 any:2
+B	thank	117	you:117
+B	thanks	20	for:14 a:4 to:2
+B	that	461	the:85 is:30 he:29 it:22 i:22 they:19 was:18 you:15 she:15 we:13
+B	that's	16	okay:4 nice:4 great:4 good:4
+B	the	5497	bill:286 details:281 order:276 photos:264 payment:262 parcel:208 price:202 catalogue:172 stock:148 money:147
+B	theek	50	hai:36 hoon:10 ?:4
+B	their	17	own:11 way:2 lives:2 children:2
+B	them	34	to:11 in:5 as:3 and:3 with:2 on:2 into:2 from:2 for:2 all:2
+B	then	30	the:7 he:6 i:4 she:3 you:2 we:2 they:2 it:2 a:2
+B	theory	6	of:4 and:2
+B	there	184	is:35 was:29 are:24 in:20 were:12 on:8 at:8 tonight:4 tomorrow:4 today:4
+B	these	16	are:5 balloons:4 two:3 were:2 things:2
+B	they	125	were:28 are:26 had:13 have:9 would:7 can:7 do:6 could:6 will:5 did:5
+B	thing	4	to:2 that:2
+B	think	79	so:24 it's:12 you:7 it:7 we:6 of:5 that:4 i:4 about:4 ?:4
+B	this	208	is:39 evening:28 available:14 ?:14 was:13 upi:10 time:8 chapter:7 book:7 section:5
+B	thoda	16	kam:10 time:6
+B	thodi	4	der:4
+B	those	19	who:11 of:4 that:2 in:2
+B	though	12	the:3 he:3 she:2 it:2 i:2
+B	thought	17	of:4 that:3 to:2 it:2 i:2 he:2 about:2
+B	three	4	years:2 of:2
+B	through	36	the:27 a:5 his:2 her:2
+B	throughout	5	the:5
+B	time	88	?:18 are:12 to:10 should:6 of:6 lagega:6 and:5 no:4 in:4 for:4
+B	tired	8	today:4 now:4
+B	to	1555	the:317 be:121 call:83 a:46 you:45 do:29 see:27 make:25 have:25 go:23
+B	today	18	?:18
+B	together	5	with:3 in:2
+B	told	14	me:5 him:4 her:3 you:2
+B	tomorrow	24	?:18 evening:6
+B	tonight	12	?:12
+B	too	9	much:5 many:2 late:2
+B	took	11	a:5 the:4 place:2
+B	top	5	of:5
+B	total	4	?:4
+B	toward	7	the:7
+B	towards	5	the:5
+B	tracking	10	link:10
+B	treatment	4	of:4
+B	tried	9	to:9
+B	try	7	to:7
+B	trying	12	to:12
+B	turned	7	to:5 out:2
+B	two	13	of:4 dozen:4 years:3 or:2
+B	type	7	of:7
+B	types	7	of:7
+B	unable	4	to:4
+B	under	20	the:16 his:2 a:2
+B	understanding	5	of:5
+B	united	20	states:16 nations:2 kingdom:2
+B	university	21	of:11 press:10
+B	unko	4	ko:4
+B	until	12	the:6 they:2 i:2 he:2
+B	up	211	the:133 to:17 and:10 balloons:8 in:7 with:6 a:5 on:4 at:4 ?:4
+B	upi	10	id:10
+B	upon	7	the:7
+B	us	22	a:11 to:7 that:2 in:2
+B	use	29	of:17 the:7 a:3 in:2
+B	used	37	to:17 in:7 for:5 by:3 as:3 the:2
+B	using	11	the:7 a:4
+B	usko	4	ko:4
+B	value	7	of:7
+B	variety	5	of:5
+B	very	17	much:7 happy:4 well:2 good:2 different:2
+B	view	5	of:5
+B	visit	20	our:20
+B	wait	16	for:10 i:6
+B	waiting	4	for:4
+B	wake	4	up:4
+B	want	112	to:96 ?:10 anything:4 you:2
+B	wanted	14	to:14
+B	warehouse	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+B	was	286	a:45 not:40 the:29 in:11 your:10 to:10 no:9 going:7 an:7 that:6
+B	watch	4	a:4
+B	way	71	to:59 of:7 that:3 in:2
+B	ways	4	to:2 of:2
+B	we	283	meet:70 will:44 are:29 have:27 can:16 also:12 do:11 were:10 should:8 hope:6
+B	wedding	4	items:4
+B	week	8	?:8
+B	well	29	as:19 soon:10
+B	went	14	to:7 on:3 out:2 back:2
+B	were	41	not:10 the:6 in:4 a:4 to:3 still:2 so:2 no:2 more:2 going:2
+B	what	260	is:97 time:32 are:15 do:13 size:10 i:10 you:8 he:8 was:7 the:7
+B	what's	8	up:4 going:4
+B	when	172	you:47 will:26 the:23 he:17 i:15 they:10 she:10 we:8 it:7 a:5
+B	where	59	the:13 are:11 is:5 he:5 they:4 should:4 you:3 it:3 i:3 we:2
+B	whether	8	the:4 or:2 it:2
+B	which	115	is:19 the:14 colour:10 was:9 he:7 are:7 they:5 we:4 i:4 had:4
+B	while	13	the:9 i:2 he:2
+B	who	56	had:11 was:8 are:7 is:6 were:5 have:5 would:3 has:3 will:2 did:2
+B	wholesale	10	?:6 rate:4
+B	why	15	?:4 do:3 the:2 not:2 i:2 did:2
+B	wife	12	to:8 call:4
+B	will	681	be:120 send:96 check:92 deliver:90 call:84 share:80 you:20 not:16 replace:10 reach:10
+B	wish	7	you:4 to:3
+B	wishes	6	for:6
+B	wishing	4	you:4
+B	with	327	the:99 a:61 us:16 his:13 her:12 pincode:10 an:10 him:8 their:7 you:6
+B	within	18	the:14 a:4
+B	without	9	the:4 a:3 any:2
+B	women	4	in:2 and:2
+B	wonderful	4	year:4
+B	work	19	of:4 with:3 on:3 in:3 is:2 for:2 and:2
+B	working	4	with:2 on:2
+B	world	8	war:3 of:3 and:2
+B	worry	6	about:6
+B	would	85	be:33 not:19 have:18 you:3 never:3 like:3 take:2 make:2 do:2
+B	yaad	4	se:4
+B	year	16	ahead:10 !:4 of:2
+B	years	13	of:5 ago:4 old:2 later:2
+B	yes	34	please:10 it:10 i:10 sure:4
+B	yet	10	received:10
+B	you	2308	send:140 check:128 for:83 received:74 deliver:74 see:72 get:71 come:65 share:64 sent:64
+B	you're	4	welcome:4
+B	young	5	man:3 people:2
+B	your	208	order:60 address:18 feedback:14 family:14 day:14 help:12 full:10 exam:10 whatsapp:6 new:6
+T	^ aaj	26	shaam:10 payment:4 order:4 kaam:4 delivery:4
+T	^ aap	14	kaise:14
+T	^ abhi	14	bhejta:6 busy:4 aata:4
+T	^ all	18	the:14 good:4
+T	^ are	78	you:78
+T	^ as	10	soon:10
+T	^ ask	40	my:16 the:8 mom:4 didi:4 dad:4 bhai:4
+T	^ at	10	what:10
+T	^ bahut	12	bahut:4 badhiya:4 accha:4
+T	^ balloons	10	party:10
+T	^ best	20	wishes:10 rate:10
+T	^ bhai	20	kya:10 kal:6 ko:4
+T	^ bhej	16	dunga:4 do:4 diya:4 dena:4
+T	^ bill	12	bhej:12
+T	^ birthday	10	decoration:10
+T	^ call	78	me:70 karna:4 kar:4
+T	^ can	798	you:732 we:66
+T	^ cash	10	on:10
+T	^ chalo	8	theek:4 milte:4
+T	^ congratulations	14	on:10 !:4
+T	^ delivery	10	is:10
+T	^ did	388	you:348 my:16 the:8 mom:4 didi:4 dad:4
+T	^ do	40	you:40
+T	^ don't	8	worry:8
+T	^ dukaan	14	pe:10 band:4
+T	^ final	8	rate:4 price:4
+T	^ get	10	well:10
+T	^ ghar	14	pe:10 pahunch:4
+T	^ good	82	night:22 morning:18 luck:14 evening:8 afternoon:8 news:4
+T	^ haan	18	bhai:10 theek:4 ji:4
+T	^ happy	72	birthday:42 diwali:14 new:4 journey:4 holi:4 anniversary:4
+T	^ have	390	you:364 a:22 fun:4
+T	^ hello	10	how:10
+T	^ hi	10	how:10
+T	^ how	70	much:30 was:10 many:10 is:8 are:8 ?:4
+T	^ i	1276	will:496 have:418 am:202 want:44 think:38 need:32
+T	^ i'll	316	reach:240 call:64 let:4 get:4 be:4
+T	^ i'm	116	going:48 feeling:40 really:4 on:4 good:4 fine:4
+T	^ is	54	this:22 it:16 the:4 home:4 everything:4 cash:4
+T	^ it	16	will:10 was:6
+T	^ it's	8	okay:4 fine:4
+T	^ jaldi	8	karo:4 bhejo:4
+T	^ kab	14	tak:10 aaoge:4
+T	^ kal	48	tak:16 photo:4 parcel:4 paise:4 order:4 milte:4
+T	^ kar	8	dunga:4 diya:4
+T	^ kitne	24	ka:20 baje:4
+T	^ kya	22	chal:10 rate:4 kar:4 hua:4
+T	^ let	44	me:44
+T	^ let's	100	meet:66 have:28 go:6
+T	^ maal	26	aa:10 kab:8 ready:4 bhej:4
+T	^ main	28	theek:10 dukaan:10 nikal:4 aa:4
+T	^ many	10	many:10
+T	^ minimum	10	order:10
+T	^ miss	10	you:10
+T	^ mujhe	12	nahi:4 call:4 batao:4
+T	^ nice	8	to:8
+T	^ no	18	problem:10 worries:4 thanks:4
+T	^ not	18	yet:10 now:4 bad:4
+T	^ ok	14	bhai:10 ji:4
+T	^ okay	18	sounds:10 no:4 done:4
+T	^ on	10	my:10
+T	^ order	32	bhej:14 confirmed:10 kab:8
+T	^ paise	18	bhej:14 kab:4
+T	^ parcel	8	kab:4 bhej:4
+T	^ payment	52	received:14 kar:14 is:8 done:8 kab:4 has:4
+T	^ photo	12	bhej:8 bhejo:4
+T	^ please	1210	send:260 share:178 deliver:144 check:96 confirm:78 pick:64
+T	^ rate	14	kya:10 list:4
+T	^ reached	10	home:10
+T	^ sab	14	maal:6 theek:4 badhiya:4
+T	^ see	28	you:28
+T	^ send	20	me:20
+T	^ shop	10	pe:10
+T	^ sorry	50	for:24 i:12 it:10 yaar:4
+T	^ sure	10	no:10
+T	^ take	14	care:14
+T	^ tell	40	my:16 the:8 mom:4 didi:4 dad:4 bhai:4
+T	^ thank	98	you:98
+T	^ thanks	18	for:14 a:4
+T	^ that's	16	okay:4 nice:4 great:4 good:4
+T	^ the	32	bill:10 shop:6 refund:6 parcel:6 order:4
+T	^ theek	14	hai:14
+T	^ thoda	16	kam:10 time:6
+T	^ we	66	will:24 are:14 also:10 have:8 hope:6 do:4
+T	^ what	144	is:82 time:22 size:10 are:10 do:8 should:4
+T	^ when	30	will:26 are:4
+T	^ where	18	are:10 should:4 is:4
+T	^ which	10	colour:10
+T	^ yes	34	please:10 it:10 i:10 sure:4
+T	^ your	54	order:44 feedback:10
+T	a bit	8	of:8
+T	a chance	6	to:6
+T	a combination	6	of:6
+T	a couple	19	of:19
+T	a deep	6	breath:6
+T	a few	47	minutes:9 days:8 years:5 weeks:4 of:4 months:4
+T	a form	7	of:7
+T	a function	6	of:6
+T	a good	15	idea:8 night:4 deal:3
+T	a great	23	deal:9 day:8 year:6
+T	a group	10	of:10
+T	a kind	10	of:10
+T	a list	7	of:7
+T	a little	9	more:5 bit:4
+T	a long	16	time:13 way:3
+T	a lot	43	of:30 to:10 more:3
+T	a man	10	who:6 of:4
+T	a matter	12	of:12
+T	a member	8	of:8
+T	a nice	14	day:14
+T	a number	35	of:35
+T	a pair	8	of:8
+T	a part	11	of:11
+T	a period	6	of:6
+T	a photo	6	?:6
+T	a piece	8	of:8
+T	a range	8	of:8
+T	a result	16	of:16
+T	a review	13	on:10 of:3
+T	a sense	11	of:11
+T	a series	16	of:16
+T	a set	12	of:12
+T	a sort	6	of:6
+T	a variety	17	of:17
+T	a way	22	to:8 that:8 of:6
+T	aa gaya	10	hai:10
+T	aaj shaam	10	tak:10
+T	aap kaise	14	ho:10 hain:4
+T	abhi bhejta	6	hoon:6
+T	access to	6	the:6
+T	according to	28	the:25 a:3
+T	account of	6	the:6
+T	addition to	7	the:7
+T	address with	10	pincode:10
+T	after lunch	8	?:8
+T	agra in	8	ten:4 an:4
+T	all kinds	7	of:7
+T	all of	41	the:18 these:6 them:6 us:4 this:4 which:3
+T	all over	6	the:6
+T	all rights	16	reserved:16
+T	all the	38	best:14 time:9 way:8 items:4 other:3
+T	along with	7	the:7
+T	also do	10	bulk:10
+T	am at	48	the:36 home:4 delhi:4 agra:4
+T	am busy	10	right:6 today:4
+T	am fine	8	today:4 thank:4
+T	am having	28	tea:4 lunch:4 food:4 dinner:4 coffee:4 chai:4
+T	am on	54	my:54
+T	am sorry	6	i:6
+T	am to	10	pm:10
+T	an attempt	6	to:6
+T	an example	8	of:8
+T	an hour	8	?:8
+T	an increase	6	in:6
+T	analysis of	8	the:8
+T	and a	9	half:5 few:4
+T	and all	8	the:8
+T	and at	7	the:7
+T	and can	8	be:5 not:3
+T	and did	7	not:7
+T	and do	8	not:8
+T	and fancy	10	dress:10
+T	and for	9	the:6 a:3
+T	and get	10	back:10
+T	and he	23	was:11 had:6 said:3 did:3
+T	and how	6	to:3 they:3
+T	and i	64	was:9 will:7 have:7 had:6 do:6 am:5
+T	and in	24	the:20 a:4
+T	and it	32	was:17 is:15
+T	and let	6	you:6
+T	and of	11	the:8 course:3
+T	and on	8	the:8
+T	and she	11	was:7 had:4
+T	and so	14	on:11 forth:3
+T	and that	30	the:10 was:5 it:4 is:4 he:4 they:3
+T	and the	23	other:10 rest:4 united:3 two:3 same:3
+T	and then	18	the:6 he:5 i:4 she:3
+T	and there	21	was:8 is:6 are:4 were:3
+T	and they	10	were:6 are:4
+T	and this	6	is:6
+T	and to	11	the:8 be:3
+T	and we	6	will:6
+T	and when	11	the:4 he:4 i:3
+T	and with	9	the:5 a:4
+T	and you	8	will:4 can:4
+T	and your	14	family:14
+T	any of	10	the:10
+T	appear to	6	be:6
+T	appears to	7	be:7
+T	are able	6	to:6
+T	are going	7	to:7
+T	are likely	6	to:6
+T	are not	6	you:3 the:3
+T	are open	10	from:10
+T	are the	6	same:3 most:3
+T	are to	6	be:6
+T	are you	149	at:48 ?:24 doing:23 coming:22 feeling:12 sure:7
+T	around the	6	world:6
+T	as a	56	result:26 whole:8 means:4 matter:4 function:4 consequence:4
+T	as far	13	as:13
+T	as he	13	was:6 had:4 could:3
+T	as i	8	was:4 have:4
+T	as if	40	he:11 she:7 it:6 they:5 the:5 to:3
+T	as in	10	the:10
+T	as it	21	is:10 was:8 were:3
+T	as long	16	as:16
+T	as much	14	as:14
+T	as one	6	of:6
+T	as opposed	6	to:6
+T	as part	14	of:14
+T	as possible	10	please:10
+T	as shown	11	in:11
+T	as soon	100	as:100
+T	as they	9	are:5 were:4
+T	as to	7	the:7
+T	as we	6	have:6
+T	as well	86	as:86
+T	ask my	16	wife:4 sister:4 friend:4 brother:4
+T	ask the	8	supplier:4 customer:4
+T	aspects of	6	the:6
+T	associated with	13	the:9 a:4
+T	at a	9	time:9
+T	at any	6	time:6
+T	at home	8	?:8
+T	at least	18	one:7 in:4 a:4 two:3
+T	at pm	8	?:8
+T	at that	12	time:8 moment:4
+T	at the	219	same:32 end:26 time:25 warehouse:8 top:8 station:8
+T	at this	14	point:8 time:6
+T	at what	10	time:10
+T	attention to	7	the:7
+T	available in	10	stock:10
+T	available next	10	week:10
+T	aware of	6	the:6
+T	away from	22	the:16 him:3 her:3
+T	baad mein	8	call:4 baat:4
+T	baat karte	14	hain:14
+T	back and	6	forth:6
+T	back in	6	the:6
+T	back into	7	the:7
+T	back of	11	the:8 his:3
+T	back to	51	the:27 you:18 his:3 her:3
+T	balloons party	10	decorations:10
+T	bank in	8	ten:4 an:4
+T	based on	31	the:25 a:6
+T	be able	37	to:37
+T	be available	10	next:10
+T	be delivered	14	tomorrow:10 ?:4
+T	be found	8	in:8
+T	be in	9	the:6 a:3
+T	be seen	9	as:5 in:4
+T	be suppressed	10	from:10
+T	be there	66	in:18 on:8 at:8 tonight:4 tomorrow:4 today:4
+T	be used	28	to:14 in:5 for:5 as:4
+T	because it	12	is:7 was:5
+T	because of	28	the:21 their:4 its:3
+T	because they	8	are:5 were:3
+T	been able	8	to:8
+T	beginning of	7	the:7
+T	best rate	10	lagao:10
+T	best wishes	6	for:6
+T	between the	11	two:11
+T	bhai kal	6	milte:6
+T	bhai kya	10	haal:10
+T	bhai sab	10	theek:10
+T	bhai to	8	call:8
+T	bhej diya	14	hai:14
+T	bhej diye	10	hain:10
+T	bill as	12	soon:12
+T	bill bhej	16	do:8 diya:4 dena:4
+T	bill by	28	evening:28
+T	bill has	10	been:10
+T	bill in	16	some:16
+T	birthday decoration	10	items:10
+T	birthday have	8	a:8
+T	bottom of	6	the:6
+T	bring the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	brother to	8	call:8
+T	busy right	10	now:10
+T	but also	6	to:3 the:3
+T	but he	21	was:9 did:5 had:4 could:3
+T	but i	37	do:7 was:6 did:5 can:5 have:4 could:4
+T	but in	6	the:6
+T	but it	40	was:19 is:15 does:3 did:3
+T	but she	16	was:6 did:4 had:3 could:3
+T	but there	17	was:8 is:5 are:4
+T	but they	8	were:4 are:4
+T	by means	8	of:8
+T	by the	29	time:12 end:6 way:5 same:3 fact:3
+T	by tomorrow	6	evening:6
+T	call me	100	when:32 in:12 on:8 back:8 at:8 tonight:4
+T	call you	148	in:30 later:22 on:16 at:16 tonight:8 tomorrow:8
+T	cambridge university	10	press:10
+T	can also	9	be:9
+T	can be	47	used:15 seen:8 found:8 a:6 made:4 obtained:3
+T	can i	6	help:6
+T	can not	50	be:34 do:4 see:3 help:3 get:3 believe:3
+T	can we	66	meet:66
+T	can you	732	send:76 share:64 pick:64 pack:64 forward:64 deliver:64
+T	can't make	10	it:10
+T	care of	10	yourself:10
+T	case of	8	the:5 a:3
+T	cash on	14	delivery:14
+T	center of	6	the:6
+T	chal raha	10	hai:10
+T	change in	6	the:6
+T	changes in	7	the:7
+T	check and	20	get:10 let:6 confirm:4
+T	check balloons	8	?:8
+T	check the	278	photos:28 payment:28 order:28 details:28 bill:28 stock:16
+T	check your	6	whatsapp:6
+T	checked the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	close to	8	the:8
+T	closed on	10	tuesday:10
+T	collect the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	colour do	10	you:10
+T	come at	8	pm:4 ?:4
+T	come in	12	the:4 ten:4 an:4
+T	come on	8	sunday:4 monday:4
+T	coming today	10	?:10
+T	compared to	6	the:6
+T	confirm the	130	order:18 stock:8 samples:8 price:8 photos:8 payment:8
+T	congratulations on	10	your:10
+T	content may	10	be:10
+T	could have	6	been:6
+T	could not	36	be:12 help:7 have:7 see:4 get:3 believe:3
+T	customer to	8	call:8
+T	dad to	8	call:8
+T	decoration items	10	are:10
+T	decorations and	10	fancy:10
+T	delhi in	8	ten:4 an:4
+T	deliver it	6	by:6
+T	deliver the	280	photos:40 order:40 details:40 bill:40 payment:24 parcel:24
+T	delivery available	8	?:8
+T	delivery charge	10	?:10
+T	delivery is	20	free:10 available:10
+T	depending on	9	the:9
+T	depends on	6	the:6
+T	description of	6	the:6
+T	details as	12	soon:12
+T	details by	28	evening:28
+T	details in	16	some:16
+T	details on	6	whatsapp:6
+T	development of	10	the:7 a:3
+T	did my	16	wife:4 sister:4 friend:4 brother:4
+T	did not	145	know:24 want:22 have:19 think:6 seem:6 like:6
+T	did the	8	supplier:4 customer:4
+T	did you	348	send:64 see:64 receive:64 get:64 check:64 have:28
+T	didi to	8	call:8
+T	dispatch it	6	today:6
+T	diwali to	10	you:10
+T	do bulk	10	orders:10
+T	do not	182	know:42 have:23 want:22 think:16 you:14 need:7
+T	do you	119	want:50 need:24 think:18 mean:9 know:9 have:9
+T	does not	27	have:8 mean:6 matter:4 want:3 seem:3 know:3
+T	don't think	10	so:10
+T	down on	7	the:7
+T	down to	9	the:9
+T	dress are	10	available:10
+T	due to	33	the:20 electronic:10 a:3
+T	dukaan pe	20	hoon:10 aa:10
+T	each of	17	the:12 these:5
+T	each other	6	in:3 and:3
+T	edge of	10	the:10
+T	end of	40	the:37 a:3
+T	even if	15	the:5 it:4 you:3 they:3
+T	even though	11	the:5 it:3 he:3
+T	example of	8	the:4 a:4
+T	fact that	12	the:9 he:3
+T	fancy dress	10	are:10
+T	feedback means	10	a:10
+T	feeling better	8	now:8
+T	feeling fine	8	now:8
+T	feeling okay	8	now:8
+T	focus on	7	the:7
+T	followed by	7	a:4 the:3
+T	for a	56	moment:17 while:10 few:10 long:9 second:4 time:3
+T	for all	8	the:5 of:3
+T	for him	7	to:7
+T	for me	8	to:8
+T	for more	9	than:5 information:4
+T	for pieces	14	?:14
+T	for shopping	14	with:14
+T	for some	7	time:4 reason:3
+T	for the	119	first:18 inconvenience:10 delay:10 purpose:6 next:6 new:6
+T	for this	9	reason:5 ?:4
+T	for wholesale	6	?:6
+T	for you	6	to:6
+T	for your	54	order:16 exam:10 help:8 time:4 support:4 patience:4
+T	form of	8	the:4 a:4
+T	forward the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	forwarded the	60	stock:4 samples:4 price:4 photos:4 payment:4 parcel:4
+T	found in	9	the:9
+T	friend to	8	call:8
+T	from am	10	to:10
+T	from the	22	ebook:10 same:3 other:3 first:3 beginning:3
+T	front of	21	the:13 him:4 her:4
+T	full address	10	with:10
+T	get back	21	to:21
+T	get out	7	of:7
+T	get the	60	stock:4 samples:4 price:4 photos:4 payment:4 parcel:4
+T	get well	10	soon:10
+T	ghar pe	10	hoon:10
+T	give us	10	a:10
+T	go back	7	to:7
+T	go to	11	the:11
+T	godown in	8	ten:4 an:4
+T	going to	84	the:39 be:18 do:6 have:5 home:4 get:4
+T	good luck	6	for:6
+T	good morning	10	have:10
+T	good night	14	take:10 sweet:4
+T	great year	6	ahead:6
+T	gst number	6	for:6
+T	haal hai	10	?:10
+T	haan bhai	10	sab:10
+T	had been	17	a:9 the:4 in:4
+T	had no	6	idea:6
+T	had not	13	been:13
+T	had to	19	be:15 do:4
+T	hai kal	6	baat:6
+T	half of	9	the:9
+T	happy birthday	42	!:10 have:8 sir:4 my:4 didi:4 dear:4
+T	happy diwali	18	to:10 !:8
+T	happy returns	10	of:10
+T	has been	58	sent:14 processed:10 dispatched:10 a:6 the:4 delivered:4
+T	has not	7	been:7
+T	has to	9	be:9
+T	have a	43	nice:14 great:14 good:7 wonderful:4 safe:4
+T	have been	21	a:7 the:5 used:3 made:3 in:3
+T	have breakfast	8	together:4 ?:4
+T	have chai	8	together:4 ?:4
+T	have checked	64	the:60 balloons:4
+T	have coffee	8	together:4 ?:4
+T	have dinner	8	together:4 ?:4
+T	have food	8	together:4 ?:4
+T	have forwarded	64	the:60 balloons:4
+T	have lunch	8	together:4 ?:4
+T	have not	6	been:6
+T	have paid	64	the:60 balloons:4
+T	have received	74	the:60 it:10 balloons:4
+T	have sent	80	the:70 you:6 balloons:4
+T	have shared	74	the:70 balloons:4
+T	have tea	8	together:4 ?:4
+T	have to	29	be:15 do:6 go:5 get:3
+T	have you	364	received:74 sent:64 seen:64 paid:64 checked:64 had:28
+T	he could	28	not:21 see:4 have:3
+T	he did	44	not:44
+T	he does	11	not:11
+T	he had	59	been:15 not:13 to:11 a:9 no:5 the:3
+T	he has	6	been:3 a:3
+T	he is	14	not:5 a:5 the:4
+T	he looked	6	at:6
+T	he or	7	she:7
+T	he said	7	to:4 he:3
+T	he wanted	11	to:11
+T	he was	63	not:20 a:16 the:7 in:7 going:6 still:4
+T	he would	24	not:10 have:8 be:6
+T	head of	6	the:6
+T	hello how	10	can:6 are:4
+T	help you	6	?:6
+T	hi how	10	are:10
+T	him in	7	the:7
+T	him to	8	the:5 be:3
+T	his or	10	her:10
+T	history of	10	the:10
+T	home in	8	ten:4 an:4
+T	hope to	6	see:6
+T	hospital in	8	ten:4 an:4
+T	how are	25	you:25
+T	how can	6	i:6
+T	how do	7	you:7
+T	how is	8	your:4 everyone:4
+T	how many	10	pieces:10
+T	how much	30	for:30
+T	how was	10	your:10
+T	i am	224	on:54 at:48 having:28 sorry:10 busy:10 not:9
+T	i can	46	not:38 see:4 do:4
+T	i can't	10	make:10
+T	i come	6	?:6
+T	i could	33	not:24 see:5 have:4
+T	i did	52	not:52
+T	i do	107	not:103 ?:4
+T	i don't	20	think:10 know:10
+T	i had	43	to:13 not:8 a:8 been:6 no:5 the:3
+T	i have	477	sent:80 shared:74 received:74 paid:64 forwarded:64 checked:64
+T	i help	6	you:6
+T	i know	21	you:6 that:6 what:3 it:3 i:3
+T	i love	16	you:16
+T	i need	41	to:9 your:4 the:4 some:4 more:4 money:4
+T	i should	8	have:5 not:3
+T	i think	70	so:14 it's:12 it:11 you:9 we:8 i:8
+T	i thought	12	i:5 you:4 it:3
+T	i told	13	you:5 him:5 her:3
+T	i tried	6	to:6
+T	i want	70	to:64 you:6
+T	i wanted	12	to:12
+T	i was	48	not:16 a:7 in:6 going:5 just:4 busy:4
+T	i will	519	send:96 check:92 share:80 deliver:80 be:74 call:70
+T	i would	27	not:11 have:7 like:5 be:4
+T	i'll call	64	you:64
+T	i'll reach	240	the:180 home:20 delhi:20 agra:20
+T	i'm feeling	40	tired:4 sick:4 okay:4 happy:4 great:4 good:4
+T	i'm going	48	to:48
+T	if he	23	had:7 was:6 were:4 did:3 could:3
+T	if i	17	had:5 were:3 was:3 could:3 can:3
+T	if it	25	is:9 was:7 were:6 had:3
+T	if she	11	was:4 had:4 were:3
+T	if there	13	is:7 was:3 are:3
+T	if they	15	were:6 are:6 had:3
+T	if you	63	need:14 do:11 are:11 have:9 want:8 can:6
+T	in a	59	way:9 few:6 very:4 small:4 single:4 meeting:4
+T	in accordance	12	with:12
+T	in addition	20	to:20
+T	in an	79	hour:76 attempt:3
+T	in any	12	case:5 way:4 form:3
+T	in contrast	6	to:6
+T	in five	6	minutes:6
+T	in front	34	of:34
+T	in his	23	own:5 eyes:5 hand:4 mind:3 life:3 arms:3
+T	in love	6	with:6
+T	in many	6	ways:3 cases:3
+T	in my	8	life:5 mind:3
+T	in new	8	york:8
+T	in one	7	of:7
+T	in order	61	to:61
+T	in other	16	words:16
+T	in patients	7	with:7
+T	in relation	14	to:14
+T	in response	9	to:9
+T	in some	90	time:80 cases:7 way:3
+T	in spite	9	of:9
+T	in stock	10	?:10
+T	in such	10	a:10
+T	in ten	82	minutes:82
+T	in terms	34	of:34
+T	in the	535	morning:40 united:25 same:24 world:23 case:21 first:20
+T	in this	74	case:16 chapter:13 way:9 book:8 section:6 context:4
+T	in to	10	days:10
+T	in which	47	the:24 they:6 he:6 it:4 a:4 we:3
+T	in whole	11	or:11
+T	included in	6	the:6
+T	into the	10	room:4 kitchen:3 house:3
+T	involved in	7	the:7
+T	is a	14	good:6 very:5 great:3
+T	is also	9	a:6 the:3
+T	is based	11	on:11
+T	is closed	6	on:6
+T	is free	10	above:10
+T	is going	8	to:8
+T	is important	11	to:11
+T	is in	10	the:10
+T	is it	16	possible:4 okay:4 done:4 available:4
+T	is likely	6	to:6
+T	is not	64	a:18 the:12 to:5 it:5 that:4 only:4
+T	is on	9	the:9
+T	is one	14	of:14
+T	is out	10	of:10
+T	is possible	6	to:6
+T	is shown	6	in:6
+T	is that	28	the:13 it:6 you:3 they:3 of:3
+T	is the	123	price:42 best:11 rate:10 delivery:10 most:8 only:6
+T	is this	22	available:14 size:4 colour:4
+T	is to	17	be:13 say:4
+T	is used	11	to:8 in:3
+T	it and	6	we:6
+T	it as	15	soon:10 a:5
+T	it by	12	tomorrow:6 courier:6
+T	it can	21	be:15 not:6
+T	it comes	6	to:6
+T	it could	10	be:7 not:3
+T	it did	14	not:14
+T	it does	19	not:19
+T	it had	16	been:13 not:3
+T	it has	16	been:13 a:3
+T	it in	11	the:8 a:3
+T	it is	202	not:37 a:28 the:20 important:13 also:11 out:10
+T	it may	13	be:13
+T	it might	7	be:7
+T	it must	11	be:8 have:3
+T	it seems	7	to:4 that:3
+T	it should	10	be:10
+T	it to	13	the:8 be:5
+T	it was	166	a:40 not:36 the:23 only:6 good:6 an:6
+T	it will	33	be:23 not:6 work:4
+T	it would	40	be:27 not:7 have:6
+T	items are	14	available:10 also:4
+T	ka diya	10	?:10
+T	ka hai	10	?:10
+T	kab tak	30	aayega:26 aaoge:4
+T	kaise ho	10	?:10
+T	kal baat	10	karte:10
+T	kal milte	10	hain:10
+T	kal tak	16	aa:10 bhej:6
+T	kar diya	10	hai:10
+T	kitne ka	20	hai:10 diya:10
+T	know how	7	to:7
+T	know if	14	you:14
+T	know that	6	the:3 i:3
+T	know what	12	to:5 i:4 you:3
+T	knowledge of	6	the:6
+T	known as	8	the:8
+T	ko bol	24	do:24
+T	kya chal	10	raha:10
+T	kya haal	10	hai:10
+T	kya hai	10	?:10
+T	large number	6	of:6
+T	lead to	6	the:3 a:3
+T	led to	9	the:6 a:3
+T	less than	6	the:3 a:3
+T	let me	44	know:22 check:14 think:4 see:4
+T	let you	20	know:20
+T	let's have	28	tea:4 lunch:4 food:4 dinner:4 coffee:4 chai:4
+T	let's meet	66	at:14 in:12 on:8 tonight:4 tomorrow:4 today:4
+T	likely to	10	be:10
+T	list bhej	8	do:8
+T	location of	7	the:7
+T	look at	11	the:11
+T	looked at	21	the:7 him:5 her:5 me:4
+T	lot to	10	us:10
+T	luck for	6	your:6
+T	maal aa	10	gaya:10
+T	maal bhej	8	do:4 dena:4
+T	maal kab	8	tak:4 aayega:4
+T	maal ready	10	hai:10
+T	main dukaan	10	pe:10
+T	main theek	10	hoon:10
+T	make it	10	today:10
+T	make sure	7	that:4 you:3
+T	make the	26	payment:26
+T	mall in	8	ten:4 an:4
+T	many happy	10	returns:10
+T	many many	10	happy:10
+T	many of	24	the:16 these:4 them:4
+T	many pieces	10	do:10
+T	market in	8	ten:4 an:4
+T	may be	22	suppressed:10 a:5 used:4 the:3
+T	may have	8	been:8
+T	may not	25	be:22 have:3
+T	me a	14	photo:10 favour:4
+T	me check	10	and:10
+T	me in	16	the:8 ten:4 an:4
+T	me know	18	if:14 when:4
+T	me on	8	sunday:4 monday:4
+T	me the	52	details:14 price:10 location:8 list:8 photos:4 catalogue:4
+T	me to	6	the:3 be:3
+T	me when	32	you:32
+T	me your	12	address:8 number:4
+T	means a	10	lot:10
+T	meet after	8	lunch:8
+T	meet at	12	pm:8 ?:4
+T	meet in	24	the:8 ten:8 an:8
+T	meet next	8	week:8
+T	meet on	16	sunday:8 monday:8
+T	meet this	8	evening:8
+T	meet tomorrow	10	?:10
+T	member of	10	the:10
+T	members of	16	the:16
+T	men and	8	women:8
+T	middle of	9	the:9
+T	might have	8	been:8
+T	minimum order	14	is:10 ?:4
+T	mom to	8	call:8
+T	more and	8	more:8
+T	more likely	9	to:9
+T	more of	7	the:4 a:3
+T	more or	7	less:7
+T	more than	31	a:14 one:9 the:5 two:3
+T	morning have	10	a:10
+T	most of	30	the:26 them:4
+T	much for	30	pieces:14 two:4 this:4 the:4 one:4
+T	much of	13	the:10 a:3
+T	must have	9	been:9
+T	my brother	12	to:8 call:4
+T	my friend	16	to:8 call:4 !:4
+T	my order	8	?:8
+T	my sister	12	to:8 call:4
+T	my way	48	to:48
+T	my wife	12	to:8 call:4
+T	name of	7	the:7
+T	nature of	12	the:12
+T	need anything	14	else:10 ?:4
+T	need to	27	be:17 know:4 get:3 do:3
+T	needs to	10	be:10
+T	new york	12	times:7 city:5
+T	next week	8	?:8
+T	nice to	8	meet:4 hear:4
+T	night take	10	care:10
+T	no matter	12	how:7 what:5
+T	no more	6	than:6
+T	none of	6	the:6
+T	not be	24	copied:11 able:6 a:4 the:3
+T	not going	15	to:15
+T	not have	44	to:16 a:9 the:7 been:7 any:5
+T	not in	7	the:7
+T	not know	33	what:13 how:7 if:4 why:3 the:3 that:3
+T	not need	7	to:7
+T	not only	10	the:4 to:3 in:3
+T	not seem	7	to:7
+T	not the	7	only:4 same:3
+T	not to	12	be:9 mention:3
+T	not want	32	to:32
+T	not yet	10	received:10
+T	now will	10	call:10
+T	number for	6	the:6
+T	of a	21	new:6 man:5 single:4 particular:3 large:3
+T	of all	16	the:16
+T	of her	7	own:4 life:3
+T	of his	13	own:8 life:5
+T	of my	7	life:4 own:3
+T	of one	14	of:6 packet:4 dozen:4
+T	of the	527	world:25 most:21 day:19 same:13 first:13 united:12
+T	of their	7	own:7
+T	of them	10	were:4 had:3 are:3
+T	of this	36	?:10 book:8 section:7 chapter:7 item:4
+T	of those	6	who:6
+T	of which	9	the:3 is:3 are:3
+T	office in	8	ten:4 an:4
+T	ok bhai	6	done:6
+T	okay sounds	10	good:10
+T	on behalf	6	of:6
+T	on delivery	14	is:10 available:4
+T	on his	11	face:5 way:3 own:3
+T	on monday	8	?:8
+T	on my	68	way:68
+T	on one	6	side:3 of:3
+T	on sunday	8	?:8
+T	on the	171	other:35 basis:12 way:11 ground:10 floor:10 table:8
+T	on this	14	upi:10 number:4
+T	on to	7	the:7
+T	on top	9	of:9
+T	on your	10	new:6 success:4
+T	one of	152	the:108 them:12 his:9 those:8 these:6 my:5
+T	one or	12	more:7 two:5
+T	one packet	8	?:8
+T	only a	7	few:7
+T	open from	10	am:10
+T	or at	7	least:7
+T	or in	15	part:11 the:4
+T	order as	12	soon:12
+T	order bhej	18	diya:10 do:4 dena:4
+T	order by	28	evening:28
+T	order has	18	been:18
+T	order in	16	some:16
+T	order is	26	pieces:10 ready:4 packed:4 on:4 confirmed:4
+T	order kab	8	tak:8
+T	order we	6	will:6
+T	order will	14	be:10 reach:4
+T	other side	6	of:6
+T	out in	8	the:8
+T	out of	110	the:58 stock:10 his:9 her:7 my:6 a:6
+T	out to	11	be:6 the:5
+T	over the	17	years:6 past:5 next:3 last:3
+T	over to	8	the:8
+T	oxford university	12	press:12
+T	pack the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	paid the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	paise bhej	18	diye:10 do:4 dena:4
+T	parcel as	12	soon:12
+T	parcel bhej	8	do:4 dena:4
+T	parcel by	12	evening:12
+T	parcel will	6	reach:6
+T	part of	76	the:54 a:10 this:6 their:3 his:3
+T	parts of	11	the:11
+T	party content	10	may:10
+T	party decorations	10	and:10
+T	payment by	20	evening:20
+T	payment in	16	some:16
+T	payment is	8	pending:4 due:4
+T	payment kar	14	diya:10 do:4
+T	payment on	14	this:14
+T	payment received	10	thank:10
+T	pe aa	20	jao:20
+T	per cent	8	of:8
+T	percent of	9	the:9
+T	photo bhej	12	do:8 dena:4
+T	photos as	12	soon:12
+T	photos by	28	evening:28
+T	photos in	16	some:16
+T	pick up	128	the:120 balloons:8
+T	pieces do	10	you:10
+T	place in	6	the:6
+T	please bring	64	the:60 balloons:4
+T	please call	34	me:34
+T	please check	96	the:74 your:6 once:4 balloons:4 and:4 ?:4
+T	please collect	64	the:60 balloons:4
+T	please confirm	74	the:70 balloons:4
+T	please deliver	144	the:140 balloons:4
+T	please forward	64	the:60 balloons:4
+T	please give	14	us:10 the:4
+T	please make	26	the:26
+T	please pack	64	the:60 balloons:4
+T	please pick	64	up:64
+T	please return	6	it:6
+T	please send	270	the:174 me:42 it:40 your:10 balloons:4
+T	please share	178	the:160 your:14 balloons:4
+T	please visit	20	our:20
+T	please wait	10	i:6 for:4
+T	point of	9	view:9
+T	portion of	7	the:7
+T	power of	6	the:6
+T	presence of	6	the:3 a:3
+T	price list	86	?:86
+T	price of	38	this:14 the:8 one:8 these:4 pieces:4
+T	prior to	6	the:6
+T	proceedings of	6	the:6
+T	proud of	8	you:8
+T	quality of	7	the:4 life:3
+T	raha hai	10	?:10
+T	rate for	6	wholesale:6
+T	rate kya	10	hai:10
+T	rather than	11	the:6 a:5
+T	reach agra	20	in:8 tomorrow:4 soon:4 by:4
+T	reach delhi	20	in:8 tomorrow:4 soon:4 by:4
+T	reach home	20	in:8 tomorrow:4 soon:4 by:4
+T	reach in	10	to:10
+T	reach the	180	warehouse:20 station:20 shop:20 office:20 market:20 mall:20
+T	receive the	60	stock:4 samples:4 price:4 photos:4 payment:4 parcel:4
+T	received thank	10	you:10
+T	received the	130	parcel:18 stock:8 samples:8 price:8 photos:8 payment:8
+T	referred to	10	as:10
+T	refers to	6	the:6
+T	refund has	10	been:10
+T	refund the	6	amount:6
+T	related to	11	the:11
+T	relation to	6	the:6
+T	respect to	6	the:6
+T	responsible for	6	the:6
+T	rest of	18	the:18
+T	result of	7	the:7
+T	return it	6	and:6
+T	return to	6	the:6
+T	returned to	6	the:6
+T	returns of	10	the:10
+T	review on	10	google:10
+T	right now	6	will:6
+T	role in	7	the:7
+T	role of	6	the:6
+T	sab maal	6	ready:6
+T	sab theek	14	hai:10 ?:4
+T	said to	10	be:4 him:3 have:3
+T	see the	60	stock:4 samples:4 price:4 photos:4 payment:4 parcel:4
+T	see you	34	tomorrow:10 soon:10 again:6 then:4 later:4
+T	seem to	11	be:7 have:4
+T	seemed to	15	be:11 have:4
+T	seems to	14	be:9 have:5
+T	seen the	60	stock:4 samples:4 price:4 photos:4 payment:4 parcel:4
+T	send balloons	8	?:8
+T	send it	30	today:10 as:10 by:6 again:4
+T	send me	74	the:52 your:12 a:10
+T	send the	374	photos:48 bill:48 order:44 details:44 payment:38 parcel:28
+T	send you	16	the:16
+T	send your	10	full:10
+T	sent the	130	payment:18 stock:8 samples:8 price:8 photos:8 parcel:8
+T	sent you	6	the:6
+T	shaam tak	10	bhej:10
+T	share the	300	photos:40 order:40 details:40 bill:40 payment:24 parcel:24
+T	share your	14	address:10 gst:4
+T	shared the	70	location:10 stock:4 samples:4 price:4 photos:4 payment:4
+T	she could	20	not:17 see:3
+T	she did	31	not:31
+T	she does	6	not:6
+T	she had	37	not:10 been:9 to:8 a:6 no:4
+T	she wanted	8	to:8
+T	she was	36	not:14 a:8 in:4 going:4 the:3 still:3
+T	she would	16	not:7 have:5 be:4
+T	shook her	8	head:8
+T	shook his	11	head:11
+T	shop in	8	ten:4 an:4
+T	shop is	6	closed:6
+T	shop pe	10	aa:10
+T	shopping with	14	us:14
+T	should be	6	noted:3 able:3
+T	should i	10	come:6 do:4
+T	should not	16	be:12 have:4
+T	shown in	18	figure:10 fig:5 the:3
+T	side of	27	the:27
+T	similar to	9	the:6 that:3
+T	sister to	8	call:8
+T	size do	10	you:10
+T	size of	7	the:7
+T	so as	7	to:7
+T	so it	6	was:3 is:3
+T	so that	27	the:11 they:5 it:4 he:4 you:3
+T	some kind	7	of:7
+T	some of	56	the:41 these:6 them:6 his:3
+T	some third	10	party:10
+T	soon as	83	possible:80 the:3
+T	sorry for	24	the:24
+T	sorry i	18	can't:10 was:4 missed:4
+T	sorry it	10	is:10
+T	station in	8	ten:4 an:4
+T	structure of	6	the:6
+T	study of	6	the:6
+T	such as	27	the:22 a:5
+T	supplier to	8	call:8
+T	supposed to	6	be:6
+T	suppressed from	10	the:10
+T	sure no	10	problem:10
+T	tak aa	10	jayega:10
+T	tak aayega	26	?:26
+T	tak bhej	16	denge:10 dena:6
+T	take care	18	of:18
+T	talk now	8	will:4 ?:4
+T	talk to	8	you:8
+T	tell my	16	wife:4 sister:4 friend:4 brother:4
+T	tell the	8	supplier:4 customer:4
+T	ten minutes	8	?:8
+T	terms of	9	the:9
+T	thank you	99	for:85 so:10 very:4
+T	thanks for	14	your:10 letting:4
+T	that can	17	be:14 not:3
+T	that did	6	not:6
+T	that does	8	not:8
+T	that had	9	been:9
+T	that have	6	been:6
+T	that he	70	was:23 had:19 would:9 could:7 is:5 did:4
+T	that i	47	was:11 had:8 have:6 am:6 could:5 would:4
+T	that in	7	the:7
+T	that is	26	not:8 the:7 to:4 a:4 why:3
+T	that it	59	was:22 is:22 would:6 has:3 had:3 can:3
+T	that of	16	the:12 a:4
+T	that she	30	was:13 had:9 would:4 could:4
+T	that there	36	is:15 was:9 are:8 were:4
+T	that they	44	were:11 are:11 had:6 would:5 have:4 can:4
+T	that this	11	is:6 was:5
+T	that was	17	the:7 not:6 a:4
+T	that we	20	have:6 are:6 can:5 were:3
+T	that would	11	be:8 have:3
+T	that you	27	can:7 are:7 have:6 will:4 do:3
+T	the ability	16	to:12 of:4
+T	the absence	11	of:11
+T	the address	80	?:80
+T	the age	9	of:9
+T	the amount	15	of:15
+T	the application	6	of:6
+T	the back	17	of:17
+T	the bank	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the basis	19	of:15 for:4
+T	the beginning	14	of:14
+T	the best	24	price:12 of:5 for:4 way:3
+T	the bill	202	?:80 tomorrow:28 today:28 by:28 in:16 as:12
+T	the bottom	9	of:9
+T	the case	24	of:24
+T	the catalogue	80	?:80
+T	the cause	6	of:6
+T	the center	9	of:9
+T	the concept	13	of:13
+T	the context	13	of:13
+T	the cost	9	of:9
+T	the course	12	of:12
+T	the creation	8	of:8
+T	the customer	12	to:8 call:4
+T	the day	7	!:4 of:3
+T	the death	7	of:7
+T	the delivery	10	charge:10
+T	the department	6	of:6
+T	the details	201	?:80 tomorrow:28 today:28 by:28 in:16 as:12
+T	the development	23	of:23
+T	the difference	8	between:8
+T	the direction	8	of:8
+T	the documents	80	?:80
+T	the door	13	and:6 to:4 of:3
+T	the ebook	10	and:10
+T	the edge	11	of:11
+T	the effect	12	of:12
+T	the effects	11	of:11
+T	the end	50	of:50
+T	the existence	9	of:9
+T	the extent	13	to:5 of:5 that:3
+T	the face	9	of:9
+T	the fact	41	that:41
+T	the field	6	of:6
+T	the first	49	time:21 place:6 to:5 two:4 of:4 thing:3
+T	the form	16	of:16
+T	the formation	7	of:7
+T	the front	11	door:6 of:5
+T	the godown	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the goods	80	?:80
+T	the gst	10	number:6 bill:4
+T	the hands	6	of:6
+T	the head	7	of:7
+T	the heart	7	of:7
+T	the history	14	of:14
+T	the hospital	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the house	11	of:8 and:3
+T	the idea	22	of:15 that:7
+T	the impact	9	of:9
+T	the importance	16	of:16
+T	the influence	8	of:8
+T	the invoice	80	?:80
+T	the issue	6	of:6
+T	the kind	9	of:9
+T	the lack	9	of:9
+T	the last	17	time:5 two:3 thing:3 of:3 few:3
+T	the length	6	of:6
+T	the level	12	of:12
+T	the life	6	of:6
+T	the light	6	of:6
+T	the location	8	of:8
+T	the loss	7	of:7
+T	the majority	10	of:10
+T	the mall	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the man	6	who:6
+T	the market	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the meaning	8	of:8
+T	the middle	19	of:15 east:4
+T	the money	80	?:80
+T	the morning	8	?:8
+T	the most	23	important:12 common:7 part:4
+T	the name	15	of:15
+T	the nature	16	of:16
+T	the need	20	for:11 to:9
+T	the new	16	york:7 year:6 testament:3
+T	the next	15	day:8 morning:4 few:3
+T	the notion	7	of:7
+T	the number	37	of:37
+T	the office	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the old	9	man:6 testament:3
+T	the one	17	who:8 hand:6 that:3
+T	the only	15	way:5 thing:5 one:5
+T	the opportunity	7	to:7
+T	the order	201	?:80 tomorrow:28 today:28 by:28 in:16 as:12
+T	the other	40	hand:22 side:11 two:4 end:3
+T	the parcel	144	?:90 tomorrow:12 today:12 by:12 as:12 will:6
+T	the part	7	of:7
+T	the payment	180	?:80 today:20 by:20 tomorrow:16 in:16 on:14
+T	the people	10	of:6 who:4
+T	the photos	196	?:80 tomorrow:28 today:28 by:28 in:16 as:12
+T	the place	7	of:4 where:3
+T	the point	8	of:8
+T	the possibility	13	of:10 that:3
+T	the potential	6	to:3 for:3
+T	the power	15	of:11 to:4
+T	the presence	21	of:21
+T	the price	196	list:150 of:42 ?:4
+T	the problem	10	of:7 is:3
+T	the process	14	of:14
+T	the production	6	of:6
+T	the purpose	12	of:12
+T	the quality	9	of:9
+T	the question	9	of:9
+T	the rate	17	of:7 for:6 ?:4
+T	the refund	6	has:6
+T	the relationship	11	between:11
+T	the rest	31	of:31
+T	the result	13	of:10 is:3
+T	the results	9	of:9
+T	the right	18	to:13 of:5
+T	the risk	8	of:8
+T	the role	18	of:18
+T	the same	54	time:30 way:9 as:9 thing:6
+T	the samples	80	?:80
+T	the scope	6	of:6
+T	the sense	9	of:6 that:3
+T	the set	8	of:4 ?:4
+T	the shop	30	in:8 is:6 tomorrow:4 soon:4 by:4 ?:4
+T	the side	10	of:10
+T	the size	10	of:10
+T	the son	6	of:6
+T	the sound	10	of:10
+T	the state	7	of:7
+T	the station	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the stock	80	?:80
+T	the story	7	of:7
+T	the structure	6	of:6
+T	the study	8	of:8
+T	the subject	7	of:7
+T	the supplier	12	to:8 call:4
+T	the surface	6	of:6
+T	the time	25	of:15 to:4 the:3 i:3
+T	the top	15	of:15
+T	the tracking	10	link:10
+T	the treatment	6	of:6
+T	the two	9	of:6 men:3
+T	the type	7	of:7
+T	the united	69	states:59 nations:5 kingdom:5
+T	the university	13	of:13
+T	the use	38	of:38
+T	the value	15	of:15
+T	the warehouse	24	in:8 tomorrow:4 soon:4 by:4 ?:4
+T	the way	43	to:7 of:5 in:5 he:5 you:3 they:3
+T	the work	11	of:11
+T	the world	12	of:5 and:4 is:3
+T	theek hai	10	kal:6 bhai:4
+T	them in	6	the:6
+T	them to	8	the:5 be:3
+T	there are	42	no:8 many:8 two:7 a:5 some:4 several:4
+T	there in	21	ten:10 the:7 an:4
+T	there is	105	a:40 no:37 an:8 nothing:5 not:5 also:4
+T	there on	8	sunday:4 monday:4
+T	there was	87	a:36 no:28 nothing:6 not:5 an:5 something:4
+T	there were	9	no:6 a:3
+T	there will	7	be:7
+T	there would	7	be:7
+T	they are	13	not:10 the:3
+T	they can	11	not:6 be:5
+T	they could	6	not:6
+T	they did	14	not:14
+T	they do	17	not:17
+T	they had	16	been:6 to:4 not:3 a:3
+T	they have	10	been:4 to:3 a:3
+T	they were	15	not:8 all:4 in:3
+T	they will	8	not:4 be:4
+T	they would	12	not:4 have:4 be:4
+T	think it's	12	fine:4 better:4 a:4
+T	third party	10	content:10
+T	this available	14	in:10 ?:4
+T	this evening	8	?:8
+T	this is	78	the:26 a:21 not:15 what:5 an:5 why:3
+T	this kind	6	of:6
+T	this type	7	of:7
+T	this upi	10	id:10
+T	this was	22	the:9 a:7 not:6
+T	thoda kam	10	karo:10
+T	thoda time	6	lagega:6
+T	those of	6	the:6
+T	those who	13	are:6 have:4 were:3
+T	time are	12	you:12
+T	time of	7	the:7
+T	time should	6	i:6
+T	to be	140	a:37 the:22 in:10 able:9 an:7 used:6
+T	to call	80	me:80
+T	to come	10	to:6 ?:4
+T	to create	8	a:8
+T	to deal	11	with:11
+T	to determine	10	the:7 whether:3
+T	to do	63	with:18 so:11 it:8 this:6 the:5 that:5
+T	to each	8	other:8
+T	to electronic	10	rights:10
+T	to ensure	9	that:9
+T	to find	21	the:7 out:7 a:7
+T	to get	30	the:8 a:8 to:6 out:5 back:3
+T	to give	10	the:4 up:3 a:3
+T	to go	32	to:13 out:7 back:5 home:4 on:3
+T	to have	41	a:17 been:11 the:6 to:4 an:3
+T	to his	7	feet:4 own:3
+T	to join	7	?:4 the:3
+T	to keep	7	the:7
+T	to know	17	the:8 that:5 what:4
+T	to look	13	at:10 for:3
+T	to make	43	a:15 the:12 sure:9 it:7
+T	to me	7	that:4 and:3
+T	to meet	18	you:8 the:6 ?:4
+T	to one	8	of:5 another:3
+T	to order	8	this:4 ?:4
+T	to return	14	this:8 to:6
+T	to say	10	that:10
+T	to see	56	you:12 the:12 if:7 what:5 that:5 how:4
+T	to take	19	the:8 a:8 care:3
+T	to talk	22	to:12 about:6 ?:4
+T	to tell	16	you:6 me:4 him:3 her:3
+T	to that	6	of:6
+T	to the	192	hospital:11 other:9 warehouse:8 station:8 shop:8 office:8
+T	to think	17	about:7 of:6 that:4
+T	to try	6	to:6
+T	to understand	7	the:7
+T	to use	11	the:8 a:3
+T	to work	11	with:5 on:3 in:3
+T	to you	18	and:10 soon:4 later:4
+T	top of	12	the:12
+T	two of	10	them:5 the:5
+T	two or	9	three:5 more:4
+T	understanding of	9	the:9
+T	united states	8	and:5 of:3
+T	university of	9	california:5 chicago:4
+T	up and	7	down:7
+T	up at	9	the:6 him:3
+T	up in	14	the:10 a:4
+T	up on	6	the:6
+T	up the	120	stock:8 samples:8 price:8 photos:8 payment:8 parcel:8
+T	up to	19	the:16 a:3
+T	up with	9	a:5 the:4
+T	us a	10	review:10
+T	use of	16	the:12 a:4
+T	used as	6	a:6
+T	used in	9	the:9
+T	value of	9	the:9
+T	version of	6	the:6
+T	view of	9	the:9
+T	visit our	20	website:10 shop:10
+T	wait for	8	me:4 five:4
+T	wait i	6	will:6
+T	want to	103	go:13 order:12 be:10 know:9 talk:8 return:8
+T	want you	7	to:7
+T	wanted to	11	be:5 know:3 do:3
+T	warehouse in	8	ten:4 an:4
+T	was a	14	little:4 good:4 very:3 great:3
+T	was able	10	to:10
+T	was about	8	to:8
+T	was going	25	to:21 on:4
+T	was in	17	the:12 a:5
+T	was not	42	a:13 the:10 sure:6 going:6 in:4 so:3
+T	was on	7	the:7
+T	was one	12	of:12
+T	was the	25	first:9 only:6 most:4 one:3 last:3
+T	was to	8	be:8
+T	was trying	6	to:6
+T	was your	10	day:10
+T	way in	6	which:6
+T	way to	55	the:43 home:4 delhi:4 agra:4
+T	ways in	6	which:6
+T	we also	10	do:10
+T	we are	19	open:10 not:5 closed:4
+T	we can	16	not:13 see:3
+T	we did	7	not:7
+T	we do	24	not:20 home:4
+T	we had	7	to:4 a:3
+T	we have	39	to:10 a:6 seen:5 not:4 new:4 all:4
+T	we hope	6	to:6
+T	we meet	70	in:12 tomorrow:10 on:8 at:8 tonight:4 today:4
+T	we need	13	to:13
+T	we will	39	replace:10 dispatch:10 deliver:10 refund:6 not:3
+T	well as	27	the:16 a:5 to:3 in:3
+T	went to	8	the:8
+T	were able	6	to:6
+T	what are	24	you:19 the:5
+T	what do	24	you:24
+T	what happened	7	?:4 to:3
+T	what he	9	was:5 had:4
+T	what is	100	the:95 it:5
+T	what it	9	is:5 was:4
+T	what kind	6	of:6
+T	what size	10	do:10
+T	what time	32	?:14 are:12 should:6
+T	what to	8	do:8
+T	what was	6	the:3 going:3
+T	what you	6	want:3 are:3
+T	when he	18	was:11 had:4 saw:3
+T	when i	11	was:11
+T	when it	19	comes:6 was:5 is:5 came:3
+T	when she	6	was:6
+T	when they	10	were:5 are:5
+T	when will	26	you:18 it:4 i:4
+T	when you	40	are:18 reach:10 wake:4 see:4 get:4
+T	where are	10	you:10
+T	whether or	8	not:8
+T	which can	7	be:7
+T	which colour	10	do:10
+T	which is	18	the:8 a:6 not:4
+T	who had	8	been:8
+T	whole or	11	in:11
+T	why do	10	not:6 you:4
+T	wide range	6	of:6
+T	wife to	8	call:8
+T	will be	105	there:66 delivered:10 available:10 a:6 the:5 late:4
+T	will call	84	you:84
+T	will check	86	the:80 and:6
+T	will deliver	90	the:80 it:6 tomorrow:4
+T	will dispatch	10	it:6 today:4
+T	will have	9	to:6 a:3
+T	will let	10	you:10
+T	will not	20	be:17 have:3
+T	will reach	10	in:10
+T	will refund	6	the:6
+T	will replace	10	it:10
+T	will send	96	the:80 you:16
+T	will share	80	the:80
+T	will you	18	deliver:10 come:4 be:4
+T	wishes for	6	the:6
+T	with all	6	the:6
+T	with each	6	other:6
+T	with one	6	of:3 another:3
+T	with regard	8	to:8
+T	with respect	17	to:17
+T	with the	16	same:6 other:4 help:3 exception:3
+T	world war	6	ii:6
+T	would be	28	a:11 the:7 to:4 no:3 able:3
+T	would have	30	been:19 to:11
+T	would like	10	to:10
+T	would not	31	be:18 have:13
+T	yes i	10	have:10
+T	yes it	10	is:10
+T	yes please	6	send:6
+T	you after	8	lunch:8
+T	you and	21	your:18 i:3
+T	you are	33	free:14 not:7 a:5 right:4 the:3
+T	you at	56	the:36 pm:8 home:4 delhi:4 agra:4
+T	you bring	64	the:60 balloons:4
+T	you can	36	not:20 see:5 use:4 do:4 also:3
+T	you check	128	the:120 balloons:8
+T	you checked	64	the:60 balloons:4
+T	you collect	64	the:60 balloons:4
+T	you come	64	in:12 on:8 at:8 tonight:4 tomorrow:4 today:4
+T	you coming	22	today:10 tonight:4 tomorrow:4 ?:4
+T	you confirm	64	the:60 balloons:4
+T	you deliver	74	the:60 ?:10 balloons:4
+T	you did	10	not:10
+T	you do	44	not:40 me:4
+T	you doing	18	?:18
+T	you eaten	6	?:6
+T	you feeling	12	okay:4 fine:4 better:4
+T	you for	80	your:34 the:20 shopping:14 everything:4 coming:4 calling:4
+T	you forward	64	the:60 balloons:4
+T	you get	68	the:60 time:4 balloons:4
+T	you had	28	tea:4 lunch:4 food:4 dinner:4 coffee:4 chai:4
+T	you have	65	to:13 a:9 not:5 time:4 tea:4 lunch:4
+T	you in	33	the:11 ten:8 an:8 five:6
+T	you know	14	what:6 that:5 how:3
+T	you may	6	have:3 be:3
+T	you need	52	?:20 anything:18 to:14
+T	you next	8	week:8
+T	you on	16	sunday:8 monday:8
+T	you pack	64	the:60 balloons:4
+T	you paid	64	the:60 balloons:4
+T	you pick	64	up:64
+T	you please	8	send:4 check:4
+T	you receive	64	the:60 balloons:4
+T	you received	74	the:70 balloons:4
+T	you see	68	the:60 this:4 balloons:4
+T	you seen	64	the:60 balloons:4
+T	you send	140	the:120 me:12 balloons:8
+T	you sent	64	the:60 balloons:4
+T	you share	64	the:60 balloons:4
+T	you so	10	much:10
+T	you the	22	catalogue:10 details:6 bill:6
+T	you think	11	you:4 ?:4 i:3
+T	you this	8	evening:8
+T	you want	66	to:49 ?:10 anything:4 me:3
+T	you will	22	not:9 be:7 have:3 find:3
+T	your day	10	?:10
+T	your family	8	a:4 !:4
+T	your feedback	10	means:10
+T	your full	10	address:10
+T	your new	6	shop:6
+T	your order	50	is:16 will:14 has:14 we:6

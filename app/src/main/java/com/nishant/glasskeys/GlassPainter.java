@@ -307,6 +307,7 @@ public class GlassPainter {
     private void drawSoft(Canvas c, RectF r, int w, int h, int rad, int style, boolean pressed) {
         // corner ≈ 30% of the key width, a soft squircle (measured from the reference)
         float rr = Math.min(Math.min(w, h) * 0.33f, 15 * dp);
+        if (rad >= Math.min(w, h) / 2f - 1) rr = Math.min(w, h) / 2f;    // round buttons stay round
         squircle(softPath, r.left, r.top, r.right, r.bottom, rr);
         softPaint.setShader(null);
         softPaint.setStyle(Paint.Style.FILL);

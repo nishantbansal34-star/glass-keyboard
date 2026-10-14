@@ -43,7 +43,7 @@ import java.util.List;
 
 public class GlassIME extends InputMethodService implements KeyboardView.Listener {
 
-    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6, P_BIZ = 7, P_DETECT = 8, P_PRICE = 9;
+    private static final int P_NONE = 0, P_EMOJI = 1, P_CLIP = 2, P_SNIP = 3, P_CALC = 4, P_EDIT = 5, P_STATS = 6, P_BIZ = 7, P_DETECT = 8, P_PRICE = 9, P_ORDERS = 10;
 
     private Prefs prefs;
     private Dictionary dict;
@@ -138,6 +138,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             prefs.setBool("amoledMigrated", true);
         }
         dict = new Dictionary(this, prefs);
+        new Thread(() -> { try { phrases.load(getAssets().open("phrases.txt")); } catch (Exception ignored) { } }).start();
         dp = getResources().getDisplayMetrics().density;
         gp = new GlassPainter(dp);
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
@@ -199,7 +200,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             View col = getChildAt(0);
             int w = MeasureSpec.getSize(wSpec);
             col.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-            int h = col.getMeasuredHeight();
+            int h = col.getMeasuredHeight() + getPaddingBottom();
             int ew = MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), eh = MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY);
             for (int i = 1; i < getChildCount(); i++) getChildAt(i).measure(ew, eh);
             setMeasuredDimension(w, h);
@@ -306,7 +307,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             return cachedPhoto;
         }
         int mode = prefs.bgMode();
-        if (mode == 5) return realWallpaper();
+        if (mode == 5) return BuildConfig.PLAY ? null : realWallpaper();
         if (mode == 0 || mode == 3 || mode == 4) return null;
         File f = new File(getFilesDir(), "backdrop.jpg");
         String key = mode == 2 && f.exists() ? f.getAbsolutePath() + f.lastModified() : "bloom";
@@ -329,6 +330,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         liquid = new LiquidBackdrop(dp);
         root = new RootView(this);
         gp.setRoot(root);
+        // Apps targeting Android 15+ draw the keyboard behind the navigation bar: keep the keys above it
+        if (Build.VERSION.SDK_INT >= 35 && getApplicationInfo().targetSdkVersion >= 35) {
+            root.setOnApplyWindowInsetsListener((v, ins) -> {
+                int nb = ins.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
+                if (v.getPaddingBottom() != nb) { v.setPadding(0, 0, 0, nb); v.requestLayout(); }
+                return ins;
+            });
+        }
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -367,7 +376,36 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return (int) ((rows * prefs.keyHeightDp() + 8) * dp);
     }
 
+    private boolean contactsLoaded;
+
+    /** Contact first/last names → suggestions with the right capitals (only if you turned it on). */
+    private void loadContactNames() {
+        boolean on = prefs.bool("contactnames", false)
+                && checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (!on) { if (contactsLoaded) { dict.setContactNames(null); contactsLoaded = false; } return; }
+        if (contactsLoaded) return;
+        contactsLoaded = true;
+        new Thread(() -> {
+            java.util.Map<String, String> m = new java.util.HashMap<>();
+            try (android.database.Cursor c = getContentResolver().query(android.provider.ContactsContract.Contacts.CONTENT_URI,
+                    new String[]{android.provider.ContactsContract.Contacts.DISPLAY_NAME_PRIMARY}, null, null, null)) {
+                if (c != null) while (c.moveToNext()) {
+                    String n = c.getString(0);
+                    if (n == null) continue;
+                    for (String part : n.split("[\\s,.()\\-]+")) {
+                        if (part.length() < 2 || part.length() > 20) continue;
+                        boolean letters = true;
+                        for (int i = 0; i < part.length(); i++) if (!Character.isLetter(part.charAt(i))) { letters = false; break; }
+                        if (letters) m.put(part.toLowerCase(), part);
+                    }
+                }
+            } catch (Exception ignored) { }
+            dict.setContactNames(m);
+        }).start();
+    }
+
     private void applySettings() {
+        loadContactNames();
         theme = prefs.pack() == 1 ? Theme.SHADOW : prefs.pack() == 2 ? Theme.STILL : prefs.pack() == 3 ? Theme.SOFT : Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
@@ -907,6 +945,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             if (before != null && before.toString().equals(lastCorrReplacement + " ")) {
                 ic.deleteSurroundingText(before.length(), 0);
                 ic.commitText(lastCorrOriginal, 1);
+                if (!noLearn) {
+                    dict.rejectCorrection(lastCorrOriginal, lastCorrReplacement);
+                    prevWord = lastCorrOriginal;
+                    toast("Got it — “" + lastCorrOriginal + "” won't be corrected again");
+                }
                 lastCorrOriginal = null;
                 updateStrip();
                 return;
@@ -1102,6 +1145,19 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 updateStrip();
             });
             cells.add(pc);
+            // a customer's question you copied → one-tap replies
+            List<Business.Reply> replies = Business.replyIdeas(prefs, clip);
+            for (int ri = 0; ri < replies.size() && ri < (lastClipFound.isEmpty() ? 2 : 1); ri++) {
+                final Business.Reply rp = replies.get(ri);
+                StripView.Cell rc = StripView.Cell.chip(rp.icon, rp.label, () -> {
+                    InputConnection c2 = getCurrentInputConnection();
+                    if (c2 != null) { commitComposing(); c2.commitText(rp.text, 1); }
+                    lastClipText = null;
+                    updateStrip();
+                });
+                rc.active = true;
+                cells.add(rc);
+            }
             if (!lastClipFound.isEmpty()) {
                 // spotted a phone / GSTIN / pincode / UPI / amount in what you copied
                 Business.Found f = lastClipFound.get(0);
@@ -1220,12 +1276,43 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                     if (!dup) pred.add(f);
                 }
             }
-            if (!pred.isEmpty()) {
+            // a question that looks finished ("how are you", "kab aaoge") → offer "?"
+            List<String> sentNow = sentenceSoFar();
+            if (sentNow.size() >= 3 && QUESTION_STARTS.contains(sentNow.get(0)) && !OPEN_ENDS.contains(sentNow.get(sentNow.size() - 1))) {
+                boolean has = false;
+                for (String x : pred) if (x.equals("?")) has = true;
+                if (!has) pred.add(Math.min(1, pred.size()), "?");
+            }
+            // whole phrase: your habits first, then your quick texts and common shop / chat phrases
+            String phrase = dict.personalPhrase(prevWord2, prevWord);
+            if (phrase == null && prevWord != null) {
+                List<String> snipTexts = new ArrayList<>();
+                for (Prefs.Snippet sp1 : prefs.snippets()) snipTexts.add(sp1.text);
+                phrase = phrases.continueFrom(sentenceSoFar(), snipTexts);
+            }
+            // emoji that fits what you just wrote ("happy birthday" → 🎂)
+            String emo = null;
+            if (prevWord != null) {
+                String[] e2 = prevWord2 != null ? EmojiWords.forWord(prevWord2.toLowerCase() + " " + prevWord.toLowerCase()) : new String[0];
+                String[] e1 = e2.length > 0 ? e2 : EmojiWords.forWord(prevWord.toLowerCase());
+                if (e1.length > 0) emo = e1[0];
+            }
+            if (!pred.isEmpty() || phrase != null) {
                 cells.add(orb(this::forceToolbar));
-                for (int i = 0; i < pred.size(); i++) {
-                    final String w = pred.get(i);
-                    cells.add(StripView.Cell.word(w, i == 0, () -> pickPrediction(w)));
+                int room = 4;
+                if (phrase != null) {
+                    final String ph = phrase;
+                    StripView.Cell pc = StripView.Cell.chip(0, ph, () -> pickPhrase(ph));
+                    pc.weight = 2.2f;
+                    cells.add(pc);
+                    room = 2;
                 }
+                if (emo != null) room--;
+                for (int i = 0; i < pred.size() && i < room; i++) {
+                    final String w = pred.get(i);
+                    cells.add(StripView.Cell.word(w, i == 0 && phrase == null, () -> pickPrediction(w)));
+                }
+                if (emo != null) { final String e0 = emo; cells.add(StripView.Cell.word(e0, false, () -> wordThenEmoji(e0))); }
                 strip.setCells(cells);
                 return;
             }
@@ -1541,6 +1628,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             hiPicks.put(key, (hiPicks.containsKey(key) ? hiPicks.get(key) : 0) + 3);
             prefs.saveHiPicks(hiPicks);
         }
+        // tapping your own spelling instead of the correction we were about to make: remember that
+        if (!noLearn && lang == 0 && !noAutoCorrect && word.equals(typedNow)) {
+            String fix = dict.autocorrect(typedNow, prevWord, prevWord2);
+            if (fix != null && !fix.equals(typedNow)) dict.rejectCorrection(typedNow, null);
+        }
         ic.beginBatchEdit();
         finishWord(ic, false, word);
         lastCorrOriginal = null;
@@ -1552,9 +1644,60 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         updateStrip();
     }
 
+    private final Phrases phrases = new Phrases();
+    private static final java.util.Set<String> QUESTION_STARTS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "what", "why", "how", "where", "when", "who", "which", "whose", "can", "could", "would", "will", "should", "do", "does",
+            "did", "is", "are", "am", "was", "were", "shall", "may", "have", "has", "kya", "kab", "kaha", "kahan", "kyun", "kyu",
+            "kaise", "kitne", "kitna", "kitni", "kaun", "kidhar"));
+    /** Words a sentence can't sensibly end on. */
+    private static final java.util.Set<String> OPEN_ENDS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "the", "a", "an", "to", "of", "and", "or", "my", "your", "our", "their", "his", "her", "its", "in", "on", "at", "for",
+            "with", "from", "by", "is", "are", "was", "were", "be", "will", "can", "do", "does", "did",
+            "if", "but", "so", "that", "this", "ka", "ki", "ke", "ko", "se", "me", "mein", "aur"));
+
+    /** Words of the sentence being written (lowercase), for phrase matching. */
+    private List<String> sentenceSoFar() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return new ArrayList<>();
+        CharSequence cs = ic.getTextBeforeCursor(160, 0);
+        if (cs == null) return new ArrayList<>();
+        String s = cs.toString();
+        int cut = Math.max(Math.max(s.lastIndexOf('.'), s.lastIndexOf('?')), Math.max(s.lastIndexOf('!'), s.lastIndexOf('\n')));
+        return Phrases.words(s.substring(cut + 1));
+    }
+
+    private void pickPhrase(String phrase) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        ic.commitText(phrase + " ", 1);
+        List<String> ws = Phrases.words(phrase);
+        if (!noLearn) for (String w : ws) { dict.learn(w, prevWord, prevWord2); prevWord2 = prevWord; prevWord = w; }
+        else if (!ws.isEmpty()) { prevWord2 = ws.size() > 1 ? ws.get(ws.size() - 2) : prevWord; prevWord = ws.get(ws.size() - 1); }
+        String t = phrase.trim();
+        if (t.endsWith(".") || t.endsWith("?") || t.endsWith("!")) { prevWord = null; prevWord2 = null; }
+        lastEditTime = lastSpaceTime = SystemClock.uptimeMillis();
+        autoSpaced = true;
+        updateShift();
+        updateStrip();
+    }
+
     private void pickPrediction(String word) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
+        if (word.equals("?") || word.equals("!")) {
+            // punctuation sits right after the word: take back the space first
+            ic.beginBatchEdit();
+            CharSequence b = ic.getTextBeforeCursor(1, 0);
+            if (b != null && b.length() == 1 && b.charAt(0) == ' ') ic.deleteSurroundingText(1, 0);
+            ic.commitText(word + " ", 1);
+            ic.endBatchEdit();
+            prevWord = null; prevWord2 = null;
+            lastEditTime = lastSpaceTime = SystemClock.uptimeMillis();
+            autoSpaced = true;
+            updateShift();
+            updateStrip();
+            return;
+        }
         ic.commitText(word + " ", 1);
         if (!noLearn) dict.learn(word, prevWord, prevWord2);
         gainXp(word, false);
@@ -1612,6 +1755,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         clipList.setOnCard(new CardList.OnCard() {
             @Override public void tap(CardList.Card c) {
                 if (panel == P_STATS) return;
+                if (panel == P_ORDERS) {   // insert this order's details
+                    if (!(c.tag instanceof Long)) return;
+                    for (Prefs.Order o : prefs.orders()) if (o.id == (Long) c.tag) {
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) { commitComposing(); ic.commitText("Your order: " + o.items + "\nTotal: " + Business.rupees(o.total) + (o.paid ? "\nPayment received, thank you!" : ""), 1); }
+                    }
+                    return;
+                }
                 if (panel == P_PRICE) {
                     if (c.tag instanceof Integer) priceAdd((Integer) c.tag, 1);
                     return;
@@ -1626,6 +1777,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             }
             @Override public void icon(CardList.Card c, int i) {
                 if (panel == P_DETECT && c.tag instanceof Business.Found) { detectedAction((Business.Found) c.tag, c.icons[i]); return; }
+                if (panel == P_ORDERS && c.tag instanceof Long) {
+                    List<Prefs.Order> os = prefs.orders();
+                    for (int k = 0; k < os.size(); k++) if (os.get(k).id == (Long) c.tag) {
+                        Prefs.Order o = os.get(k);
+                        int ic = c.icons[i];
+                        if (ic == GlassPainter.IC_RUPEE) { o.paid = !o.paid; toast(o.paid ? "Marked paid" : "Marked unpaid"); }
+                        else if (ic == GlassPainter.IC_CHECK) { o.delivered = !o.delivered; toast(o.delivered ? "Marked delivered" : "Marked not delivered"); }
+                        else if (ic == GlassPainter.IC_TRASH) { os.remove(k); toast("Order removed"); }
+                        break;
+                    }
+                    prefs.saveOrders(os);
+                    feedback(false);
+                    refreshOrders();
+                    updateStrip();
+                    return;
+                }
                 if (panel == P_PRICE) {
                     if (!(c.tag instanceof Integer)) return;
                     int idx = (Integer) c.tag;
@@ -1713,7 +1880,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             r.add(row(new PadView.Btn("prices", "Price list & order", GlassPainter.IC_GRID),
                     new PadView.Btn("upi", "Send UPI ID", GlassPainter.IC_SEND)));
             r.add(row(new PadView.Btn("hours", "Shop hours & location", GlassPainter.IC_CLOCK),
-                    new PadView.Btn("setup", "Business details", GlassPainter.IC_SHOP).style(GlassPainter.STYLE_FUNC)));
+                    new PadView.Btn("orders", "Orders", GlassPainter.IC_CHECK)));
             bizPad.setRows(r);
         }
         bizPad.setOnPress(b -> {
@@ -1730,6 +1897,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 case "upi": if (bizReady() && ic != null) { commitComposing(); ic.commitText(Business.paymentText(prefs, 0), 1); } break;
                 case "setup": openSettings("business"); break;
                 case "prices": showPanel(P_PRICE); break;
+                case "orders": showPanel(P_ORDERS); break;
                 case "kb": showPanel(P_NONE); break;
             }
         });
@@ -1756,6 +1924,30 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         feedback(false);
         refreshPrices();
         updateStrip();
+    }
+
+    private void refreshOrders() {
+        List<CardList.Card> cards = new ArrayList<>();
+        for (Prefs.Order o : prefs.orders()) {
+            CardList.Card c = new CardList.Card();
+            c.title = Business.when(o.time) + (o.note != null && !o.note.isEmpty() ? "  ·  " + o.note : o.app != null && !o.app.isEmpty() ? "  ·  " + o.app : "");
+            c.body = o.items + "\n" + Business.rupees(o.total) + "   ·   " + (o.paid ? "Paid ✓" : "Unpaid") + "   ·   " + (o.delivered ? "Delivered ✓" : "To deliver");
+            c.badge = o.paid && o.delivered ? "done" : null;
+            c.icons = new int[]{GlassPainter.IC_RUPEE, GlassPainter.IC_CHECK, GlassPainter.IC_TRASH};
+            c.tag = o.id;
+            cards.add(c);
+        }
+        clipList.setCards(cards, "Orders you send from Price list & order are saved here. Tap ₹ for paid, ✓ for delivered.");
+    }
+
+    /** Friendly name of the app you're typing in (for the order record). */
+    private String currentAppLabel() {
+        try {
+            EditorInfo ei = getCurrentInputEditorInfo();
+            if (ei == null || ei.packageName == null) return "";
+            android.content.pm.PackageManager pm = getPackageManager();
+            return pm.getApplicationLabel(pm.getApplicationInfo(ei.packageName, 0)).toString();
+        } catch (Exception e) { return ""; }
     }
 
     private void refreshPrices() {
@@ -1813,7 +2005,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.setVisibility(p == P_NONE ? View.VISIBLE : View.GONE);
         emojiPanel.setVisibility(p == P_EMOJI ? View.VISIBLE : View.GONE);
         if (p != P_NONE) emojiSearch = false;
-        clipScroll.setVisibility(p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE ? View.VISIBLE : View.GONE);
+        clipScroll.setVisibility(p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE || p == P_ORDERS ? View.VISIBLE : View.GONE);
         snipScroll.setVisibility(p == P_SNIP ? View.VISIBLE : View.GONE);
         calcPanel.setVisibility(p == P_CALC ? View.VISIBLE : View.GONE);
         editPad.setVisibility(p == P_EDIT ? View.VISIBLE : View.GONE);
@@ -1823,11 +2015,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (p == P_STATS) { refreshStats(); clipScroll.scrollTo(0, 0); }
         if (p == P_DETECT) { refreshDetected(); clipScroll.scrollTo(0, 0); }
         if (p == P_PRICE) { refreshPrices(); clipScroll.scrollTo(0, 0); }
+        if (p == P_ORDERS) { refreshOrders(); clipScroll.scrollTo(0, 0); }
         if (p == P_SNIP) { refreshSnippets(); snipScroll.scrollTo(0, 0); }
         if (p == P_CALC) calcDisplay.invalidate();
         if (p == P_EDIT) { selectMode = false; editPad.setRows(editRows()); }
         if (p == P_NONE) updateShift();
-        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE) ? clipScroll
+        View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE || p == P_ORDERS) ? clipScroll
                 : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : p == P_BIZ ? bizPad : editPad;
         if (prefs.glassRipple()) {
             shown.setAlpha(0f);
@@ -1852,7 +2045,20 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 break;
             case P_BIZ:
                 cells.add(StripView.Cell.title(Business.name(prefs).isEmpty() ? "Business tools" : Business.name(prefs)));
+                cells.add(StripView.Cell.icon(GlassPainter.IC_GEAR, () -> openSettings("business")));
                 break;
+            case P_ORDERS: {
+                List<Prefs.Order> os = prefs.orders();
+                int today = 0; double due = 0;
+                for (Prefs.Order o : os) if (Business.sameDay(o.time, System.currentTimeMillis())) { today++; if (!o.paid) due += o.total; }
+                cells.add(StripView.Cell.title("Today: " + today + (today == 1 ? " order" : " orders") + (due > 0 ? " · due " + Business.rupees(due) : "")));
+                StripView.Cell sm = StripView.Cell.chip(GlassPainter.IC_SEND, "Day summary", () -> {
+                    InputConnection ic = getCurrentInputConnection();
+                    if (ic != null) { commitComposing(); ic.commitText(Business.daySummary(prefs.orders()), 1); }
+                });
+                cells.add(sm);
+                break;
+            }
             case P_DETECT:
                 cells.add(StripView.Cell.title("Found in what you copied · tap to insert"));
                 break;
@@ -1884,6 +2090,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                             commitComposing();
                             ic.commitText(Business.orderText(prefs, prefs.products(), cart), 1);
                             orderSent = total;
+                            // keep a record in the order tracker
+                            prefs.addOrder(Business.cartSummary(prefs.products(), cart), total, currentAppLabel());
+                            toast("Order sent and saved to Orders");
                             updateStrip();
                         });
                         oc.active = true;

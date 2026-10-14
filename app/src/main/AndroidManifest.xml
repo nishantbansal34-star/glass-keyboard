@@ -4,6 +4,8 @@
     <!-- No INTERNET permission: this keyboard can never send what you type anywhere. -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Optional (off by default): suggest names from your contacts. Names stay on the phone. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Only to read your home-screen wallpaper so the glass can refract it (Android requires this). -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -26,6 +28,10 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 

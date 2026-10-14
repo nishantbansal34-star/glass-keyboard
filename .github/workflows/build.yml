@@ -28,3 +28,38 @@ jobs:
           body: Tap the .apk file below to download, then open it to install.
           files: GlassKeys-*.apk
           make_latest: true
+
+  # Google Play version (.aab): newest Android target, no "All files access", commercially licensed data.
+  # Signed when the PLAY_KEYSTORE_B64 + PLAY_STORE_PASSWORD secrets are set; a failure here never blocks the APK.
+  play:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      HAS_KEY: ${{ secrets.PLAY_KEYSTORE_B64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Upload key
+        if: env.HAS_KEY == 'true'
+        env:
+          KS: ${{ secrets.PLAY_KEYSTORE_B64 }}
+        run: |
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "PLAY_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - name: Build Play bundle
+        env:
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_STORE_PASSWORD }}
+        run: gradle -Pplay -Pagp=8.10.1 :app:bundleRelease --no-daemon --stacktrace
+      - name: Name bundle
+        run: cp app/build/outputs/bundle/release/app-release.aab GlassKeys-play-${{ github.run_number }}${{ env.HAS_KEY == 'true' && '' || '-UNSIGNED' }}.aab
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: GlassKeys-play-*.aab

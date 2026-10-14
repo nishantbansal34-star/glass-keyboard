@@ -212,11 +212,16 @@ public class StripView extends View {
             gp.drawIcon(c, first.icon, circle.centerX(), circle.centerY(), 20 * dp, theme.text);
             capLeft = circle.right + 6 * dp;
         }
+        boolean anyText = false;
+        for (Cell cc : cells) if (cc.text != null) { anyText = true; break; }
+        boolean softBar = gp.pack == 3 && !anyText;
         if (!premium()) {
             capsule.set(capLeft, top, W - m, bot);
-            gp.variant = -1;
-            gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
-            gp.variant = 0;
+            if (!softBar) {
+                gp.variant = -1;
+                gp.drawGlass(c, capsule, d / 2, GlassPainter.STYLE_KEY, false, theme);
+                gp.variant = 0;
+            }
         }
         long now = android.os.SystemClock.uptimeMillis();
         float tt = transStart < 0 ? 1f : Math.min(1f, (now - transStart) / 170f);
@@ -284,7 +289,15 @@ public class StripView extends View {
                 if (!cell.chip && !cell.title && prevWord != null) c.drawLine(r.left, top + d * 0.28f, r.left, bot - d * 0.28f, div);
                 prevWord = cell.chip || cell.title ? null : cell;
             } else if (cell.icon != 0) {
-                gp.drawIcon(c, cell.icon, (cl + cr) / 2, cy, 21 * dp, col);
+                if (softBar) {
+                    // Soft Glass toolbar: each tool is its own round glass button; the mic is blue
+                    float rr = Math.min((cr - cl) / 2f, (bot - top) / 2f) - 1 * dp;
+                    RectF g = new RectF((cl + cr) / 2f - rr, cy - rr, (cl + cr) / 2f + rr, cy + rr);
+                    boolean mic = cell.icon == GlassPainter.IC_MIC;
+                    gp.variant = 0;
+                    gp.drawGlass(c, g, rr, mic ? GlassPainter.STYLE_ACTION : GlassPainter.STYLE_KEY, cell == pressed, theme);
+                    gp.drawIcon(c, cell.icon, g.centerX(), g.centerY(), 19 * dp, 0xFFFFFFFF);
+                } else gp.drawIcon(c, cell.icon, (cl + cr) / 2, cy, 21 * dp, col);
                 prevWord = null;
             }
         }

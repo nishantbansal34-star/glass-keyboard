@@ -209,6 +209,111 @@ public class Business {
         return sb.toString();
     }
 
+    // ------------------------------------------------------------------ orders
+
+    /** "Balloons × 2, Banner × 1" from the cart. */
+    public static String cartSummary(java.util.List<Prefs.Product> items, java.util.Map<Integer, Integer> cart) {
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<Integer, Integer> e : cart.entrySet()) {
+            if (e.getKey() >= items.size()) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(items.get(e.getKey()).name).append(" × ").append(e.getValue());
+        }
+        return sb.toString();
+    }
+
+    static boolean sameDay(long a, long b) {
+        Calendar x = Calendar.getInstance(), y = Calendar.getInstance();
+        x.setTimeInMillis(a); y.setTimeInMillis(b);
+        return x.get(Calendar.YEAR) == y.get(Calendar.YEAR) && x.get(Calendar.DAY_OF_YEAR) == y.get(Calendar.DAY_OF_YEAR);
+    }
+
+    public static String when(long t) {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(sameDay(t, System.currentTimeMillis()) ? "'Today' h:mm a" : "d MMM, h:mm a", java.util.Locale.ENGLISH);
+        return f.format(new java.util.Date(t));
+    }
+
+    /** Today's orders at a glance, ready to send to yourself or a partner. */
+    public static String daySummary(java.util.List<Prefs.Order> orders) {
+        long now = System.currentTimeMillis();
+        int n = 0, unpaid = 0, pending = 0; double sum = 0, due = 0;
+        StringBuilder lines = new StringBuilder();
+        for (Prefs.Order o : orders) {
+            if (!sameDay(o.time, now)) continue;
+            n++; sum += o.total;
+            if (!o.paid) { unpaid++; due += o.total; }
+            if (!o.delivered) pending++;
+            lines.append("\n• ").append(o.note != null && !o.note.isEmpty() ? o.note + ": " : "").append(o.items)
+                 .append(" — ").append(rupees(o.total)).append(o.paid ? " ✓paid" : " (unpaid)").append(o.delivered ? " ✓delivered" : "");
+        }
+        if (n == 0) return "No orders saved today.";
+        return "*Orders today: " + n + "*  ·  Total " + rupees(sum) + "  ·  Unpaid " + rupees(due) + " (" + unpaid + ")  ·  To deliver: " + pending + lines;
+    }
+
+    // ------------------------------------------------------------------ replies to a copied customer message
+
+    public static final class Reply {
+        public final String label, text; public final int icon;
+        Reply(String label, String text, int icon) { this.label = label; this.text = text; this.icon = icon; }
+    }
+
+    private static boolean any(String t, String... keys) {
+        for (String k : keys) {
+            if (k.startsWith("^")) { if (t.startsWith(k.substring(1))) return true; }
+            else if (java.util.regex.Pattern.compile("(^|[^a-z])" + java.util.regex.Pattern.quote(k) + "([^a-z]|$)").matcher(t).find()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Reads a message you copied from a customer and suggests replies: price list, delivery time,
+     * availability, payment details, shop location, opening hours, greeting or thanks. Best first.
+     */
+    public static List<Reply> replyIdeas(Prefs p, String msg) {
+        List<Reply> out = new ArrayList<>();
+        if (msg == null) return out;
+        String t = msg.toLowerCase(java.util.Locale.ROOT).trim();
+        if (t.length() > 400) t = t.substring(0, 400);
+        String upi = upi(p), name = name(p);
+        if (any(t, "price", "prices", "rate", "rates", "cost", "how much", "kitne", "kitna", "kitni", "mrp", "price list", "catalogue", "catalog", "rate list", "kya rate", "best price", "wholesale")) {
+            List<Prefs.Product> items = p.products();
+            if (!items.isEmpty()) out.add(new Reply("Send price list", priceListText(p, items), GlassPainter.IC_RUPEE));
+            else out.add(new Reply("Ask which item", "Sure! Please tell me which item and how many pieces you need, and I'll share the best price.", GlassPainter.IC_RUPEE));
+        }
+        if (any(t, "deliver", "delivery", "delivered", "dispatch", "dispatched", "shipped", "tracking", "courier", "parcel", "kab tak", "kab aayega", "kab milega", "kab aaega", "when will", "where is my order", "order status", "reach")) {
+            String d = p.str("bizDelivery", "").trim();
+            if (d.isEmpty()) d = "Your order will be dispatched today and should reach you in 3–4 days. I'll share the tracking details as soon as it's shipped.";
+            out.add(new Reply("Delivery time", d, GlassPainter.IC_CLOCK));
+        }
+        if (any(t, "available", "availability", "in stock", "stock", "milega", "mil jayega", "hai kya", "do you have", "have you got")) {
+            out.add(new Reply("Yes, available", "Yes, it's available. How many pieces do you need?", GlassPainter.IC_SHOP));
+        }
+        if (any(t, "pay", "payment", "upi", "gpay", "google pay", "phonepe", "paytm", "account number", "bank details", "qr", "scanner")) {
+            String txt = !upi.isEmpty()
+                    ? "You can pay on UPI: " + upi + (name.isEmpty() ? "" : " (" + name + ")") + "\nPlease share the screenshot once it's done. Thank you!"
+                    : "I'll share the payment details right away.";
+            out.add(new Reply("Payment details", txt, GlassPainter.IC_QR));
+        }
+        if (any(t, "address", "location", "where is your shop", "where is the shop", "shop kaha", "shop kahan", "dukaan kaha", "dukaan kahan", "dukan kaha", "directions", "map")) {
+            String addr = p.str("bizAddress", "").trim(), maps = p.str("bizMaps", "").trim(), ph = p.str("bizPhone", "").trim();
+            StringBuilder sb = new StringBuilder();
+            if (!addr.isEmpty()) sb.append(name.isEmpty() ? "Our shop: " : name + ": ").append(addr);
+            if (!maps.isEmpty()) sb.append(sb.length() > 0 ? "\n" : "").append("Location: ").append(maps);
+            if (!ph.isEmpty()) sb.append(sb.length() > 0 ? "\n" : "").append("Call / WhatsApp: ").append(ph);
+            if (sb.length() > 0) out.add(new Reply("Shop location", sb.toString(), GlassPainter.IC_MAP));
+        }
+        if (any(t, "open", "opening", "timing", "timings", "closed", "close", "kab khulega", "khula", "khuli", "band", "holiday", "sunday")) {
+            out.add(new Reply("Shop hours", hoursText(p, Calendar.getInstance()), GlassPainter.IC_CLOCK));
+        }
+        if (out.isEmpty() && any(t, "^hi", "^hello", "^hey", "^namaste", "^good morning", "^good evening", "^hii", "^helo")) {
+            out.add(new Reply("Greet", "Namaste! Thank you for contacting us" + (name.isEmpty() ? "" : " at " + name) + ". How can I help you today?", GlassPainter.IC_SPARKLE));
+        }
+        if (out.isEmpty() && any(t, "thank", "thanks", "thank you", "shukriya", "dhanyavaad", "dhanyawad", "thx")) {
+            out.add(new Reply("You're welcome", "You're welcome! Do visit again 😊", GlassPainter.IC_SPARKLE));
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ detecting details in copied text
 
     public static final int PHONE = 1, GSTIN = 2, PINCODE = 3, UPI = 4, AMOUNT = 5, EMAIL = 6;

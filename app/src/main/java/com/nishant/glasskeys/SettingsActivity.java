@@ -98,6 +98,15 @@ public class SettingsActivity extends Activity {
         col.setPadding(p, (int) (28 * dp), p, (int) (40 * dp));
         scroll.addView(col);
         setContentView(scroll);
+        // Android 15+ draws apps edge-to-edge: keep the settings clear of the status and navigation bars
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            final int top0 = (int) (28 * dp), bot0 = (int) (40 * dp), side = p;
+            scroll.setOnApplyWindowInsetsListener((v, ins) -> {
+                android.graphics.Insets b = ins.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                col.setPadding(side + b.left, top0 + b.top, side + b.right, bot0 + b.bottom);
+                return ins;
+            });
+        }
 
         TextView title = text("Glass Keys", 30, true);
         col.addView(title);
@@ -141,6 +150,7 @@ public class SettingsActivity extends Activity {
         biz.addView(bizField("UPI ID (e.g. nrrl@okaxis)", "bizUpi", false));
         biz.addView(bizField("Phone / WhatsApp number", "bizPhone", false));
         biz.addView(bizField("Shop address", "bizAddress", true));
+        biz.addView(bizField("Usual delivery reply (used when a customer asks \"kab tak aayega?\")", "bizDelivery", true));
         biz.addView(bizField("Google Maps link (optional)", "bizMaps", false));
         LinearLayout times = new LinearLayout(this);
         EditText op = bizField("Opens (10:00)", "bizOpen", false);
@@ -211,6 +221,16 @@ public class SettingsActivity extends Activity {
             toast("Added");
         }));
 
+        // --- Orders
+        LinearLayout oc = card("Orders");
+        TextView oh = text("Every order you send from Price list & order is saved here. In the keyboard: ₹ Business → Orders — tap ₹ to mark paid, ✓ for delivered, \"Day summary\" sends today's totals. Tap an order here to add the customer's name.", 13, false);
+        oh.setAlpha(0.7f);
+        oc.addView(oh);
+        LinearLayout olist = new LinearLayout(this);
+        olist.setOrientation(LinearLayout.VERTICAL);
+        oc.addView(olist);
+        renderOrders(olist);
+
         // --- Languages
         LinearLayout lg = card("Languages");
         TextView lh = text("Adds a 🌐 key next to space. Tap it to switch:\n• English\n• Hinglish → हिंदी — type \"aap kaise ho\" in English letters and get आप कैसे हो. Space puts in the top Hindi word; tap the English word in the bar to keep it as typed. It remembers your choices.\n• हिंदी — Hindi keys. Hold a letter for its other forms (क → ख, ग → घ…); shift shows the full vowels and rarer letters. A vowel sign at the start of a word becomes the full vowel (ा → आ).\nHold 🌐 to switch to another keyboard app. Voice typing uses Hindi while a Hindi mode is on.", 13, false);
@@ -258,12 +278,13 @@ public class SettingsActivity extends Activity {
                     prefs.setBool("darkglass", !v.equals("0"));
                 }));
         look.addView(label("Background"));
-        look.addView(choice(new String[]{"Wallpaper", "Real wallpaper", "Graphite", "Bloom", "My photo"}, new String[]{"4", "5", "3", "1", "2"},
+        look.addView(choice(BuildConfig.PLAY ? new String[]{"Wallpaper", "Graphite", "Bloom", "My photo"} : new String[]{"Wallpaper", "Real wallpaper", "Graphite", "Bloom", "My photo"},
+                BuildConfig.PLAY ? new String[]{"4", "3", "1", "2"} : new String[]{"4", "5", "3", "1", "2"},
                 String.valueOf(prefs.bgMode()), v -> {
                     if (v.equals("2") && !new File(getFilesDir(), "backdrop.jpg").exists()) { pickPhoto(); return; }
                     prefs.setInt("bgmode", Integer.parseInt(v));
                 }));
-        if (!GlassIME.canReadWallpaper(this)) {
+        if (!BuildConfig.PLAY && !GlassIME.canReadWallpaper(this)) {
             TextView wh = text("To see your real wallpaper through the glass, Android needs \"All files access\" for Glass Keys (used only to read the wallpaper; the app has no internet). Without it, the glass uses your wallpaper's colours.", 13, false);
             wh.setAlpha(0.7f);
             look.addView(wh);
@@ -331,6 +352,13 @@ public class SettingsActivity extends Activity {
         typing.addView(toggle("Double-tap space for a full stop", "dblspace", true));
         typing.addView(toggle("Always-visible number row", "numrow", false));
         typing.addView(toggle("Learn words I type (off = always incognito)", "learn", true));
+        Switch names = toggle("Suggest names from my contacts (read on this phone only, never shared)", "contactnames", false);
+        names.setOnCheckedChangeListener((b, on) -> {
+            prefs.setBool("contactnames", on);
+            if (on && checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+                requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS);
+        });
+        typing.addView(names);
         typing.addView(toggle("Incognito now — don't learn or keep clipboard history (also: hold the ✦ orb in the keyboard)", "incognito", false));
         typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); if (insights != null) renderInsights(); }));
 
@@ -448,6 +476,23 @@ public class SettingsActivity extends Activity {
             return;
         }
 
+        java.util.Set<String> nc = prefs.noCorrect();
+        if (!nc.isEmpty()) {
+            insights.addView(label("Never autocorrected (you undid these)  ·  tap to allow again"));
+            LinearLayout ncRow = new LinearLayout(this);
+            ncRow.setOrientation(LinearLayout.VERTICAL);
+            StringBuilder sb = new StringBuilder();
+            for (String w : nc) { if (sb.length() > 0) sb.append("  ·  "); sb.append(w); }
+            TextView t = text(sb.toString(), 14, false);
+            t.setAlpha(0.85f);
+            t.setOnClickListener(v -> {
+                prefs.saveNoCorrect(new java.util.HashSet<>());
+                prefs.markLearnEdited();
+                toast("Autocorrect can fix these words again");
+                renderInsights();
+            });
+            insights.addView(t);
+        }
         insights.addView(label("Most-used words  ·  tap one to forget it"));
         List<java.util.Map.Entry<String, Integer>> top = sorted(learned);
         LinearLayout row = null;
@@ -515,6 +560,7 @@ public class SettingsActivity extends Activity {
                     bi.keySet().removeIf(k -> k.endsWith(" " + w) || k.startsWith(w + " "));
                     tri.keySet().removeIf(k -> (" " + k + " ").contains(" " + w + " "));
                     prefs.saveLearned(l); prefs.saveBigrams(bi); prefs.saveTrigrams(tri); prefs.saveCaseForms(f);
+                    prefs.markLearnEdited();
                     renderInsights();
                 })
                 .setNegativeButton("Cancel", null)
@@ -665,9 +711,15 @@ public class SettingsActivity extends Activity {
         else toast("Microphone already allowed");
     }
 
+    private static final int REQ_CONTACTS = 77;
+
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
+        if (code == REQ_CONTACTS && (res.length == 0 || res[0] != PackageManager.PERMISSION_GRANTED)) {
+            prefs.setBool("contactnames", false);
+            toast("Contact names stay off — Glass Keys can't read contacts without permission");
+        }
         refreshSteps();
     }
 
@@ -753,6 +805,64 @@ public class SettingsActivity extends Activity {
         g.setCornerRadius(radiusDp * dp);
         g.setStroke((int) Math.max(1, dp), 0x40FFFFFF);
         return g;
+    }
+
+    private void renderOrders(LinearLayout list) {
+        list.removeAllViews();
+        List<Prefs.Order> os = prefs.orders();
+        if (os.isEmpty()) {
+            TextView e = text("No orders yet.", 14, false);
+            e.setAlpha(0.6f);
+            e.setPadding(0, (int) (6 * dp), 0, 0);
+            list.addView(e);
+            return;
+        }
+        TextView sum = text(Business.daySummary(os).replace("*", ""), 13, false);
+        sum.setAlpha(0.85f);
+        sum.setPadding(0, (int) (6 * dp), 0, (int) (8 * dp));
+        list.addView(sum);
+        for (int i = 0; i < Math.min(40, os.size()); i++) {
+            final Prefs.Order o = os.get(i);
+            TextView t = text(Business.when(o.time) + (o.note.isEmpty() ? "" : " · " + o.note) + "\n" + o.items + " — " + Business.rupees(o.total)
+                    + (o.paid ? " · paid ✓" : " · unpaid") + (o.delivered ? " · delivered ✓" : ""), 14, false);
+            t.setBackground(pill(o.paid && o.delivered ? 0x14FFFFFF : 0x24FFFFFF, 14));
+            t.setPadding((int) (12 * dp), (int) (8 * dp), (int) (12 * dp), (int) (8 * dp));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.bottomMargin = (int) (6 * dp);
+            t.setOnClickListener(v -> {
+                EditText in = new EditText(this);
+                in.setText(o.note);
+                in.setHint("Customer name / note");
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Order · " + Business.rupees(o.total))
+                        .setView(in)
+                        .setPositiveButton("Save", (d, w) -> { setOrder(o.id, in.getText().toString().trim(), null, null); renderOrders(list); })
+                        .setNeutralButton(o.paid ? "Mark unpaid" : "Mark paid", (d, w) -> { setOrder(o.id, null, !o.paid, null); renderOrders(list); })
+                        .setNegativeButton(o.delivered ? "Not delivered" : "Delivered", (d, w) -> { setOrder(o.id, null, null, !o.delivered); renderOrders(list); })
+                        .show();
+            });
+            t.setOnLongClickListener(v -> {
+                new android.app.AlertDialog.Builder(this).setTitle("Delete this order?")
+                        .setPositiveButton("Delete", (d, w) -> {
+                            List<Prefs.Order> l = prefs.orders();
+                            l.removeIf(x -> x.id == o.id);
+                            prefs.saveOrders(l);
+                            renderOrders(list);
+                        }).setNegativeButton("Cancel", null).show();
+                return true;
+            });
+            list.addView(t, lp);
+        }
+    }
+
+    private void setOrder(long id, String note, Boolean paid, Boolean delivered) {
+        List<Prefs.Order> l = prefs.orders();
+        for (Prefs.Order o : l) if (o.id == id) {
+            if (note != null) o.note = note;
+            if (paid != null) o.paid = paid;
+            if (delivered != null) o.delivered = delivered;
+        }
+        prefs.saveOrders(l);
     }
 
     private LinearLayout card(String title) {

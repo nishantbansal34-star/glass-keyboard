@@ -23,6 +23,11 @@ public class Dictionary {
     private Map<String, Integer> bigrams = new HashMap<>();
     private Map<String, Integer> trigrams = new HashMap<>();
     private Map<String, String> caseForms = new HashMap<>();
+    private java.util.Set<String> noCorrect = new java.util.HashSet<>();
+    /** Names from your contacts (lowercase -> how it's written), only when you turn that on. */
+    private volatile Map<String, String> contacts = new HashMap<>();
+
+    public void setContactNames(Map<String, String> m) { contacts = m == null ? new HashMap<>() : m; }
     private int learnsSinceDecay;
     /** Marks the start of a sentence in word-pair memory. */
     public static final String START = "^";
@@ -59,6 +64,7 @@ public class Dictionary {
         bigrams = prefs.bigrams();
         trigrams = prefs.trigrams();
         caseForms = prefs.caseForms();
+        noCorrect = prefs.noCorrect();
         final Context app = ctx.getApplicationContext();
         new Thread(() -> load(app)).start();
     }
@@ -84,7 +90,7 @@ public class Dictionary {
         words = w;
         freq = fr;
         byLen = bucketByLength(w);
-        try { lm.load(ctx.getAssets().open("ngrams.txt")); } catch (Exception ignored) { }
+        try { lm.load(ctx.getAssets().open(BuildConfig.PLAY ? "ngrams_safe.txt" : "ngrams.txt")); } catch (Exception ignored) { }
         loaded = true;
     }
 
@@ -156,7 +162,7 @@ public class Dictionary {
 
     public boolean isWord(String w) {
         String l = w.toLowerCase();
-        return index.containsKey(l) || learnedCount(l) >= 2;
+        return index.containsKey(l) || learnedCount(l) >= 2 || contacts.containsKey(l);
     }
 
     private int learnedCount(String w) {
@@ -311,6 +317,11 @@ public class Dictionary {
                 if (tc <= maxT) put(best, w, contextScore(prev2, prev, w) - tc * TYPO + 40, tc);
             }
         }
+        // 4. names from your contacts (if enabled)
+        if (low.length() >= 2) for (Map.Entry<String, String> e : contacts.entrySet()) {
+            String w = e.getKey();
+            if (w.startsWith(low)) put(best, w, 330 + learnedCount(w) * 20 - (w.length() - low.length()) * 6, 0f);
+        }
         List<Cand> out = new ArrayList<>(best.values());
         Collections.sort(out);
         return out;
@@ -335,6 +346,7 @@ public class Dictionary {
             String shown = matchCase(typed, c.w);
             // typed in lowercase? use your usual capitalisation (NRRL, Nishant, WhatsApp)
             if (typed.equals(typed.toLowerCase()) && caseForms.containsKey(c.w)) shown = caseForms.get(c.w);
+            else if (typed.equals(typed.toLowerCase()) && contacts.containsKey(c.w) && !index.containsKey(c.w)) shown = contacts.get(c.w);
             boolean dup = false;
             for (String o : out) if (o.equalsIgnoreCase(shown)) dup = true;
             if (!dup) out.add(shown);
@@ -360,7 +372,7 @@ public class Dictionary {
         if (fix != null) return fix.equals(typed) ? null : matchCaseFix(typed, fix);
         if (!loaded || typed.length() < 2 || isWord(typed)) return null;
         for (int i = 0; i < typed.length(); i++) if (!Character.isLetter(typed.charAt(i)) && typed.charAt(i) != '\'') return null;
-        if (SLANG.contains(low)) return null;
+        if (SLANG.contains(low) || noCorrect.contains(low)) return null;
         // shouting/ACRONYMS and mixed case (iPhone, GSTIN) are probably intentional
         if (typed.length() > 1 && typed.equals(typed.toUpperCase())) return null;
         List<Cand> r = rank(typed, prev, prev2, true);
@@ -377,6 +389,27 @@ public class Dictionary {
         String out = matchCase(typed, top.w);
         if (typed.equals(low) && caseForms.containsKey(top.w)) out = caseForms.get(top.w);
         return out;
+    }
+
+    /** A phrase you often finish the same way ("thank you for" → "your order"): chained from your 3-word habits. */
+    public String personalPhrase(String prev2, String prev) {
+        if (prev == null || prev2 == null) return null;
+        String a = prev2.toLowerCase(), b = prev.toLowerCase();
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (int step = 0; step < 6; step++) {
+            String pre = a + " " + b + " ";
+            String best = null; int bc = 0, tot = 0;
+            for (Map.Entry<String, Integer> e : trigrams.entrySet())
+                if (e.getKey().startsWith(pre)) { tot += e.getValue(); if (e.getValue() > bc) { bc = e.getValue(); best = e.getKey().substring(pre.length()); } }
+            // only follow a path you clearly repeat
+            if (best == null || bc < 3 || bc < tot * 0.6) break;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(best.equals("i") ? "I" : form(best));
+            n++;
+            a = b; b = best;
+        }
+        return n >= 2 ? sb.toString() : null;
     }
 
     public List<String> predict(String prev) { return predict(null, prev); }
@@ -410,6 +443,10 @@ public class Dictionary {
         for (String w : score.keySet()) {
             if (w.isEmpty() || w.equals(p1)) continue;
             double pb = lm.prob(p2, p1, w);
+            // "?" / "!" only when the sentence clearly ends here ("how are you" → "?")
+            if (w.equals("?") || w.equals("!")) {
+                if (p1.equals(START) || p2 == null || p2.equals(START) || pb < 0.12) continue;
+            }
             double s = pb > 0 ? 100 * (Math.log10(pb) + 9) : 100 * (Math.log10(1e-5) + 9);
             int lc = learnedCount(w);
             Integer ub = bigrams.get(p1 + " " + w);
@@ -468,6 +505,34 @@ public class Dictionary {
         }
     }
 
+    /**
+     * You undid a correction (or chose your own spelling over it): never correct this word again,
+     * treat it as a real word, and take back the credit given to the replacement.
+     */
+    public void rejectCorrection(String original, String replacement) {
+        if (original == null) return;
+        String o = original.toLowerCase();
+        noCorrect.add(o);
+        learned.put(o, Math.max(learnedCount(o), 0) + 2);
+        if (!original.equals(o)) caseForms.put(o, original);
+        if (replacement != null) {
+            String r = replacement.toLowerCase();
+            int c = learnedCount(r);
+            if (c > 1) learned.put(r, c - 1); else learned.remove(r);
+        }
+        if (prefs != null) prefs.saveNoCorrect(new java.util.HashSet<>(noCorrect));
+        flush();
+    }
+
+    public java.util.Set<String> noCorrectWords() { return noCorrect; }
+
+    public void allowCorrection(String w) {
+        noCorrect.remove(w.toLowerCase());
+        if (prefs != null) prefs.saveNoCorrect(new java.util.HashSet<>(noCorrect));
+    }
+
+    public boolean wouldCorrect(String typed, String prev, String prev2) { return autocorrect(typed, prev, prev2) != null; }
+
     /** Removes a word everywhere it was learned. */
     public void forget(String word) {
         String w = word.toLowerCase();
@@ -491,6 +556,8 @@ public class Dictionary {
     public void flush() {
         dirty = 0;
         if (prefs == null) return;
+        // Settings edited the learned data meanwhile: take theirs instead of overwriting it
+        if (seenEdit != -1 && prefs.learnEdit() != seenEdit) { reloadLearned(); return; }
         final Map<String, Integer> l = new HashMap<>(learned), b = new HashMap<>(bigrams), t = new HashMap<>(trigrams);
         final Map<String, String> cf = new HashMap<>(caseForms);
         final Prefs p = prefs;
@@ -500,11 +567,19 @@ public class Dictionary {
         });
     }
 
+    private long seenEdit = -1;
+
+    /** Reloads learned data only if Settings changed it (the in-memory copy is otherwise newer). */
     public void reloadLearned() {
+        long v = prefs.learnEdit();
+        if (seenEdit == -1) { seenEdit = v; return; }   // just loaded in the constructor
+        if (v == seenEdit) return;
+        seenEdit = v;
         learned = prefs.learned();
         bigrams = prefs.bigrams();
         trigrams = prefs.trigrams();
         caseForms = prefs.caseForms();
+        noCorrect = prefs.noCorrect();
     }
 
     private static String matchCase(String typed, String w) {

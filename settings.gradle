@@ -1,5 +1,13 @@
 pluginManagement {
     repositories { google(); mavenCentral(); gradlePluginPortal() }
+    // the Play Store build (-Pplay) uses a newer Android Gradle Plugin so it can target the latest Android
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == 'com.android.application') {
+                useVersion(settings.providers.gradleProperty('agp').getOrElse('8.5.2'))
+            }
+        }
+    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
