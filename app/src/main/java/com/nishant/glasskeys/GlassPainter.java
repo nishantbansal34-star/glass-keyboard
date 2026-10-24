@@ -393,8 +393,34 @@ public class GlassPainter {
 
     public void clearSprites() { overlayCache.clear(); shadowCache.clear(); if (imm != null) imm.clear(); }
 
+    // GPU liquid lens (Android 13+): edge-bending refraction with a touch of colour split at the rim
+    private LiquidLens lens;
+    private BitmapShader lensSrc;
+    private Bitmap lensSrcBmp;
+    private float lensRad;
+    public boolean gpuLens = true;
+
     private void drawRefraction(Canvas c, RectF r, float mag) {
         if (refrSrc == null || refrSrc.isRecycled()) return;
+        if (gpuLens && LiquidLens.supported() && c.isHardwareAccelerated()) {
+            if (lens == null) {
+                try { lens = new LiquidLens(); }
+                catch (Throwable e) { gpuLens = false; drawRefraction(c, r, mag); return; }
+            }
+            if (lensSrcBmp != refrSrc) {
+                lensSrc = new BitmapShader(refrSrc, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+                lensSrcBmp = refrSrc;
+            }
+            float press = Math.max(0f, Math.min(1f, pressAmt));
+            lens.mag = mag + press * 0.05f;
+            lens.bezel = Math.min(Math.min(r.width(), r.height()) * 0.42f, 13 * dp);
+            lens.strength = (6f + 4f * press) * dp;
+            lens.disp = 1.1f * dp;
+            lens.rimLight = 0.05f + 0.06f * press;
+            // light bends upward through thick glass: sample a little lower than the key centre
+            c.drawRect(r, lens.prepare(lensSrc, r, lensRad, originX, originY + r.height() * 0.06f, srcScaleX, srcScaleY, 1f));
+            return;
+        }
         float cx = (r.centerX() + originX) * srcScaleX, cy = (r.centerY() + originY) * srcScaleY;
         float hw = r.width() * srcScaleX / (2 * mag), hh = r.height() * srcScaleY / (2 * mag);
         // sample a little lower than the key centre: light bends upward through thick glass
@@ -435,6 +461,7 @@ public class GlassPainter {
         shape.addRoundRect(r, rad, rad, Path.Direction.CW);
         c.save();
         c.clipPath(shape);
+        lensRad = rad;
         drawRefraction(c, r, pressed ? 1.16f : 1.07f);
         if (style == STYLE_ACTION) {
             fill.setColor((t.accent & 0x00FFFFFF) | 0x8C000000);
@@ -511,6 +538,7 @@ public class GlassPainter {
         c.save();
         c.clipPath(shape);
         // 2. refraction: the wallpaper seen through the glass, slightly magnified and softened
+        lensRad = rad;
         drawRefraction(c, r, wide ? 1.04f : 1.08f);
 
         // 3. glass body: charcoal tinted by the environment; deeper over bright areas for legibility
@@ -677,6 +705,7 @@ public class GlassPainter {
         shape.addRoundRect(r, rad, rad, Path.Direction.CW);
         c.save();
         c.clipPath(shape);
+        lensRad = rad;
         drawRefraction(c, r, 1.0f);
         // obsidian body: the art shows through faintly (more on the wide space bar)
         boolean wide = w > h * 3;
@@ -898,6 +927,7 @@ public class GlassPainter {
 
         c.save();
         c.clipPath(sh);
+        lensRad = Math.min(r.width(), r.height()) * 0.3f;
         drawRefraction(c, r, 1.12f);
         c.restore();
 
