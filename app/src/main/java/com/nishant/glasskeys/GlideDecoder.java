@@ -17,7 +17,9 @@ public class GlideDecoder {
     private static final int N = 40;
 
     /** Key centres for 'a'..'z' in key-width units (set whenever the layout changes). */
-    private final float[] kx = new float[26], ky = new float[26];
+    private final float[] kx = new float[26], ky = new float[26];      // effective centre (layout + your offset)
+    private final float[] bx = new float[26], by = new float[26];      // layout centre
+    private final float[] ox = new float[26], oy = new float[26];      // where YOUR finger tends to pass, per key
     private final boolean[] has = new boolean[26];
 
     private final Dictionary dict;
@@ -27,11 +29,84 @@ public class GlideDecoder {
     public synchronized void setKey(char c, float cx, float cy) {
         int i = c - 'a';
         if (i < 0 || i >= 26) return;
-        kx[i] = cx; ky[i] = cy; has[i] = true;
+        bx[i] = cx; by[i] = cy; has[i] = true;
+        kx[i] = cx + ox[i]; ky[i] = cy + oy[i];
     }
+
+    // ---- personal calibration -------------------------------------------------------------
+
+    private static final float MAX_OFF = 0.30f;   // never move a key more than ~a third of its width
+
+    /** Layout key centres "a:x,y;b:x,y;…" (key-width units) for the recorder. */
+    public synchronized String layoutString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 26; i++) if (has[i]) sb.append((char) ('a' + i)).append(':').append(Math.round(bx[i] * 1000) / 1000f).append(',').append(Math.round(by[i] * 1000) / 1000f).append(';');
+        return sb.toString();
+    }
+
+    /** "x,y;x,y;…" for 26 keys. */
+    public synchronized String offsets() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 26; i++) sb.append(Math.round(ox[i] * 1000) / 1000f).append(',').append(Math.round(oy[i] * 1000) / 1000f).append(';');
+        return sb.toString();
+    }
+
+    public synchronized void setOffsets(String s) {
+        if (s == null || s.isEmpty()) return;
+        String[] p = s.split(";");
+        for (int i = 0; i < 26 && i < p.length; i++) {
+            String[] xy = p[i].split(",");
+            if (xy.length != 2) continue;
+            try { ox[i] = clamp(Float.parseFloat(xy[0])); oy[i] = clamp(Float.parseFloat(xy[1])); } catch (Exception ignored) { }
+            if (has[i]) { kx[i] = bx[i] + ox[i]; ky[i] = by[i] + oy[i]; }
+        }
+    }
+
+    public synchronized void resetOffsets() {
+        for (int i = 0; i < 26; i++) { ox[i] = 0; oy[i] = 0; kx[i] = bx[i]; ky[i] = by[i]; }
+    }
+
+    private static float clamp(float v) { return Math.max(-MAX_OFF, Math.min(MAX_OFF, v)); }
+
+    /**
+     * You kept `word` for this swipe: nudge each of its letters' key centres a little toward where your
+     * finger actually passed (slow moving average, so one sloppy swipe changes almost nothing).
+     */
+    public synchronized void learn(String word, float[][] user) {
+        if (word == null || user == null || word.length() < 2) return;
+        int j = 0;
+        int prevKey = -1;
+        for (int i = 0; i < word.length(); i++) {
+            int c = Character.toLowerCase(word.charAt(i)) - 'a';
+            if (c < 0 || c >= 26 || !has[c] || c == prevKey) continue;
+            prevKey = c;
+            // closest point of the path at or after the previous letter's point
+            int best = j; float bd = Float.MAX_VALUE;
+            for (int k = j; k < N; k++) {
+                float dx = user[0][k] - bx[c], dy = user[1][k] - by[c];
+                float d = dx * dx + dy * dy;
+                if (d < bd) { bd = d; best = k; }
+                if (d > bd + 1.5f) break;     // moved well past it
+            }
+            if (bd > 0.9f * 0.9f) continue;    // didn't really go near this key: don't learn from it
+            j = best;
+            float tx = user[0][best] - bx[c], ty = user[1][best] - by[c];
+            ox[c] = clamp(ox[c] + (tx - ox[c]) * 0.06f);
+            oy[c] = clamp(oy[c] + (ty - oy[c]) * 0.06f);
+            kx[c] = bx[c] + ox[c]; ky[c] = by[c] + oy[c];
+        }
+    }
+
+    /** The resampled path of the most recent full decode (for learning / recording). */
+    public synchronized float[][] lastPath() {
+        if (lastUser == null) return null;
+        return new float[][]{lastUser[0].clone(), lastUser[1].clone()};
+    }
+    private float[][] lastUser;
 
     public static class Result {
         public final List<String> words = new ArrayList<>();
+        public final List<Double> costs = new ArrayList<>();
     }
 
     private static class Cand implements Comparable<Cand> {
@@ -49,10 +124,16 @@ public class GlideDecoder {
 
     /** px/py are in key-width units. Returns the best words, best first. */
     public synchronized Result decode(float[] px, float[] py, int n, String prevWord, boolean partial) {
+        return decode(px, py, n, prevWord, prevWord != null ? null : ctxPrev2, partial);
+    }
+
+    /** Decode with an explicit context (used to re-check the previous swiped word). */
+    public synchronized Result decode(float[] px, float[] py, int n, String prevWord, String prevWord2, boolean partial) {
         Result res = new Result();
         if (n < 2) return res;
-        String prev = prevWord != null ? prevWord : ctxPrev, prev2 = prevWord != null ? null : ctxPrev2;
+        String prev = prevWord != null ? prevWord : ctxPrev, prev2 = prevWord2;
         float[][] user = resample(px, py, n);
+        if (!partial) lastUser = user;
         for (int ki = 0; ki < 26; ki++) {
             if (!has[ki]) continue;
             for (int j = 0; j < N; j++) {
@@ -104,7 +185,7 @@ public class GlideDecoder {
         Collections.sort(cands);
         for (Cand c : cands) {
             if (res.words.size() >= 4) break;
-            if (!res.words.contains(c.w)) res.words.add(c.w);
+            if (!res.words.contains(c.w)) { res.words.add(c.w); res.costs.add(c.cost); }
         }
         return res;
     }

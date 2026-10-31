@@ -128,7 +128,29 @@ public class KeyboardView extends View {
         if (decoder == null || gn < 2) return new ArrayList<>();
         float[] ux = new float[gn], uy = new float[gn];
         for (int i = 0; i < gn; i++) { ux[i] = gx[i] / keyUnit; uy[i] = gy[i] / keyUnit; }
-        return decoder.decode(ux, uy, gn, null, partial).words;
+        GlideDecoder.Result r = decoder.decode(ux, uy, gn, null, partial);
+        if (!partial) { lastUx = ux; lastUy = uy; lastResult = r; }
+        return r.words;
+    }
+
+    // the last finished swipe (raw path in key units) — lets the keyboard re-check it with new context
+    private float[] lastUx, lastUy;
+    public GlideDecoder.Result lastResult;
+
+    /** Re-decodes the last swipe as if `prev` (and `prev2`) came before it. */
+    public GlideDecoder.Result redecodeLast(String prev, String prev2) {
+        if (decoder == null || lastUx == null) return null;
+        return decoder.decode(lastUx, lastUy, lastUx.length, prev, prev2, false);
+    }
+
+    /** Raw points of the last swipe in key units, at most ~80 points (for the optional recorder). */
+    public float[][] lastRawPath() {
+        if (lastUx == null) return null;
+        int n = lastUx.length, step = Math.max(1, n / 80);
+        int m = (n + step - 1) / step;
+        float[][] o = new float[2][m];
+        for (int i = 0, k = 0; i < n && k < m; i += step, k++) { o[0][k] = lastUx[i]; o[1][k] = lastUy[i]; }
+        return o;
     }
 
     private void updateDecoderLayout() {
@@ -162,13 +184,18 @@ public class KeyboardView extends View {
         if (!trailEnabled || gn < 1) return;
         long now = SystemClock.uptimeMillis();
         float global = 1f;
+        // iPhone-style: a short tail that follows the finger; on lift the line pulls into the last point and fades
+        final float LIFE = 280f, RETRACT = 190f;
+        float life = LIFE;
         if (!gliding) {
             if (glideEnd < 0) return;
-            global = 1f - (now - glideEnd) / 260f;
-            if (global <= 0) { gn = 0; glideEnd = -1; return; }
-            global = global * global * (3 - 2 * global); // smoothstep
+            float t = (now - glideEnd) / RETRACT;
+            if (t >= 1f) { gn = 0; glideEnd = -1; return; }
+            float e = t * t * (3 - 2 * t);
+            life = Math.max(1f, LIFE * (1f - e));
+            global = 1f - e * e;
+            now = glideEnd;     // the tail retracts toward where the finger lifted
         }
-        final float life = 340f;
         long cut = now - (long) life;
         // 1. find where the tail currently is, interpolated between samples so it glides, not jumps
         int first = gn - 1;
@@ -224,17 +251,12 @@ public class KeyboardView extends View {
             glowBlur = new android.graphics.BlurMaskFilter(2.5f * dp, android.graphics.BlurMaskFilter.Blur.NORMAL);
         }
         boolean dark = theme.dark;
-        int body, glow;            // colours
-        float bodyA, glowA, glowScale, coreA, headA, headR;
-        switch (gp.pack) {
-            case 1:  body = 0xC9B6FF; glow = 0x8B5CFF; bodyA = 0.80f; glowA = 0.45f; glowScale = 2.6f; coreA = 0.55f; headA = 0.35f; headR = 7; break;   // Shadow Realm
-            case 2:  body = 0xD6D6D6; glow = 0x000000; bodyA = 0.62f; glowA = 0f;    glowScale = 0f;   coreA = 0f;    headA = 0f;    headR = 0; break;    // Still: a pencil line
-            case 3:  body = 0xF4F6FA; glow = 0xFFFFFF; bodyA = 0.66f; glowA = 0.24f; glowScale = 2.0f; coreA = 0.35f; headA = 0.30f; headR = 7; break;    // Soft Glass: frosted white
-            default: body = 0xCFE3FF; glow = 0x6FA8FF; bodyA = 0.72f; glowA = 0.32f; glowScale = 2.1f; coreA = 0.55f; headA = 0.32f; headR = 8;          // Liquid Glass: cool light
-        }
-        if (!dark) { body = 0x3A4A60; glow = 0x6F8FC0; }
-        float width = gp.pack == 2 ? 4.2f : gp.pack == 3 ? 6.2f : 6.8f;   // dp at the fingertip
-        // scale the sampled widths (computed for an 8dp trail) down to this theme's width
+        // one look everywhere, like iPhone: a clean soft-white line (graphite on light keyboards),
+        // a whisper of glow, a round cap under the finger, tapering away behind it
+        int body = dark ? 0xFFFFFF : 0x48484A, glow = dark ? 0xFFFFFF : 0x48484A;
+        if (gp.pack == 1 && dark) { body = 0xE4D9FF; glow = 0xB79CFF; }   // Shadow Realm keeps a violet tint
+        float bodyA = dark ? 0.86f : 0.72f, glowA = dark ? 0.16f : 0.08f, glowScale = 1.9f, coreA = 0f, headA = 0f, headR = 0;
+        float width = 5.6f;   // dp at the fingertip
         float k = width / 8f;
         for (int i = 0; i < m; i++) sw[i] *= k;
         ribbonPaint.setStyle(Paint.Style.FILL);

@@ -353,6 +353,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.setListener(this);
         keyboard.backdrop = liquid;
         keyboard.decoder = new GlideDecoder(dict);
+        keyboard.decoder.setOffsets(prefs.str("swipeoffsets", ""));
         content.addView(keyboard, new FrameLayout.LayoutParams(-1, -1));
         column.addView(content, new LinearLayout.LayoutParams(-1, keyboardHeight()));
 
@@ -406,6 +407,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void applySettings() {
         loadContactNames();
+        if (prefs.bool("swipereset", false) && keyboard != null && keyboard.decoder != null) {
+            keyboard.decoder.resetOffsets();
+            prefs.setBool("swipereset", false);
+            offsetsDirty = false;
+        }
         theme = prefs.pack() == 1 ? Theme.SHADOW : prefs.pack() == 2 ? Theme.STILL : prefs.pack() == 3 ? Theme.SOFT : Theme.get(prefs.theme());
         keyboard.configure(theme, prefs.numberRow(), prefs.oneHanded(), prefs.keyPopup(), prefs.glassRipple());
         keyboard.capsLabels = prefs.capsLabels();
@@ -517,6 +523,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         super.onFinishInputView(finishing);
         stopVoice();
         dict.flush();
+        if (offsetsDirty && keyboard != null && keyboard.decoder != null) { prefs.setStr("swipeoffsets", keyboard.decoder.offsets()); offsetsDirty = false; }
         composing.setLength(0);
     }
 
@@ -657,6 +664,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     // ================================================================= swipe typing
 
     private boolean glideWord;                 // composing text came from a swipe
+    private java.util.Map<String, Double> glideCosts;   // decoder cost of each candidate for the current swipe
+    private float[][] glidePath, glideRaw;              // the current swipe (resampled / raw), for learning & recording
+    private String glideTop, glideCtx1, glideCtx2;      // what the decoder chose first, and the context it had
+    private boolean glidePicked;                        // you chose an alternative yourself: never second-guess it
     private List<String> glideAlts = new ArrayList<>();
     private List<String> glidePreview = null;
 
@@ -684,6 +695,34 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (words.isEmpty()) { updateStrip(); return; }
         lastEditTime = SystemClock.uptimeMillis();
         toolbarForced = false;
+        GlideDecoder.Result chosen = keyboard.lastResult;
+        // Like iPhone: now that we know the NEXT word, re-check the previous swiped word and fix it if the
+        // pair clearly reads better ("of" -> "if" once you swipe "you").
+        if (glideWord && !glidePicked && composing.length() > 0 && glideCosts != null && glideCosts.size() > 1 && prefs.bool("swiperetro", true)) {
+            String w1 = composing.toString();
+            String w1l = w1.toLowerCase();
+            String bestW = null; double bestJ = Double.MAX_VALUE, curJ = Double.MAX_VALUE;
+            GlideDecoder.Result bestR = null;
+            int tried = 0;
+            for (java.util.Map.Entry<String, Double> e : glideCosts.entrySet()) {
+                if (tried++ >= 3) break;
+                GlideDecoder.Result r = keyboard.redecodeLast(e.getKey(), prevWord);
+                if (r == null || r.costs.isEmpty()) continue;
+                double j = e.getValue() + r.costs.get(0);
+                if (e.getKey().equals(w1l)) curJ = j;
+                if (j < bestJ) { bestJ = j; bestW = e.getKey(); bestR = r; }
+            }
+            if (bestW != null && !bestW.equals(w1l) && bestJ < curJ - 0.5) {
+                composing.setLength(0);
+                composing.append(caseForGlide(bestW));
+                ic.setComposingText(composing, 1);
+                words = bestR.words;
+                chosen = bestR;
+            } else if (curJ < Double.MAX_VALUE) {
+                GlideDecoder.Result r = keyboard.redecodeLast(w1l, prevWord);   // keep W2 decoded with W1 as context
+                if (r != null && !r.words.isEmpty()) { words = r.words; chosen = r; }
+            }
+        }
         ic.beginBatchEdit();
         if (composing.length() > 0) finishWord(ic, false, null);
         // swipe words get their own space, so you can swipe word after word
@@ -695,6 +734,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         String w = caseForGlide(words.get(0));
         glideAlts = new ArrayList<>();
         for (int i = 1; i < words.size(); i++) glideAlts.add(caseForGlide(words.get(i)));
+        // remember this swipe so it can be re-checked, learned from and (optionally) recorded
+        glideCosts = new java.util.LinkedHashMap<>();
+        if (chosen != null) for (int i = 0; i < chosen.words.size() && i < chosen.costs.size(); i++) glideCosts.put(chosen.words.get(i), chosen.costs.get(i));
+        glidePath = keyboard.decoder != null ? keyboard.decoder.lastPath() : null;
+        glideRaw = keyboard.lastRawPath();
+        glideTop = words.get(0);
+        glideCtx1 = prevWord; glideCtx2 = prevWord2;
+        glidePicked = false;
         composing.setLength(0);
         composing.append(w);
         ic.setComposingText(composing, 1);
@@ -705,11 +752,50 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         updateStrip();
     }
 
+    private boolean offsetsDirty;
+    private static final java.util.concurrent.ExecutorService REC = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    /**
+     * Optional swipe recorder (Settings → Swipe typing): saves the path and the word you finally kept, only
+     * on this phone, so the swipe engine can be tuned to how YOU swipe. Never in password fields or incognito.
+     */
+    private void recordSwipe(String kept, boolean deleted) {
+        if (!prefs.bool("swiperec", false) || noLearn || isPassword || glideRaw == null) return;
+        try {
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("t", System.currentTimeMillis());
+            o.put("kept", deleted ? JSONObjectNull() : kept);
+            o.put("deleted", deleted);
+            o.put("top", glideTop);
+            org.json.JSONArray alts = new org.json.JSONArray();
+            if (glideCosts != null) for (String k : glideCosts.keySet()) alts.put(k);
+            o.put("cands", alts);
+            o.put("prev", glideCtx1 == null ? "" : glideCtx1);
+            o.put("prev2", glideCtx2 == null ? "" : glideCtx2);
+            org.json.JSONArray pts = new org.json.JSONArray();
+            for (int i = 0; i < glideRaw[0].length; i++) {
+                org.json.JSONArray p = new org.json.JSONArray();
+                p.put(Math.round(glideRaw[0][i] * 1000) / 1000.0); p.put(Math.round(glideRaw[1][i] * 1000) / 1000.0);
+                pts.put(p);
+            }
+            o.put("path", pts);
+            if (keyboard.decoder != null) o.put("keys", keyboard.decoder.layoutString());
+            final String line = o.toString() + "\n";
+            final java.io.File f = new java.io.File(getFilesDir(), "swipes.jsonl");
+            REC.execute(() -> {
+                try (java.io.FileWriter fw = new java.io.FileWriter(f, true)) { if (f.length() < 20_000_000) fw.write(line); } catch (Exception ignored) { }
+            });
+        } catch (Exception ignored) { }
+    }
+
+    private static Object JSONObjectNull() { return org.json.JSONObject.NULL; }
+
     /** Swap the swiped word for one of the alternatives. */
     private void pickGlideAlt(String alt) {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null || !glideWord) return;
         String old = composing.toString();
+        glidePicked = true;
         glideAlts.remove(alt);
         glideAlts.add(0, old);
         composing.setLength(0);
@@ -789,6 +875,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     /** Commits the word being typed, optionally autocorrected. Returns the committed word. */
     private String finishWord(InputConnection ic, boolean correct, String forced) {
+        if (glideWord && glidePath != null && composing.length() > 0) {
+            String kept = forced != null ? forced : composing.toString();
+            if (!noLearn && keyboard.decoder != null) { keyboard.decoder.learn(kept, glidePath); offsetsDirty = true; }
+            recordSwipe(kept, false);
+            glidePath = null;
+        }
         String typed = composing.toString();
         String out = typed;
         boolean hinglish = lang == 1 && Translit.isRoman(typed);
@@ -924,6 +1016,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         toolbarForced = false;
         if (glideWord && composing.length() > 0) {
+            recordSwipe(null, true);
+            glidePath = null;
             glideWord = false;
             composing.setLength(0);
             ic.commitText("", 1);
@@ -1056,7 +1150,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     // ================================================================= strip
 
     private void updateStrip() {
-        if (keyboard != null && keyboard.decoder != null) keyboard.decoder.setContext(prevWord, prevWord2);
+        if (keyboard != null && keyboard.decoder != null) {
+            if (composing.length() > 0) keyboard.decoder.setContext(composing.toString().toLowerCase(), prevWord);
+            else keyboard.decoder.setContext(prevWord, prevWord2);
+        }
         if (strip == null) return;
         List<StripView.Cell> cells = new ArrayList<>();
         if (listening) {

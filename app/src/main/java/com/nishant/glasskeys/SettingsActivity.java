@@ -35,7 +35,7 @@ import java.util.List;
 
 /** Setup + settings screen (also opened from the keyboard's gear icon). */
 public class SettingsActivity extends Activity {
-    private static final int REQ_PHOTO = 11, REQ_MIC = 12, REQ_BACKUP = 13, REQ_RESTORE = 14;
+    private static final int REQ_PHOTO = 11, REQ_MIC = 12, REQ_BACKUP = 13, REQ_RESTORE = 14, REQ_SWIPES = 15;
 
     private Prefs prefs;
     private float dp;
@@ -345,7 +345,28 @@ public class SettingsActivity extends Activity {
         // --- Typing
         LinearLayout typing = card("Typing");
         typing.addView(toggle("Swipe typing (glide across letters)", "glide", true));
-        typing.addView(toggle("Show the glowing swipe trail", "trail", true));
+        typing.addView(toggle("Show the swipe trail", "trail", true));
+        typing.addView(toggle("Fix the previous swiped word when the next word makes it clearer", "swiperetro", true));
+        typing.addView(toggle("Record my swipes to tune accuracy (stays on this phone until you export it)", "swiperec", false));
+        java.io.File rec = new java.io.File(getFilesDir(), "swipes.jsonl");
+        int recN = 0;
+        if (rec.exists()) {
+            try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(rec))) { while (br.readLine() != null) recN++; } catch (Exception ignored) { }
+        }
+        TextView rh = text(recN == 0 ? "No swipes recorded yet." : recN + " swipes recorded. Export the file and send it to tune swipe typing to how you swipe.", 13, false);
+        rh.setAlpha(0.7f);
+        typing.addView(rh);
+        if (recN > 0) {
+            typing.addView(button("Export swipe recordings", v -> {
+                Intent it = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                it.addCategory(Intent.CATEGORY_OPENABLE);
+                it.setType("text/plain");
+                it.putExtra(Intent.EXTRA_TITLE, "glasskeys-swipes-" + new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.ENGLISH).format(new java.util.Date()) + ".txt");
+                try { startActivityForResult(it, REQ_SWIPES); } catch (Exception e) { toast("No file app found"); }
+            }));
+            typing.addView(button("Delete swipe recordings", v -> { rec.delete(); toast("Recordings deleted"); recreate(); }));
+        }
+        typing.addView(button("Reset swipe calibration", v -> { prefs.setStr("swipeoffsets", ""); prefs.setBool("swipereset", true); toast("Swipe calibration reset"); }));
         typing.addView(toggle("Word suggestions & next-word prediction", "suggest", true));
         typing.addView(toggle("Autocorrect (backspace right after undoes it)", "autocorrect", true));
         typing.addView(toggle("Capitalise the first letter of sentences", "autocaps", true));
@@ -726,6 +747,16 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == REQ_SWIPES && res == RESULT_OK && data != null && data.getData() != null) {
+            try (java.io.InputStream in = new java.io.FileInputStream(new java.io.File(getFilesDir(), "swipes.jsonl"));
+                 java.io.OutputStream out = getContentResolver().openOutputStream(data.getData(), "wt")) {
+                byte[] buf = new byte[8192];
+                int r;
+                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+                toast("Swipe recordings saved");
+            } catch (Exception e) { toast("Couldn't save the file"); }
+            return;
+        }
         if ((req == REQ_BACKUP || req == REQ_RESTORE) && res == RESULT_OK && data != null && data.getData() != null) {
             Uri u = data.getData();
             if (req == REQ_BACKUP) {
