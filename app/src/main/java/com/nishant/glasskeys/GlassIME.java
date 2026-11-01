@@ -99,6 +99,12 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private ClipboardManager cm;
     private long lastClipTime;
     private String lastClipText;
+    private android.widget.HorizontalScrollView autofillBar;
+    private LinearLayout autofillRow;
+    private int autofillGen;
+    /** File name (files/clipimg) of an image copied in the last minute, for the paste chip. */
+    private String lastClipImg;
+    private final java.util.Map<String, Bitmap> clipThumbs = new java.util.HashMap<>();
     private final ClipboardManager.OnPrimaryClipChangedListener clipListener = this::onClipChanged;
 
     // voice
@@ -345,7 +351,20 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
         strip = new StripView(this, gp);
         strip.feedback = () -> feedback(false);
-        column.addView(strip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (54 * dp)));
+        FrameLayout stripFrame = new FrameLayout(this);
+        stripFrame.setClipChildren(false);
+        stripFrame.addView(strip, new FrameLayout.LayoutParams(-1, -1));
+        // passwords / OTPs from the autofill service (Android 11+) appear here, over the strip
+        autofillBar = new android.widget.HorizontalScrollView(this);
+        autofillBar.setHorizontalScrollBarEnabled(false);
+        autofillRow = new LinearLayout(this);
+        autofillRow.setOrientation(LinearLayout.HORIZONTAL);
+        autofillRow.setGravity(Gravity.CENTER_VERTICAL);
+        autofillRow.setPadding((int) (8 * dp), 0, (int) (8 * dp), 0);
+        autofillBar.addView(autofillRow, new FrameLayout.LayoutParams(-2, -1));
+        autofillBar.setVisibility(View.GONE);
+        stripFrame.addView(autofillBar, new FrameLayout.LayoutParams(-1, -1));
+        column.addView(stripFrame, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (54 * dp)));
 
         content = new FrameLayout(this);
         content.setClipChildren(false);
@@ -408,6 +427,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
 
     private void applySettings() {
         loadContactNames();
+        if (keyboard != null) keyboard.trackpadEnabled = prefs.bool("trackpad", true);
         if (prefs.bool("swipereset", false) && keyboard != null && keyboard.decoder != null) {
             keyboard.decoder.resetOffsets();
             TapModel.reset();
@@ -524,6 +544,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void onFinishInputView(boolean finishing) {
         super.onFinishInputView(finishing);
+        hideAutofill();
         stopVoice();
         dict.flush();
         if (offsetsDirty && keyboard != null && keyboard.decoder != null) { prefs.setStr("swipeoffsets", keyboard.decoder.offsets()); offsetsDirty = false; }
@@ -1098,6 +1119,26 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     @Override
+    public void onCursorMove2D(int dx, int dy, boolean select) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        lastEditTime = SystemClock.uptimeMillis();
+        commitComposing();
+        int meta = select ? (KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON) : 0;
+        long t = SystemClock.uptimeMillis();
+        int hx = dx < 0 ? KeyEvent.KEYCODE_DPAD_LEFT : KeyEvent.KEYCODE_DPAD_RIGHT;
+        int vy = dy < 0 ? KeyEvent.KEYCODE_DPAD_UP : KeyEvent.KEYCODE_DPAD_DOWN;
+        for (int i = 0; i < Math.abs(dy); i++) {
+            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, vy, 0, meta));
+            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, vy, 0, meta));
+        }
+        for (int i = 0; i < Math.abs(dx); i++) {
+            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, hx, 0, meta));
+            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, hx, 0, meta));
+        }
+    }
+
+    @Override
     public void onCursorMove(int steps) {
         lastEditTime = SystemClock.uptimeMillis();
         commitComposing();
@@ -1249,6 +1290,23 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 if (c2 != null) expandSnippet(c2);
                 updateStrip();
             }));
+            strip.setCells(cells);
+            return;
+        }
+
+        // 3a. Recently copied image -> paste chip
+        if (composing.length() == 0 && lastClipImg != null && !isPassword && !toolbarForced
+                && SystemClock.uptimeMillis() - lastClipTime < 60000) {
+            cells.add(orb(this::forceToolbar));
+            final String img = lastClipImg;
+            StripView.Cell pc = StripView.Cell.chip(GlassPainter.IC_PASTE, "Paste copied image", () -> {
+                lastClipImg = null;
+                sendClipImage(img);
+                updateStrip();
+            });
+            pc.active = true;
+            cells.add(pc);
+            cells.add(StripView.Cell.icon(GlassPainter.IC_CLOSE, () -> { lastClipImg = null; updateStrip(); }));
             strip.setCells(cells);
             return;
         }
@@ -1517,29 +1575,73 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             java.io.File out = new java.io.File(dir, name);
             Bitmap card = Business.qrCard(prefs, amount, dp);
             try (java.io.FileOutputStream fo = new java.io.FileOutputStream(out)) { card.compress(Bitmap.CompressFormat.PNG, 100, fo); }
-            android.net.Uri uri = ShareProvider.uriFor(name);
-            EditorInfo ei = getCurrentInputEditorInfo();
-            InputConnection ic = getCurrentInputConnection();
-            boolean accepts = false;
-            if (ei != null && ei.contentMimeTypes != null)
-                for (String mt : ei.contentMimeTypes) if (android.content.ClipDescription.compareMimeTypes("image/png", mt)) accepts = true;
-            if (accepts && ic != null) {
-                android.view.inputmethod.InputContentInfo info = new android.view.inputmethod.InputContentInfo(uri,
-                        new android.content.ClipDescription("Payment QR", new String[]{"image/png"}));
-                boolean ok = ic.commitContent(info, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
-                if (ok) return;
-            }
-            // this app doesn't take images from keyboards: open the share sheet instead
-            Intent send = new Intent(Intent.ACTION_SEND);
-            send.setType("image/png");
-            send.putExtra(Intent.EXTRA_STREAM, uri);
-            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            Intent chooser = Intent.createChooser(send, "Share payment QR");
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(chooser);
+            commitImage(name, "image/png", "Payment QR");
         } catch (Exception e) {
             toast("Couldn't make the QR code");
         }
+    }
+
+    /** Puts an image from cache/share into the chat, or opens the share sheet if this app can't take it. */
+    private void commitImage(String name, String mime, String label) {
+        android.net.Uri uri = ShareProvider.uriFor(name);
+        EditorInfo ei = getCurrentInputEditorInfo();
+        InputConnection ic = getCurrentInputConnection();
+        boolean accepts = false;
+        if (ei != null && ei.contentMimeTypes != null)
+            for (String mt : ei.contentMimeTypes) if (android.content.ClipDescription.compareMimeTypes(mime, mt)) accepts = true;
+        if (accepts && ic != null) {
+            commitComposing();
+            android.view.inputmethod.InputContentInfo info = new android.view.inputmethod.InputContentInfo(uri,
+                    new android.content.ClipDescription(label, new String[]{mime}));
+            if (ic.commitContent(info, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null)) return;
+        }
+        // this app doesn't take images from keyboards: open the share sheet instead
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType(mime);
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        Intent chooser = Intent.createChooser(send, "Share " + label.toLowerCase());
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(chooser);
+    }
+
+    /** Sends a copied image saved in files/clipimg. */
+    private void sendClipImage(String fileName) {
+        try {
+            java.io.File src = new java.io.File(new java.io.File(getFilesDir(), "clipimg"), fileName);
+            if (!src.exists()) { toast("That image is no longer saved"); return; }
+            java.io.File dir = new java.io.File(getCacheDir(), "share");
+            dir.mkdirs();
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) f.delete();
+            java.io.File out = new java.io.File(dir, fileName);
+            try (java.io.InputStream in = new java.io.FileInputStream(src);
+                 java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                byte[] buf = new byte[16384]; int n;
+                while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+            }
+            commitImage(fileName, ShareProvider.mimeFor(fileName), "Image");
+        } catch (Exception e) {
+            toast("Couldn't paste the image");
+        }
+    }
+
+    private Bitmap clipThumb(String fileName) {
+        Bitmap b = clipThumbs.get(fileName);
+        if (b != null) return b;
+        try {
+            String path = new java.io.File(new java.io.File(getFilesDir(), "clipimg"), fileName).getPath();
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(path, o);
+            int side = Math.max(o.outWidth, o.outHeight), sample = 1;
+            while (side / (sample * 2) >= 240) sample *= 2;
+            o = new android.graphics.BitmapFactory.Options();
+            o.inSampleSize = sample;
+            b = android.graphics.BitmapFactory.decodeFile(path, o);
+            if (b != null) clipThumbs.put(fileName, b);
+        } catch (Exception ignored) { }
+        return b;
     }
 
     /** ";pay 1250", ";pay", ";hours", ";qr" right before the cursor -> {kind, amount}. */
@@ -1893,6 +1995,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                     if (ic != null && c.tag instanceof Business.Found) { commitComposing(); ic.commitText(((Business.Found) c.tag).value, 1); }
                     return;
                 }
+                if (panel == P_CLIP && c.tag instanceof Integer) {
+                    List<Prefs.Clip> cl = prefs.clips();
+                    int ix = (Integer) c.tag;
+                    if (ix < cl.size() && cl.get(ix).img != null) { sendClipImage(cl.get(ix).img); return; }
+                }
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) { commitComposing(); ic.commitText(c.body, 1); }
             }
@@ -1934,15 +2041,22 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
                 List<Prefs.Clip> clips = prefs.clips();
                 int idx = (Integer) c.tag;
                 if (idx >= clips.size()) return;
-                if (i == 0) clips.get(idx).pinned = !clips.get(idx).pinned;
-                else if (i == 1) {
+                int icon = c.icons[i];
+                if (icon == GlassPainter.IC_PIN || icon == GlassPainter.IC_PIN_ON) clips.get(idx).pinned = !clips.get(idx).pinned;
+                else if (icon == GlassPainter.IC_SNIPPET) {
                     List<Prefs.Snippet> sn = prefs.snippets();
                     String body = clips.get(idx).text;
                     String title = body.length() > 24 ? body.substring(0, 24) + "…" : body;
                     sn.add(0, new Prefs.Snippet(title.replace('\n', ' '), body, ""));
                     prefs.saveSnippets(sn);
                     toast("Saved to Quick text");
-                } else clips.remove(idx);
+                } else {
+                    Prefs.Clip gone = clips.remove(idx);
+                    if (gone.img != null) {
+                        new java.io.File(new java.io.File(getFilesDir(), "clipimg"), gone.img).delete();
+                        clipThumbs.remove(gone.img);
+                    }
+                }
                 prefs.saveClips(clips);
                 refreshClips();
             }
@@ -2099,9 +2213,17 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             Prefs.Clip c = clips.get(i);
             if (c.pinned != (pass == 0)) continue;
             CardList.Card card = new CardList.Card();
+            card.tag = i;
+            if (c.img != null) {
+                card.image = clipThumb(c.img);
+                if (card.image == null) continue;
+                card.body = "Copied image\nTap to send";
+                card.icons = new int[]{c.pinned ? GlassPainter.IC_PIN_ON : GlassPainter.IC_PIN, GlassPainter.IC_TRASH};
+                cards.add(card);
+                continue;
+            }
             card.body = c.text;
             card.icons = new int[]{c.pinned ? GlassPainter.IC_PIN_ON : GlassPainter.IC_PIN, GlassPainter.IC_SNIPPET, GlassPainter.IC_TRASH};
-            card.tag = i;
             cards.add(card);
         }
         clipList.setCards(cards, "Copy something and it will appear here");
@@ -2550,17 +2672,131 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
     }
 
+    // ================================================================= autofill (Android 11+)
+
+    @Override
+    public android.view.inputmethod.InlineSuggestionsRequest onCreateInlineSuggestionsRequest(Bundle uiExtras) {
+        if (Build.VERSION.SDK_INT < 30 || !prefs.bool("autofill", true)) return null;
+        // AndroidX "v1" inline UI style, built by hand (no AndroidX in this app)
+        Bundle v1 = new Bundle();
+        v1.putBoolean("style_v1", true);
+        Bundle style = new Bundle();
+        style.putBundle("androidx.autofill.inline.ui.version:v1", v1);
+        ArrayList<String> versions = new ArrayList<>();
+        versions.add("androidx.autofill.inline.ui.version:v1");
+        style.putStringArrayList("androidx.autofill.inline.ui.version:key", versions);
+        int w = getResources().getDisplayMetrics().widthPixels;
+        android.widget.inline.InlinePresentationSpec spec = new android.widget.inline.InlinePresentationSpec.Builder(
+                new android.util.Size((int) (56 * dp), (int) (36 * dp)),
+                new android.util.Size(w, (int) (40 * dp))).setStyle(style).build();
+        List<android.widget.inline.InlinePresentationSpec> specs = new ArrayList<>();
+        specs.add(spec);
+        return new android.view.inputmethod.InlineSuggestionsRequest.Builder(specs)
+                .setMaxSuggestionCount(6).build();
+    }
+
+    @Override
+    public boolean onInlineSuggestionsResponse(android.view.inputmethod.InlineSuggestionsResponse response) {
+        if (Build.VERSION.SDK_INT < 30 || autofillRow == null) return false;
+        final List<android.view.inputmethod.InlineSuggestion> list = response.getInlineSuggestions();
+        final int gen = ++autofillGen;
+        if (list.isEmpty()) { hideAutofill(); return true; }
+        final View[] views = new View[list.size()];
+        final int[] left = {list.size()};
+        int w = getResources().getDisplayMetrics().widthPixels;
+        for (int i = 0; i < list.size(); i++) {
+            final int idx = i;
+            // pinned items (e.g. the password manager's key icon) keep their own small size
+            android.util.Size size = new android.util.Size(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, (int) (40 * dp));
+            try {
+                list.get(i).inflate(this, size, getMainExecutor(), v -> {
+                    if (gen != autofillGen) return;
+                    views[idx] = v;
+                    if (--left[0] == 0) showAutofill(views);
+                });
+            } catch (Exception e) {
+                if (--left[0] == 0) showAutofill(views);
+            }
+        }
+        return true;
+    }
+
+    private void showAutofill(View[] views) {
+        autofillRow.removeAllViews();
+        int shown = 0;
+        for (View v : views) {
+            if (v == null) continue;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, (int) (40 * dp));
+            lp.setMargins((int) (3 * dp), 0, (int) (3 * dp), 0);
+            autofillRow.addView(v, lp);
+            shown++;
+        }
+        if (shown == 0) { hideAutofill(); return; }
+        autofillBar.scrollTo(0, 0);
+        autofillBar.setVisibility(View.VISIBLE);
+        strip.setVisibility(View.INVISIBLE);
+    }
+
+    private void hideAutofill() {
+        autofillGen++;
+        if (autofillBar == null) return;
+        autofillRow.removeAllViews();
+        autofillBar.setVisibility(View.GONE);
+        strip.setVisibility(View.VISIBLE);
+    }
+
     // ================================================================= clipboard
 
     private void onClipChanged() {
         try {
             ClipData d = cm.getPrimaryClip();
             if (d == null || d.getItemCount() == 0) return;
+            android.content.ClipDescription desc = d.getDescription();
+            final android.net.Uri u = d.getItemAt(0).getUri();
+            if (u != null && desc != null && desc.hasMimeType("image/*") && d.getItemAt(0).getText() == null) {
+                if (prefs.incognito()) return;
+                String mt = desc.getMimeTypeCount() > 0 ? desc.getMimeType(0) : "image/png";
+                final String ext = mt.contains("jpeg") || mt.contains("jpg") ? ".jpg" : mt.contains("gif") ? ".gif" : mt.contains("webp") ? ".webp" : ".png";
+                final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+                REC.execute(() -> {
+                    try {
+                        java.io.File dir = new java.io.File(getFilesDir(), "clipimg");
+                        dir.mkdirs();
+                        final String name = "clip_" + System.currentTimeMillis() + ext;
+                        java.io.File out = new java.io.File(dir, name);
+                        long total = 0;
+                        try (java.io.InputStream in = getContentResolver().openInputStream(u);
+                             java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                            byte[] buf = new byte[16384]; int n;
+                            while ((n = in.read(buf)) > 0) {
+                                total += n;
+                                if (total > 15L * 1024 * 1024) throw new java.io.IOException("too big");
+                                os.write(buf, 0, n);
+                            }
+                        } catch (Exception e) { out.delete(); return; }
+                        main.post(() -> {
+                            prefs.addClipImage(name);
+                            // drop files no longer referenced (older images beyond the 20 kept)
+                            java.util.Set<String> keep = new java.util.HashSet<>();
+                            for (Prefs.Clip c : prefs.clips()) if (c.img != null) keep.add(c.img);
+                            java.io.File[] all = dir.listFiles();
+                            if (all != null) for (java.io.File f : all) if (!keep.contains(f.getName())) { f.delete(); clipThumbs.remove(f.getName()); }
+                            lastClipImg = name;
+                            lastClipText = null;
+                            lastClipTime = SystemClock.uptimeMillis();
+                            if (panel == P_CLIP) refreshClips();
+                            updateStrip();
+                        });
+                    } catch (Exception ignored) { }
+                });
+                return;
+            }
             CharSequence t = d.getItemAt(0).coerceToText(this);
             if (t == null || t.length() == 0) return;
             String s = t.toString();
             if (!prefs.incognito()) prefs.addClip(s);
             lastClipText = s;
+            lastClipImg = null;
             lastClipTime = SystemClock.uptimeMillis();
             lastClipFound = Business.detect(s);
             if (panel == P_CLIP) refreshClips();

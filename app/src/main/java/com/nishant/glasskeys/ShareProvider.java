@@ -34,7 +34,15 @@ public class ShareProvider extends ContentProvider {
         return ParcelFileDescriptor.open(fileFor(uri), ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
-    @Override public String getType(Uri uri) { return "image/png"; }
+    @Override public String getType(Uri uri) { return mimeFor(uri.getLastPathSegment()); }
+
+    public static String mimeFor(String name) {
+        String n = name == null ? "" : name.toLowerCase();
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".gif")) return "image/gif";
+        if (n.endsWith(".webp")) return "image/webp";
+        return "image/png";
+    }
 
     @Override
     public Cursor query(Uri uri, String[] projection, String sel, String[] args, String sort) {

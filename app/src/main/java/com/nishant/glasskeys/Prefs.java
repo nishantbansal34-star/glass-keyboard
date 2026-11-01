@@ -206,6 +206,8 @@ public class Prefs {
         public String text;
         public boolean pinned;
         public long time;
+        /** File name of a copied image (in files/clipimg), or null for text. */
+        public String img;
         Clip(String t, boolean p, long tm) { text = t; pinned = p; time = tm; }
     }
 
@@ -215,7 +217,10 @@ public class Prefs {
             JSONArray a = new JSONArray(sp.getString("clips", "[]"));
             for (int i = 0; i < a.length(); i++) {
                 JSONObject o = a.getJSONObject(i);
-                out.add(new Clip(o.getString("t"), o.optBoolean("p"), o.optLong("m")));
+                Clip c = new Clip(o.getString("t"), o.optBoolean("p"), o.optLong("m"));
+                String im = o.optString("i", "");
+                c.img = im.isEmpty() ? null : im;
+                out.add(c);
             }
         } catch (Exception ignored) { }
         return out;
@@ -227,10 +232,25 @@ public class Prefs {
             for (Clip c : list) {
                 JSONObject o = new JSONObject();
                 o.put("t", c.text); o.put("p", c.pinned); o.put("m", c.time);
+                if (c.img != null) o.put("i", c.img);
                 a.put(o);
             }
         } catch (Exception ignored) { }
         sp.edit().putString("clips", a.toString()).apply();
+    }
+
+    /** Adds a copied image (already saved to files/clipimg) at the top; keeps the latest 20 unpinned images. */
+    public void addClipImage(String fileName) {
+        List<Clip> list = clips();
+        Clip c = new Clip("Image", false, System.currentTimeMillis());
+        c.img = fileName;
+        list.add(0, c);
+        int imgs = 0;
+        for (int i = 0; i < list.size(); i++) {
+            Clip x = list.get(i);
+            if (x.img != null && !x.pinned && ++imgs > 20) { list.remove(i); i--; }
+        }
+        saveClips(list);
     }
 
     /** Adds a clip at the top; keeps pinned items forever and the latest 60 unpinned ones. */
@@ -241,12 +261,12 @@ public class Prefs {
         List<Clip> list = clips();
         boolean pinned = false;
         for (int i = list.size() - 1; i >= 0; i--) {
-            if (list.get(i).text.equals(text)) { pinned = list.get(i).pinned; list.remove(i); }
+            if (list.get(i).img == null && list.get(i).text.equals(text)) { pinned = list.get(i).pinned; list.remove(i); }
         }
         list.add(0, new Clip(text, pinned, System.currentTimeMillis()));
         int unpinned = 0;
         for (int i = 0; i < list.size(); i++) {
-            if (!list.get(i).pinned && ++unpinned > 60) { list.remove(i); i--; }
+            if (list.get(i).img == null && !list.get(i).pinned && ++unpinned > 60) { list.remove(i); i--; }
         }
         saveClips(list);
     }
@@ -346,6 +366,19 @@ public class Prefs {
     }
 
     public void saveNoCorrect(java.util.Set<String> s) { sp.edit().putString("nocorrect", String.join("\u0001", s)).apply(); }
+
+    /** Words you added yourself (exact spelling, e.g. "NRRL", "Orbé", "pincode"). */
+    public java.util.List<String> userWords() {
+        java.util.List<String> l = new java.util.ArrayList<>();
+        String v = sp.getString("userwords", "");
+        if (!v.isEmpty()) for (String w : v.split("\u0001")) if (!w.isEmpty()) l.add(w);
+        return l;
+    }
+
+    public void saveUserWords(java.util.List<String> l) {
+        sp.edit().putString("userwords", String.join("\u0001", l)).apply();
+        markLearnEdited();
+    }
 
     /** Settings changed learned data: the keyboard should reload it next time it opens. */
     public void markLearnEdited() { sp.edit().putLong("learnEdit", System.currentTimeMillis()).apply(); }

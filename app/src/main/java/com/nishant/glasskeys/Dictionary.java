@@ -24,6 +24,14 @@ public class Dictionary {
     private Map<String, Integer> trigrams = new HashMap<>();
     private Map<String, String> caseForms = new HashMap<>();
     private java.util.Set<String> noCorrect = new java.util.HashSet<>();
+    /** Your own dictionary: lowercase -> your spelling. */
+    private volatile Map<String, String> userWords = new HashMap<>();
+
+    private void loadUserWords() {
+        Map<String, String> m = new HashMap<>();
+        if (prefs != null) for (String w : prefs.userWords()) m.put(w.toLowerCase(), w);
+        userWords = m;
+    }
     /** Names from your contacts (lowercase -> how it's written), only when you turn that on. */
     private volatile Map<String, String> contacts = new HashMap<>();
 
@@ -65,6 +73,7 @@ public class Dictionary {
         trigrams = prefs.trigrams();
         caseForms = prefs.caseForms();
         noCorrect = prefs.noCorrect();
+        loadUserWords();
         final Context app = ctx.getApplicationContext();
         new Thread(() -> load(app)).start();
     }
@@ -162,7 +171,7 @@ public class Dictionary {
 
     public boolean isWord(String w) {
         String l = w.toLowerCase();
-        return index.containsKey(l) || learnedCount(l) >= 2 || contacts.containsKey(l);
+        return index.containsKey(l) || learnedCount(l) >= 2 || contacts.containsKey(l) || userWords.containsKey(l);
     }
 
     private int learnedCount(String w) {
@@ -319,6 +328,15 @@ public class Dictionary {
                     put(best, w, s, tc);
                 }
         }
+        // 3a. words you added to your dictionary: strong, and typo-tolerant
+        for (Map.Entry<String, String> e : userWords.entrySet()) {
+            String w = e.getKey();
+            if (w.startsWith(low)) put(best, w, 520 + learnedCount(w) * 15 - (w.length() - low.length()) * 5, 0f);
+            else if (low.length() >= 3) {
+                float tc = LangModel.cost(low, w, maxT);
+                if (tc <= maxT) put(best, w, 520 - tc * TYPO, tc);
+            }
+        }
         // 3. your own words (names, brands, Hinglish) that aren't in the word list
         for (Map.Entry<String, Integer> e : learned.entrySet()) {
             String w = e.getKey();
@@ -358,6 +376,7 @@ public class Dictionary {
             String shown = matchCase(typed, c.w);
             // typed in lowercase? use your usual capitalisation (NRRL, Nishant, WhatsApp)
             if (typed.equals(typed.toLowerCase()) && caseForms.containsKey(c.w)) shown = caseForms.get(c.w);
+            else if (typed.equals(typed.toLowerCase()) && userWords.containsKey(c.w)) shown = userWords.get(c.w);
             else if (typed.equals(typed.toLowerCase()) && contacts.containsKey(c.w) && !index.containsKey(c.w)) shown = contacts.get(c.w);
             boolean dup = false;
             for (String o : out) if (o.equalsIgnoreCase(shown)) dup = true;
@@ -385,6 +404,7 @@ public class Dictionary {
         if (!loaded || typed.length() < 2 || isWord(typed)) return null;
         for (int i = 0; i < typed.length(); i++) if (!Character.isLetter(typed.charAt(i)) && typed.charAt(i) != '\'') return null;
         if (SLANG.contains(low) || noCorrect.contains(low)) return null;
+        if (userWords.containsKey(low)) { String u = userWords.get(low); return u.equals(typed) ? null : (typed.equals(low) ? u : null); }
         // shouting/ACRONYMS and mixed case (iPhone, GSTIN) are probably intentional
         if (typed.length() > 1 && typed.equals(typed.toUpperCase())) return null;
         List<Cand> r = rank(typed, prev, prev2, true);
@@ -400,6 +420,7 @@ public class Dictionary {
         if (second != null && top.s - second.s < 45) return null;   // two plausible fixes: let you pick
         String out = matchCase(typed, top.w);
         if (typed.equals(low) && caseForms.containsKey(top.w)) out = caseForms.get(top.w);
+        if (typed.equals(low) && userWords.containsKey(top.w)) out = userWords.get(top.w);
         return out;
     }
 
@@ -592,6 +613,7 @@ public class Dictionary {
         trigrams = prefs.trigrams();
         caseForms = prefs.caseForms();
         noCorrect = prefs.noCorrect();
+        loadUserWords();
     }
 
     private static String matchCase(String typed, String w) {

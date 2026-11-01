@@ -27,6 +27,8 @@ public class KeyboardView extends View {
         void onText(String text);
         void onKey(int code);
         void onCursorMove(int steps);
+        /** Trackpad: move the cursor dx characters and dy lines; select = extend the selection. */
+        void onCursorMove2D(int dx, int dy, boolean select);
         void onDeleteWords(int count);
         void onSpaceLongPress();
         void onOneHandedSwap();
@@ -66,12 +68,60 @@ public class KeyboardView extends View {
     // Touch tracking (multi-touch, like fast two-thumb typing)
     private static class Ptr {
         Key key;
-        float downX, downY, lastX;
+        float downX, downY, lastX, lastY;
         boolean consumed, popup, spaceSwipe, delSwipe;
         int popupIndex, cursorSteps, delWords;
     }
     private final SparseArray<Ptr> ptrs = new SparseArray<>();
     private Ptr longPressTarget;
+
+    // ---- trackpad (hold space): the whole keyboard becomes a touchpad for the cursor
+    public boolean trackpadEnabled = true;
+    private boolean trackpad, tpSelect;
+    private int tpPointer = -1;
+    private float tpLastX, tpLastY, tpAccX, tpAccY;
+
+    private void startTrackpad(Ptr p, int pointerId) {
+        trackpad = true;
+        tpSelect = false;
+        tpPointer = pointerId;
+        tpLastX = p.lastX; tpLastY = p.lastY;
+        tpAccX = tpAccY = 0;
+        listener.feedback(true);
+        endDrop(p.key);
+        invalidateAll();
+    }
+
+    private void trackpadMove(float x, float y) {
+        float stepX = 9 * dp, stepY = 22 * dp;
+        tpAccX += x - tpLastX; tpAccY += y - tpLastY;
+        tpLastX = x; tpLastY = y;
+        int dx = (int) (tpAccX / stepX), dy = (int) (tpAccY / stepY);
+        if (dx != 0) { tpAccX -= dx * stepX; }
+        if (dy != 0) { tpAccY -= dy * stepY; }
+        if (dx != 0 || dy != 0) { listener.onCursorMove2D(dx, dy, tpSelect); listener.feedback(false); }
+    }
+
+    private void endTrackpad() {
+        trackpad = false; tpSelect = false; tpPointer = -1;
+        invalidateAll();
+    }
+
+    private final Paint tpPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private void drawTrackpad(Canvas c) {
+        if (!trackpad) return;
+        tpPaint.setStyle(Paint.Style.FILL);
+        tpPaint.setColor(theme.dark ? 0xB3000000 : 0xB3FFFFFF);
+        c.drawRect(0, 0, getWidth(), getHeight(), tpPaint);
+        tpPaint.setColor(theme.dark ? 0xCCFFFFFF : 0xCC1C1C1E);
+        tpPaint.setTextAlign(Paint.Align.CENTER);
+        tpPaint.setTextSize(16 * dp);
+        c.drawText(tpSelect ? "Selecting — drag to extend" : "Trackpad — drag to move the cursor", getWidth() / 2f, getHeight() / 2f, tpPaint);
+        tpPaint.setTextSize(12.5f * dp);
+        tpPaint.setColor(theme.dark ? 0x80FFFFFF : 0x801C1C1E);
+        if (!tpSelect) c.drawText("Tap with a second finger to select", getWidth() / 2f, getHeight() / 2f + 24 * dp, tpPaint);
+    }
     private Ptr popupPtr;
     private final RectF popupRect = new RectF();
     private int popupCols, popupRows;
@@ -591,6 +641,7 @@ public class KeyboardView extends View {
             gp.drawIcon(c, GlassPainter.IC_EXPAND, sideBtnB.centerX(), sideBtnB.centerY(), 20 * dp, theme.text);
         }
 
+        drawTrackpad(c);
         // droplet previews animate on the overlay by themselves (no full keyboard redraws)
         boolean trailAlive = gn > 0 && (gliding || glideEnd >= 0);
         if (overlay != null && (!drops.isEmpty() || popupPtr != null || trailAlive)) overlay.invalidate();
@@ -840,6 +891,13 @@ public class KeyboardView extends View {
         @Override public void run() {
             Ptr p = longPressTarget;
             if (p == null || p.consumed || p.key == null) return;
+            if (p.key.code == Key.SPACE && trackpadEnabled) {
+                if (!p.spaceSwipe) {
+                    p.consumed = true;
+                    for (int i = 0; i < ptrs.size(); i++) if (ptrs.valueAt(i) == p) { startTrackpad(p, ptrs.keyAt(i)); break; }
+                }
+                return;
+            }
             if (p.key.code == Key.SPACE || p.key.code == Key.LANG) {
                 if (!p.spaceSwipe) { p.consumed = true; listener.onSpaceLongPress(); }
                 return;
@@ -885,6 +943,10 @@ public class KeyboardView extends View {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN: {
                 float x = e.getX(idx), y = e.getY(idx);
+                if (trackpad) {   // a second finger while in trackpad mode = select
+                    if (!tpSelect) { tpSelect = true; listener.feedback(true); invalidateAll(); }
+                    return true;
+                }
                 if (gliding) return true; // one swipe at a time
                 if (oneHanded != 0) {
                     if (sideBtnA.contains(x, y)) { listener.feedback(true); listener.onOneHandedSwap(); return true; }
@@ -903,7 +965,7 @@ public class KeyboardView extends View {
                 Key k = keyAt(x, y);
                 if (k == null) return true;
                 Ptr p = new Ptr();
-                p.key = k; p.downX = x; p.downY = y; p.lastX = x;
+                p.key = k; p.downX = x; p.downY = y; p.lastX = x; p.lastY = y;
                 ptrs.put(e.getPointerId(idx), p);
                 if (ptrs.size() == 1) { gn = 0; glideEnd = -1; addGlidePoint(x, y, SystemClock.uptimeMillis()); }
                 listener.feedback(false);
@@ -929,6 +991,11 @@ public class KeyboardView extends View {
                 return true;
             }
             case MotionEvent.ACTION_MOVE: {
+                if (trackpad) {
+                    int pi = e.findPointerIndex(tpPointer);
+                    if (pi >= 0) trackpadMove(e.getX(pi), e.getY(pi));
+                    return true;
+                }
                 for (int i = 0; i < e.getPointerCount(); i++) {
                     Ptr p = ptrs.get(e.getPointerId(i));
                     if (p == null || p.key == null) continue;
@@ -997,12 +1064,20 @@ public class KeyboardView extends View {
                             invalidateAll();
                         }
                     }
-                    p.lastX = x;
+                    p.lastX = x; p.lastY = y;
                 }
                 return true;
             }
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP: {
+                if (trackpad) {
+                    if (e.getPointerId(idx) == tpPointer || action == MotionEvent.ACTION_UP) {
+                        ptrs.remove(e.getPointerId(idx));
+                        if (action == MotionEvent.ACTION_UP) ptrs.clear();
+                        endTrackpad();
+                    }
+                    return true;
+                }
                 Ptr p = ptrs.get(e.getPointerId(idx));
                 ptrs.remove(e.getPointerId(idx));
                 h.removeCallbacks(longPress);

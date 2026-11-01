@@ -346,6 +346,8 @@ public class SettingsActivity extends Activity {
         LinearLayout typing = card("Typing");
         typing.addView(toggle("Swipe typing (glide across letters)", "glide", true));
         typing.addView(toggle("Show the swipe trail", "trail", true));
+        typing.addView(toggle("Show saved passwords, addresses and OTP codes in the suggestion bar (Android 11+, from your password manager)", "autofill", true));
+        typing.addView(toggle("Hold the space bar for trackpad mode (move the cursor freely; second finger selects). Off = hold space to switch keyboards", "trackpad", true));
         typing.addView(toggle("Fix the previous swiped word when the next word makes it clearer", "swiperetro", true));
         typing.addView(toggle("Record my swipes to tune accuracy (stays on this phone until you export it)", "swiperec", false));
         java.io.File rec = new java.io.File(getFilesDir(), "swipes.jsonl");
@@ -398,6 +400,29 @@ public class SettingsActivity extends Activity {
                 String.valueOf(prefs.gstRate()), v -> prefs.setInt("gst", Integer.parseInt(v))));
 
         // --- Snippets
+        // --- My words
+        LinearLayout mw = card("My words");
+        TextView mwh = text("Words the keyboard should always know and never change — brand names, product names, people, Hinglish. Written exactly as you add them (e.g. NRRL, Orbé, pincode).", 13, false);
+        mwh.setAlpha(0.7f);
+        mw.addView(mwh);
+        LinearLayout mwList = new LinearLayout(this);
+        mwList.setOrientation(LinearLayout.VERTICAL);
+        mw.addView(mwList);
+        renderUserWords(mwList);
+        EditText mwIn = field("Add a word", false);
+        mw.addView(mwIn);
+        mw.addView(button("Add word", v -> {
+            String w = mwIn.getText().toString().trim();
+            if (w.isEmpty() || w.contains(" ")) { toast("Enter one word"); return; }
+            java.util.List<String> l = prefs.userWords();
+            for (String x : l) if (x.equalsIgnoreCase(w)) { toast("Already added"); return; }
+            l.add(w);
+            prefs.saveUserWords(l);
+            mwIn.setText("");
+            renderUserWords(mwList);
+            toast("Added “" + w + "”");
+        }));
+
         LinearLayout sn = card("Quick text (snippets)");
         snippetsAnchor = sn;
         TextView help = text("Tap one in the keyboard's ⚡ panel, or type its shortcut followed by space, e.g. ;upi", 13, false);
@@ -445,7 +470,7 @@ public class SettingsActivity extends Activity {
         }));
 
         LinearLayout tips = card("Gestures");
-        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar to switch keyboards\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute — with one-tap actions for phone numbers, GSTINs, pincodes, UPI IDs and amounts\n• ;pay 1250 + space types a UPI payment request · ;qr sends a payment QR · ;hours sends your shop timings · ;price sends your price list\n• Tap 🌐 to switch English / Hinglish → हिंदी / हिंदी keys\n• Emoji panel → 🔍 to search emoji by word (happy, party, paisa…)\n• Hold the ✦ orb for incognito", 14, false));
+        tips.addView(text("• Swipe across letters to type a whole word — no lifting\n• Slide on the space bar to move the cursor\n• Slide left from backspace to delete whole words\n• Hold backspace: deletes letters, then words\n• Hold a key for accents & symbols (hold ₹ for $ € £)\n• Hold the space bar for trackpad mode — drag to move the cursor anywhere, add a second finger to select (hold 🌐 to switch keyboards)\n• Double-tap shift for CAPS LOCK\n• Type 250*12= and tap the answer in the bar\n• Copied text shows up as a paste chip for a minute — with one-tap actions for phone numbers, GSTINs, pincodes, UPI IDs and amounts\n• ;pay 1250 + space types a UPI payment request · ;qr sends a payment QR · ;hours sends your shop timings · ;price sends your price list\n• Tap 🌐 to switch English / Hinglish → हिंदी / हिंदी keys\n• Emoji panel → 🔍 to search emoji by word (happy, party, paisa…)\n• Hold the ✦ orb for incognito", 14, false));
     }
 
     private EditText bizField(String hint, String key, boolean multi) {
@@ -883,6 +908,43 @@ public class SettingsActivity extends Activity {
                 return true;
             });
             list.addView(t, lp);
+        }
+    }
+
+    private void renderUserWords(LinearLayout list) {
+        list.removeAllViews();
+        java.util.List<String> l = prefs.userWords();
+        if (l.isEmpty()) return;
+        StringBuilder sb = new StringBuilder();
+        TextView hint = text("Tap a word to remove it", 12, false);
+        hint.setAlpha(0.6f);
+        hint.setPadding(0, (int) (6 * dp), 0, (int) (4 * dp));
+        list.addView(hint);
+        LinearLayout row = null;
+        float rowW = 0, maxW = getResources().getDisplayMetrics().widthPixels - 72 * dp;
+        for (String w : l) {
+            TextView chip = text(w, 14, false);
+            chip.setBackground(pill(0x1FFFFFFF, 14));
+            chip.setPadding((int) (12 * dp), (int) (7 * dp), (int) (12 * dp), (int) (7 * dp));
+            chip.setOnClickListener(v -> {
+                java.util.List<String> cur = prefs.userWords();
+                cur.remove(w);
+                prefs.saveUserWords(cur);
+                renderUserWords(list);
+            });
+            chip.measure(0, 0);
+            float cw = chip.getMeasuredWidth() + 8 * dp;
+            if (row == null || rowW + cw > maxW) {
+                row = new LinearLayout(this);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                rl.bottomMargin = (int) (8 * dp);
+                list.addView(row, rl);
+                rowW = 0;
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = (int) (8 * dp);
+            row.addView(chip, lp);
+            rowW += cw;
         }
     }
 

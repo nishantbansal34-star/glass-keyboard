@@ -23,6 +23,8 @@ public class CardList extends View {
         public String badge;    // e.g. shortcut ";upi"
         public int[] icons = new int[0];
         public Object tag;
+        /** Optional picture shown at the left (e.g. a copied image). */
+        public android.graphics.Bitmap image;
         final RectF r = new RectF();
         final RectF[] iconRects = new RectF[4];
         StaticLayout layout;
@@ -57,6 +59,7 @@ public class CardList extends View {
 
     public void setTheme(Theme t) { theme = t; invalidate(); }
     public void setOnCard(OnCard o) { onCard = o; }
+    private final android.graphics.Paint thumbPaint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
 
     public void setCards(List<Card> list, String empty) {
         cards.clear();
@@ -72,13 +75,13 @@ public class CardList extends View {
         float y = 6 * dp;
         float pad = 8 * dp;
         for (Card c : cards) {
-            float iconsW = c.icons.length * 36 * dp;
+            float iconsW = c.icons.length * 36 * dp + (c.image != null ? 84 * dp : 0);
             int textW = (int) Math.max(40 * dp, w - 2 * pad - 24 * dp - iconsW);
             String txt = c.body.length() > 400 ? c.body.substring(0, 400) + "…" : c.body;
             c.layout = StaticLayout.Builder.obtain(txt, 0, txt.length(), body, textW)
                     .setMaxLines(3).setEllipsize(TextUtils.TruncateAt.END).setAlignment(Layout.Alignment.ALIGN_NORMAL).build();
             float hh = c.layout.getHeight() + 22 * dp + (c.title != null ? 20 * dp : 0);
-            hh = Math.max(hh, 52 * dp);
+            hh = Math.max(hh, c.image != null ? 92 * dp : 52 * dp);
             c.r.set(pad, y, w - pad, y + hh);
             float ix = c.r.right - 8 * dp;
             for (int i = c.icons.length - 1; i >= 0; i--) {
@@ -106,6 +109,21 @@ public class CardList extends View {
         for (Card c : cards) {
             gp.drawGlass(canvas, c.r, 14 * dp, GlassPainter.STYLE_KEY, c == pressed && pressedIcon < 0, theme);
             float x = c.r.left + 12 * dp, y = c.r.top + 11 * dp;
+            if (c.image != null) {
+                float th = c.r.height() - 16 * dp, tw = th;
+                RectF ir = new RectF(c.r.left + 8 * dp, c.r.top + 8 * dp, c.r.left + 8 * dp + tw, c.r.top + 8 * dp + th);
+                android.graphics.Path clip = new android.graphics.Path();
+                clip.addRoundRect(ir, 10 * dp, 10 * dp, android.graphics.Path.Direction.CW);
+                canvas.save();
+                canvas.clipPath(clip);
+                // centre-crop the thumbnail
+                android.graphics.Bitmap b = c.image;
+                float s = Math.max(tw / b.getWidth(), th / b.getHeight());
+                float bw = b.getWidth() * s, bh = b.getHeight() * s;
+                canvas.drawBitmap(b, null, new RectF(ir.centerX() - bw / 2, ir.centerY() - bh / 2, ir.centerX() + bw / 2, ir.centerY() + bh / 2), thumbPaint);
+                canvas.restore();
+                x = ir.right + 12 * dp;
+            }
             if (c.title != null) {
                 String t = c.title;
                 if (c.badge != null && !c.badge.isEmpty()) t = t + "   ";
