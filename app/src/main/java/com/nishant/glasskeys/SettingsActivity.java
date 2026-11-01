@@ -366,7 +366,7 @@ public class SettingsActivity extends Activity {
             }));
             typing.addView(button("Delete swipe recordings", v -> { rec.delete(); toast("Recordings deleted"); recreate(); }));
         }
-        typing.addView(button("Reset swipe calibration", v -> { prefs.setStr("swipeoffsets", ""); prefs.setBool("swipereset", true); toast("Swipe calibration reset"); }));
+        typing.addView(button("Reset swipe & tap calibration", v -> { prefs.setStr("swipeoffsets", ""); prefs.setStr("tapoffsets", ""); prefs.setBool("swipereset", true); toast("Swipe calibration reset"); }));
         typing.addView(toggle("Word suggestions & next-word prediction", "suggest", true));
         typing.addView(toggle("Autocorrect (backspace right after undoes it)", "autocorrect", true));
         typing.addView(toggle("Capitalise the first letter of sentences", "autocaps", true));

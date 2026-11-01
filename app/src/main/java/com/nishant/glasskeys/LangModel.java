@@ -103,7 +103,8 @@ final class LangModel {
             char ti = t.charAt(i - 1);
             for (int j = 1; j <= m; j++) {
                 char wj = w.charAt(j - 1);
-                float best = p1[j - 1] + sub(ti, wj);
+                float tapCost = ti == wj ? 0f : TapModel.sub(i - 1, ti, wj);
+                float best = p1[j - 1] + (Float.isNaN(tapCost) ? sub(ti, wj) : tapCost);
                 // missed letter (word has an extra char); cheaper if it's a doubled letter
                 float del = (j >= 2 && w.charAt(j - 2) == wj) ? 0.3f : 1f;
                 best = Math.min(best, cur[j - 1] + del);

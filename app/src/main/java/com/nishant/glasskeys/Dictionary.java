@@ -231,8 +231,17 @@ public class Dictionary {
     /** Penalty for each unit of typing-error cost. */
     private static final double TYPO = 165;
 
-    /** Candidates for what you meant by `typed`, best first. */
+    /** Tap spots for the letters of the word being typed (set by the keyboard service), or null. */
+    public volatile float[][] taps;
+
     private List<Cand> rank(String typed, String prev, String prev2, boolean forAutocorrect) {
+        float[][] t = taps;
+        TapModel.taps = t != null && t.length == typed.length() ? t : null;
+        try { return rank0(typed, prev, prev2, forAutocorrect); } finally { TapModel.taps = null; }
+    }
+
+    /** Candidates for what you meant by `typed`, best first. */
+    private List<Cand> rank0(String typed, String prev, String prev2, boolean forAutocorrect) {
         String low = typed.toLowerCase();
         Map<String, Cand> best = new HashMap<>();
         if (!loaded) return new ArrayList<>();

@@ -354,6 +354,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.backdrop = liquid;
         keyboard.decoder = new GlideDecoder(dict);
         keyboard.decoder.setOffsets(prefs.str("swipeoffsets", ""));
+        TapModel.setOffsets(prefs.str("tapoffsets", ""));
         content.addView(keyboard, new FrameLayout.LayoutParams(-1, -1));
         column.addView(content, new LinearLayout.LayoutParams(-1, keyboardHeight()));
 
@@ -409,6 +410,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         loadContactNames();
         if (prefs.bool("swipereset", false) && keyboard != null && keyboard.decoder != null) {
             keyboard.decoder.resetOffsets();
+            TapModel.reset();
+            prefs.setStr("tapoffsets", "");
             prefs.setBool("swipereset", false);
             offsetsDirty = false;
         }
@@ -524,6 +527,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         stopVoice();
         dict.flush();
         if (offsetsDirty && keyboard != null && keyboard.decoder != null) { prefs.setStr("swipeoffsets", keyboard.decoder.offsets()); offsetsDirty = false; }
+        if (tapsDirty) { prefs.setStr("tapoffsets", TapModel.offsets()); tapsDirty = false; }
         composing.setLength(0);
     }
 
@@ -752,7 +756,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         updateStrip();
     }
 
-    private boolean offsetsDirty;
+    private boolean offsetsDirty, tapsDirty;
+    private final List<float[]> taps = new ArrayList<>();   // tap spot of each letter in `composing`
+
+    /** Tap spots for the current word, if they line up with what's composed. */
+    private float[][] currentTaps() {
+        if (taps.size() != composing.length() || taps.isEmpty()) return null;
+        return taps.toArray(new float[0][]);
+    }
     private static final java.util.concurrent.ExecutorService REC = java.util.concurrent.Executors.newSingleThreadExecutor();
 
     /**
@@ -838,6 +849,11 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         glideWord = false;
         if (!noSuggest && lang != 2 && isWordChar(s)) {
             lastCorrOriginal = null;
+            if (composing.length() == 0) taps.clear();
+            // remember exactly where this letter was tapped (for spelling correction)
+            if (!Float.isNaN(TapModel.lastX) && s.length() == 1) taps.add(new float[]{TapModel.lastX, TapModel.lastY});
+            else taps.add(null);
+            TapModel.lastX = Float.NaN;
             composing.append(s);
             ic.setComposingText(composing, 1);
             updateStrip();
@@ -889,9 +905,14 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             String hi = Translit.best(typed, hiPicks);
             if (hi != null) out = hi;
         } else if (correct && lang == 0) {
+            dict.taps = currentTaps();
             String fix = dict.autocorrect(typed, prevWord, prevWord2);
             if (fix != null) out = fix;
         }
+        // learn your touch pattern from the word you ended up with
+        float[][] tw = currentTaps();
+        if (tw != null && !noLearn && !glideWord && out.length() == typed.length()) { TapModel.learn(out, tw); tapsDirty = true; }
+        taps.clear();
         ic.setComposingText(out, 1);
         ic.finishComposingText();
         composing.setLength(0);
@@ -1026,6 +1047,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         glideWord = false;
         if (composing.length() > 0) {
+            if (taps.size() == composing.length() && !taps.isEmpty()) taps.remove(taps.size() - 1);
             int cp = composing.codePointBefore(composing.length());
             composing.setLength(composing.length() - Character.charCount(cp));
             if (composing.length() == 0) ic.commitText("", 1);
@@ -1327,6 +1349,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         // 4. Word suggestions while typing
         if (!noSuggest && composing.length() > 0 && !toolbarForced) {
             String typed = composing.toString();
+            dict.taps = currentTaps();
             List<String> sug = dict.suggest(typed, prevWord, prevWord2);
             cells.add(orb(this::forceToolbar));
             String best = sug.isEmpty() ? typed : sug.get(0);

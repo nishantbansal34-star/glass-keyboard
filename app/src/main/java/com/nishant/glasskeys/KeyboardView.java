@@ -154,11 +154,14 @@ public class KeyboardView extends View {
     }
 
     private void updateDecoderLayout() {
-        if (decoder == null || page != Layouts.ALPHA) return;
+        if (page != Layouts.ALPHA) return;
         for (List<Key> row : rows) for (Key k : row) {
             if (k.label.length() == 1) {
                 char ch = k.label.charAt(0);
-                if (ch >= 'a' && ch <= 'z') decoder.setKey(ch, k.rect.centerX() / keyUnit, k.rect.centerY() / keyUnit);
+                if (ch >= 'a' && ch <= 'z') {
+                    TapModel.setKey(ch, k.rect.centerX() / keyUnit, k.rect.centerY() / keyUnit);
+                    if (decoder != null) decoder.setKey(ch, k.rect.centerX() / keyUnit, k.rect.centerY() / keyUnit);
+                }
             }
         }
     }
@@ -1056,7 +1059,10 @@ public class KeyboardView extends View {
             return;
         }
         if (p.key.code == Key.SPACE && p.spaceSwipe) return;
-        if (!p.consumed) fire(p.key);
+        if (!p.consumed) {
+            if (p.key.isChar() && keyUnit > 0) { TapModel.lastX = p.downX / keyUnit; TapModel.lastY = p.downY / keyUnit; }
+            fire(p.key);
+        }
     }
 
     private void fire(Key k) {
