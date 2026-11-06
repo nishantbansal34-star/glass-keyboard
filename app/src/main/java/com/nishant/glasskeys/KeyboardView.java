@@ -63,6 +63,61 @@ public class KeyboardView extends View {
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ripplePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RadialGradient rippleGrad = new RadialGradient(0, 0, 1,
+            new int[]{0x00FFFFFF, 0xFFFFFFFF, 0x00FFFFFF}, new float[]{0.55f, 0.85f, 1f}, Shader.TileMode.CLAMP);
+    private final android.graphics.Matrix rippleM = new android.graphics.Matrix();
+
+    // ---- key cache: a key that is not moving replays its last recording instead of being redrawn
+    private final boolean cacheKeys = android.os.Build.VERSION.SDK_INT >= 29;
+    private final java.util.WeakHashMap<Key, Object> keyNodes = new java.util.WeakHashMap<>();
+    private int keyGen;
+
+    /** Every explicit redraw request (new labels, shift, theme, moving backdrop...) invalidates the key cache. */
+    @Override
+    public void invalidate() {
+        keyGen++;
+        super.invalidate();
+    }
+
+    @android.annotation.TargetApi(29)
+    private static final class KeyNode {
+        final android.graphics.RenderNode node = new android.graphics.RenderNode("key");
+        long sig = Long.MIN_VALUE;
+        KeyNode() { node.setClipToBounds(false); }
+    }
+
+    @android.annotation.TargetApi(29)
+    private void drawKeyCached(Canvas c, Key k, int style, float kr) {
+        KeyNode kn = (KeyNode) keyNodes.get(k);
+        if (kn == null) { kn = new KeyNode(); keyNodes.put(k, kn); }
+        long sig = keyGen;
+        sig = sig * 31 + style;
+        sig = sig * 31 + Float.floatToIntBits(kr);
+        sig = sig * 31 + gp.stamp();
+        sig = sig * 31 + System.identityHashCode(theme);
+        sig = sig * 31 + getWidth() * 7919L + getHeight();
+        sig = sig * 31 + Float.floatToIntBits(k.rect.left) * 131L + Float.floatToIntBits(k.rect.top);
+        if (kn.sig != sig || !kn.node.hasDisplayList()) {
+            kn.node.setPosition(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()));
+            Canvas rc = kn.node.beginRecording();
+            try {
+                gp.variant = System.identityHashCode(k);
+                gp.drawGlass(rc, k.rect, kr, style, false, theme, 0f);
+                gp.variant = 0;
+                drawKeyContent(rc, k);
+            } finally {
+                kn.node.endRecording();
+            }
+            kn.sig = sig;
+        }
+        c.drawRenderNode(kn.node);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        keyNodes.clear();
+    }
     private final Handler h = new Handler(Looper.getMainLooper());
 
     // Touch tracking (multi-touch, like fast two-thumb typing)
@@ -604,6 +659,11 @@ public class KeyboardView extends View {
             }
             glow = Math.min(1f, glow + pv * 0.7f);
             boolean premium = gp.amoled && gp.pack == 0;
+            if (cacheKeys && a >= 1f && pv < 0.001f && glow < 0.001f && !pressed && !touchInfo.containsKey(k)
+                    && c.isHardwareAccelerated()) {
+                drawKeyCached(c, k, style, k.code == Key.SPACE && premium ? r.height() / 2f : radius);
+                continue;
+            }
             // premium glass compresses slightly; other styles swell like liquid
             float sc = (gp.pack >= 2 ? 1f : premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
             float ty = (1f - a) * 14 * dp;
@@ -742,9 +802,12 @@ public class KeyboardView extends View {
         if (t >= 1f) { rippleStart = -1; return; }
         float rad = 20 * dp + t * getWidth() * 0.35f;
         int a = (int) ((1f - t) * (theme.dark ? 70 : 110));
-        ripplePaint.setShader(new RadialGradient(rippleX, rippleY, rad,
-                new int[]{0x00FFFFFF, (a << 24) | 0xFFFFFF, 0x00FFFFFF}, new float[]{0.55f, 0.85f, 1f},
-                Shader.TileMode.CLAMP));
+        rippleM.reset();
+        rippleM.setScale(rad, rad);
+        rippleM.postTranslate(rippleX, rippleY);
+        rippleGrad.setLocalMatrix(rippleM);
+        ripplePaint.setShader(rippleGrad);
+        ripplePaint.setAlpha(a);
         c.drawCircle(rippleX, rippleY, rad, ripplePaint);
         postInvalidateOnAnimation();
     }

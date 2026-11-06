@@ -1,0 +1,4 @@
+# Startup profile: Android compiles these ahead of time, so the keyboard appears from cold
+# without waiting on the just-in-time compiler.
+HSPLcom/nishant/glasskeys/**;->**(**)**
+Lcom/nishant/glasskeys/**;

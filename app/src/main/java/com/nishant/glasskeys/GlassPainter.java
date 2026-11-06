@@ -58,6 +58,37 @@ public class GlassPainter {
                 new int[]{0x40FFFFFF, 0x00FFFFFF}, null, Shader.TileMode.CLAMP);
         specGrad = new RadialGradient(0.3f, 0.0f, 0.9f,
                 new int[]{0x24FFFFFF, 0x0AFFFFFF, 0x00FFFFFF}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+        softRimGrad = new LinearGradient(0, 0, 0, 1,
+                new int[]{0x2EFFFFFF, 0x05FFFFFF, 0x05FFFFFF, 0x17FFFFFF}, new float[]{0f, 0.18f, 0.82f, 1f}, Shader.TileMode.CLAMP);
+        touchGrad = new RadialGradient(0, 0, 1, 0xFFFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP);
+    }
+
+    // Unit gradients built once and placed with a local matrix, so drawing a frame never allocates shaders.
+    private final Shader softRimGrad, touchGrad;
+    private final java.util.HashMap<Long, Shader> twoTone = new java.util.HashMap<>();
+    /** Two-colour gradient from (0,0) to (diag ? (1,1) : (0,1)), cached by colours. */
+    private Shader twoTone(int top, int bot, boolean diag) {
+        long k = ((top & 0xFFFFFFFFL) << 32 | (bot & 0xFFFFFFFFL)) ^ (diag ? 0x5DEECE66DL : 0);
+        Shader s = twoTone.get(k);
+        if (s == null) {
+            if (twoTone.size() > 48) twoTone.clear();
+            s = new LinearGradient(0, 0, diag ? 1 : 0, 1, top, bot, Shader.TileMode.CLAMP);
+            twoTone.put(k, s);
+        }
+        return s;
+    }
+
+    /** Changes whenever what the keys refract or how they are styled changes (used by the key cache). */
+    public int stamp() {
+        int h = System.identityHashCode(refrSrc);
+        h = h * 31 + Float.floatToIntBits(srcScaleX);
+        h = h * 31 + Float.floatToIntBits(srcScaleY);
+        h = h * 31 + Float.floatToIntBits(originX);
+        h = h * 31 + Float.floatToIntBits(originY);
+        h = h * 31 + pack;
+        h = h * 31 + (amoled ? 1 : 0);
+        h = h * 31 + (immersiveActive() ? 1 : 0);
+        return h;
     }
 
     // ------------------------------------------------------------------ backdrop
@@ -342,8 +373,8 @@ public class GlassPainter {
         squircle(softInner, r.left + in, r.top + in, r.right - in, r.bottom - in, Math.max(0f, rr - in));
         softPaint.setStyle(Paint.Style.STROKE);
         softPaint.setStrokeWidth(hair);
-        softPaint.setShader(new LinearGradient(0, r.top, 0, r.bottom,
-                new int[]{0x2EFFFFFF, 0x05FFFFFF, 0x05FFFFFF, 0x17FFFFFF}, new float[]{0f, 0.18f, 0.82f, 1f}, Shader.TileMode.CLAMP));
+        unit(softRimGrad, r);
+        softPaint.setShader(softRimGrad);
         c.drawPath(softInner, softPaint);
         softPaint.setShader(null);
         softPaint.setStyle(Paint.Style.FILL);
@@ -571,8 +602,14 @@ public class GlassPainter {
             envPaint.setColor(((int) ((dark ? 30 : 40) * pressAmt) << 24) | 0xFFFFFF);
             c.drawRect(r, envPaint);
             if (touchX >= 0) {
-                envPaint.setShader(new RadialGradient(touchX, touchY, Math.max(w, h) * 0.8f,
-                        ((int) ((dark ? 46 : 70) * pressAmt) << 24) | 0xFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+                float tr = Math.max(w, h) * 0.8f;
+                m.reset();
+                m.setScale(tr, tr);
+                m.postTranslate(touchX, touchY);
+                touchGrad.setLocalMatrix(m);
+                envPaint.setShader(touchGrad);
+                envPaint.setColor(0xFFFFFFFF);
+                envPaint.setAlpha((int) ((dark ? 46 : 70) * pressAmt));
                 c.drawRect(r, envPaint);
                 envPaint.setShader(null);
             }
@@ -936,7 +973,9 @@ public class GlassPainter {
             int a = t.accent & 0x00FFFFFF;
             int top = a | (style == STYLE_ACTIVE ? 0x73000000 : (pressed ? 0xFF000000 : 0xD9000000));
             int bot = a | (style == STYLE_ACTIVE ? 0x40000000 : (pressed ? 0xD9000000 : 0xA6000000));
-            fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, top, bot, Shader.TileMode.CLAMP));
+            Shader g = twoTone(top, bot, true);
+            unitBox(g, r);
+            fill.setShader(g);
             c.drawPath(sh, fill);
             fill.setShader(null);
         } else {
@@ -1015,9 +1054,10 @@ public class GlassPainter {
         shadow.setColor(t.dark ? 0x40000000 : 0x261B2A4A);
         c.drawPath(sh, shadow);
         c.restore();
-        fill.setShader(new LinearGradient(0, r.top, 0, r.bottom,
-                amoled ? (t.dark ? 0xEB1E2229 : 0xEBF4F6F9) : (t.dark ? 0x8C2A3048 : 0xB3FFFFFF),
-                amoled ? (t.dark ? 0xEB15181E : 0xEBE9EDF2) : (t.dark ? 0x731E2236 : 0x99F2F5FA), Shader.TileMode.CLAMP));
+        Shader bg = twoTone(amoled ? (t.dark ? 0xEB1E2229 : 0xEBF4F6F9) : (t.dark ? 0x8C2A3048 : 0xB3FFFFFF),
+                amoled ? (t.dark ? 0xEB15181E : 0xEBE9EDF2) : (t.dark ? 0x731E2236 : 0x99F2F5FA), false);
+        unit(bg, r);
+        fill.setShader(bg);
         c.drawPath(sh, fill);
         fill.setShader(null);
         drawGlassPath(c, sh, r, STYLE_KEY, false, t, 0.6f);
