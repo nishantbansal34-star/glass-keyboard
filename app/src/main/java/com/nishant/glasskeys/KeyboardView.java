@@ -185,6 +185,8 @@ public class KeyboardView extends View {
     // Ripple of light across the glass on each press
     private float rippleX, rippleY;
     private long rippleStart = -1;
+    /** Android's "Remove animations" is on: no scaling/moving, colour feedback only. */
+    public boolean reducedMotion;
 
     private int repeatCount;
 
@@ -194,7 +196,7 @@ public class KeyboardView extends View {
     private final Map<Key, Spring> pressSpring = new IdentityHashMap<>();
     private final Map<Key, Spring> appear = new IdentityHashMap<>();
     private final Map<Key, Long> appearAt = new IdentityHashMap<>();
-    private static class Drop { Key key; String label; final Spring s = new Spring(1100f, 0.85f); }
+    private static class Drop { Key key; String label; final Spring s = new Spring(2200f, 1.0f); }
     private long lastOverlayFrame;
     private final List<Drop> drops = new ArrayList<>();
     private long lastFrame;
@@ -448,7 +450,7 @@ public class KeyboardView extends View {
 
     private Spring pressOf(Key k) {
         Spring sp = pressSpring.get(k);
-        if (sp == null) { sp = gp.amoled && gp.pack == 0 ? new Spring(1500f, 1.0f) : new Spring(1100f, 0.42f); pressSpring.put(k, sp); }
+        if (sp == null) { sp = gp.amoled && gp.pack == 0 ? new Spring(1500f, 1.0f) : new Spring(1400f, 0.8f); pressSpring.put(k, sp); }
         return sp;
     }
 
@@ -471,12 +473,12 @@ public class KeyboardView extends View {
 
     private void startDrop(Key k) {
         if (!keyPopupEnabled || k == null || !k.isChar()) return;
-        for (Drop d : drops) if (d.key == k) { d.s.target = 1f; d.label = labelFor(k); return; }
+        // the preview is feedback for a tap: it must be there the instant the finger lands
+        for (Drop d : drops) if (d.key == k) { d.s.set(1f); d.label = labelFor(k); return; }
         Drop d = new Drop();
         d.key = k;
         d.label = labelFor(k);
-        d.s.set(0f);
-        d.s.target = 1f;
+        d.s.set(1f);
         drops.add(d);
     }
 
@@ -665,7 +667,8 @@ public class KeyboardView extends View {
                 continue;
             }
             // premium glass compresses slightly; other styles swell like liquid
-            float sc = (gp.pack >= 2 ? 1f : premium ? 1f - 0.035f * pv : 1f + 0.07f * pv) * (0.72f + 0.28f * a);
+            float pm = reducedMotion ? 0f : pv;   // keep the glow, drop the movement when animations are off
+            float sc = (gp.pack >= 2 ? 1f : premium ? 1f - 0.03f * pm : 1f + 0.04f * pm) * (0.95f + 0.05f * a);
             float ty = (1f - a) * 14 * dp;
             c.save();
             c.translate(r.centerX(), r.centerY() + ty);

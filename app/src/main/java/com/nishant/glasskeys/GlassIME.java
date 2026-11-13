@@ -99,6 +99,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private ClipboardManager cm;
     private long lastClipTime;
     private String lastClipText;
+    private boolean reducedMotion;
     private android.widget.HorizontalScrollView autofillBar;
     private LinearLayout autofillRow;
     private int autofillGen;
@@ -212,7 +213,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             setMeasuredDimension(w, h);
         }
         @Override protected void onDraw(Canvas c) {
-            boolean motion = prefs.glassRipple();
+            boolean motion = prefs.glassRipple() && !reducedMotion;
             if (gp.immersiveActive() || gp.pack == 2) c.drawColor(0xFF000000);   // immersive glass / Still sit on pure black
             else liquid.draw(c, getWidth(), getHeight(), theme, liveBlurActive, motion);
             if (gp.pack == 3) c.drawColor(0x6B000000);   // matches the reference: dark backdrop, colour still glowing through   // Soft Glass: a slightly deeper, calmer backdrop
@@ -538,7 +539,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.setShift(KeyboardView.SHIFT_OFF);
         updateShift();
         updateStrip();
-        if (!restarting && prefs.glassRipple()) keyboard.playEntrance();
+        reducedMotion = Motion.reduced(this);
+        keyboard.reducedMotion = reducedMotion;
     }
 
     @Override
@@ -2265,13 +2267,18 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (p == P_NONE) updateShift();
         View shown = p == P_NONE ? keyboard : p == P_EMOJI ? emojiPanel : (p == P_CLIP || p == P_STATS || p == P_DETECT || p == P_PRICE || p == P_ORDERS) ? clipScroll
                 : p == P_SNIP ? snipScroll : p == P_CALC ? calcPanel : p == P_BIZ ? bizPad : editPad;
-        if (prefs.glassRipple()) {
+        shown.animate().cancel();
+        shown.setAlpha(1f); shown.setTranslationY(0f); shown.setScaleX(1f); shown.setScaleY(1f);
+        // returning to the keys happens constantly: no animation, you can type at once
+        if (p != P_NONE && prefs.glassRipple()) {
             shown.setAlpha(0f);
-            shown.setTranslationY(18 * dp);
-            shown.setScaleX(0.97f);
-            shown.setScaleY(0.97f);
-            shown.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(260)
-                    .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.9f, 0.25f, 1.05f)).start();
+            if (!reducedMotion) {
+                shown.setTranslationY(8 * dp);
+                shown.setScaleX(0.98f);
+                shown.setScaleY(0.98f);
+            }
+            shown.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                    .setDuration(reducedMotion ? 150 : 200).setInterpolator(Motion.EASE_OUT).start();
         }
         overlay.invalidate();
         updateStrip();

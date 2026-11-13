@@ -69,16 +69,23 @@ public class StripView extends View {
 
     private String lastSig = "";
 
+    private static int count(CharSequence s, char ch) {
+        int n = 0;
+        for (int i = 0; i < s.length(); i++) if (s.charAt(i) == ch) n++;
+        return n;
+    }
+
     public void setCells(List<Cell> list) {
         StringBuilder sig = new StringBuilder();
         for (Cell c : list) sig.append(c.chip ? 'c' : c.title ? 't' : c.text != null ? 'w' : 'i');
-        if (!sig.toString().equals(lastSig) && isShown()) {
-            // cross-fade between toolbar / suggestions / chips
-            animate().cancel();
-            setAlpha(0.2f);
-            setTranslationY(3 * dp);
-            animate().alpha(1f).translationY(0f).setDuration(200)
-                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+        animate().cancel();
+        setAlpha(1f);
+        setTranslationY(0f);
+        // the bar changes on nearly every keystroke: no motion there. Only a newly offered chip
+        // (paste, quick reply, detected number) fades in, so it's noticed.
+        if (!sig.toString().equals(lastSig) && isShown() && count(sig, 'c') > count(lastSig, 'c')) {
+            setAlpha(0.4f);
+            animate().alpha(1f).setDuration(150).setInterpolator(Motion.EASE_OUT).start();
         }
         boolean sameShape = sig.toString().equals(lastSig);
         lastSig = sig.toString();
@@ -90,7 +97,7 @@ public class StripView extends View {
                 oldTexts.add(o);
                 if (o != null && !o.equals(n)) changed = true;
             }
-            if (changed) transStart = android.os.SystemClock.uptimeMillis(); else oldTexts.clear();
+            oldTexts.clear();   // suggestions swap instantly: a crossfade on every keystroke reads as lag
         }
         cells.clear();
         cells.addAll(list);

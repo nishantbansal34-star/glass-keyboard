@@ -107,7 +107,10 @@ public class CardList extends View {
         gp.setOriginFromView(this);
         gp.variant = -1;
         for (Card c : cards) {
-            gp.drawGlass(canvas, c.r, 14 * dp, GlassPainter.STYLE_KEY, c == pressed && pressedIcon < 0, theme);
+            boolean down = c == pressed && pressedIcon < 0;
+            canvas.save();
+            if (down) canvas.scale(0.98f, 0.98f, c.r.centerX(), c.r.centerY());   // the card answers your finger
+            gp.drawGlass(canvas, c.r, 14 * dp, GlassPainter.STYLE_KEY, down, theme);
             float x = c.r.left + 12 * dp, y = c.r.top + 11 * dp;
             if (c.image != null) {
                 float th = c.r.height() - 16 * dp, tw = th;
@@ -146,6 +149,7 @@ public class CardList extends View {
                 gp.drawIcon(canvas, c.icons[i], ir.centerX(), ir.centerY(), 19 * dp,
                         c.icons[i] == GlassPainter.IC_PIN_ON ? theme.accent : theme.subText);
             }
+            canvas.restore();
         }
     }
 
