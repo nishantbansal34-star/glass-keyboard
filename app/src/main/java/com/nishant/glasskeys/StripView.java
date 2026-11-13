@@ -137,6 +137,8 @@ public class StripView extends View {
     private final RectF capsule = new RectF(), circle = new RectF();
     private final List<String> oldTexts = new ArrayList<>();
     private long transStart = -1, orbAwakeUntil, orbTapAt = -1;
+    /** Android's "Remove animations" is on: the orb stays still. */
+    public boolean reducedMotion;
     private final long born = android.os.SystemClock.uptimeMillis();
     private final Paint orbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private static final Typeface TF_REG = Typeface.create("sans-serif", Typeface.NORMAL);
@@ -151,9 +153,9 @@ public class StripView extends View {
      */
     private void drawOrb(Canvas c, RectF o, boolean down) {
         long now = android.os.SystemClock.uptimeMillis();
-        float t = (now - born) / 1000f;
-        float tap = orbTapAt < 0 ? 1f : Math.min(1f, (now - orbTapAt) / 420f);
-        float squeeze = down ? 0.92f : 1f - 0.08f * (float) Math.sin(Math.PI * Math.min(1f, tap * 1.4f)) * (tap < 1f ? 1f : 0f);
+        float t = reducedMotion ? 0f : (now - born) / 1000f;   // frozen light when animations are off
+        float tap = orbTapAt < 0 || reducedMotion ? 1f : Math.min(1f, (now - orbTapAt) / 160f);
+        float squeeze = down ? 0.96f : 1f - 0.04f * (float) Math.sin(Math.PI * Math.min(1f, tap * 1.4f)) * (tap < 1f ? 1f : 0f);
         c.save();
         c.scale(squeeze, squeeze, o.centerX(), o.centerY());
         gp.variant = -1;
@@ -182,7 +184,7 @@ public class StripView extends View {
             c.drawCircle(o.centerX(), o.centerY(), o.width() / 2 + 10 * dp * tap, orbPaint);
             orbPaint.setStyle(Paint.Style.FILL);
         }
-        if (now < orbAwakeUntil || tap < 1f || down) postInvalidateDelayed(tap < 1f || down ? 16 : 40);
+        if ((now < orbAwakeUntil && !reducedMotion) || tap < 1f || down) postInvalidateDelayed(tap < 1f || down ? 16 : 40);
     }
 
     @Override

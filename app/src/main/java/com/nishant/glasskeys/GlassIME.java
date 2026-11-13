@@ -541,6 +541,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         updateStrip();
         reducedMotion = Motion.reduced(this);
         keyboard.reducedMotion = reducedMotion;
+        if (strip != null) strip.reducedMotion = reducedMotion;
     }
 
     @Override

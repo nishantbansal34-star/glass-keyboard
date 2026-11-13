@@ -680,7 +680,7 @@ public class KeyboardView extends View {
                 gp.pressAmt = pv;
                 float[] ti = touchInfo.get(k);
                 if (ti != null) {
-                    float age = ((SystemClock.uptimeMillis() % 1000000) - ti[2]) / 220f;
+                    float age = ((SystemClock.uptimeMillis() % 1000000) - ti[2]) / 160f;
                     if (age < 0) age = 1f;
                     gp.touchX = r.left + ti[0];
                     gp.touchY = r.top + ti[1];

@@ -27,7 +27,7 @@ public class PadView extends View {
         public boolean selected;
         public boolean bigText;   // calculator digits
         final RectF r = new RectF();
-        final Spring press = new Spring(900f, 0.45f);
+        final Spring press = new Spring(1600f, 0.9f);   // ~120ms, no bounce: pads are tapped in quick runs
 
         public Btn(String id, String label, int icon) { this.id = id; this.label = label; this.icon = icon; }
         public Btn style(int s) { style = s; return this; }
@@ -44,6 +44,8 @@ public class PadView extends View {
     private final List<List<Btn>> rows = new ArrayList<>();
     private OnPress onPress;
     private Btn pressed;
+    private boolean reduced;
+    @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); reduced = Motion.reduced(getContext()); }
     private boolean emojiLabels;
     private float gapX = 6, gapY = 7;
     private final Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -117,7 +119,7 @@ public class PadView extends View {
         gp.setOriginFromView(this);
         for (List<Btn> row : rows) for (Btn b : row) {
             if (b.press.step(dt)) animating = true;
-            float s = 1f - 0.06f * b.press.value;
+            float s = reduced ? 1f : 1f - 0.03f * b.press.value;
             float cx = b.r.centerX(), cy = b.r.centerY();
             tmp.set(b.r);
             c.save();
