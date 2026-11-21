@@ -102,6 +102,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     /** Phone got unlocked while we ran in locked mode: restart (the system brings the keyboard back) to load your data. */
     private boolean unlockedRestart;
     private long lastMirror, lastSysDict;
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
     private boolean reducedMotion;
     private android.widget.HorizontalScrollView autofillBar;
     private LinearLayout autofillRow;
@@ -524,6 +525,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
         Theme.initDynamic(this);   // Material You follows wallpaper / dark-mode changes
+
         if (!prefs.locked && SystemClock.uptimeMillis() - lastSysDict > 600_000) { lastSysDict = SystemClock.uptimeMillis(); loadSystemDictionary(); }
         dict.reloadLearned();
         applySettings();
@@ -1061,6 +1063,63 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return false;
     }
 
+    // ================================================================= write with AI (on-device)
+
+    @Override
+    public void onStartInput(EditorInfo attribute, boolean restarting) {
+        super.onStartInput(attribute, restarting);
+        // back from the AI sheet: the text box has focus again (even if the keyboard stays hidden)
+        if (WriteActivity.pendingResult != null) handler.postDelayed(() -> applyAiResult(0), 120);
+    }
+
+    /** Opens the AI sheet with the selected text, or the whole message if nothing is selected. */
+    private void openWriteWithAi() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        commitComposing();
+        CharSequence sel = ic.getSelectedText(0);
+        String text; boolean selection;
+        if (sel != null && sel.toString().trim().length() > 0) { text = sel.toString(); selection = true; }
+        else {
+            ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+            text = et != null && et.text != null ? et.text.toString() : "";
+            selection = false;
+        }
+        if (text.trim().isEmpty()) { toast("Type something first, then tap ✦ to fix or rewrite it"); return; }
+        if (text.length() > 1500) { toast("That's long — select the part you want to rewrite"); return; }
+        WriteActivity.pendingResult = null;
+        Intent i = new Intent(this, WriteActivity.class);
+        i.putExtra(WriteActivity.EXTRA_TEXT, text);
+        i.putExtra(WriteActivity.EXTRA_SELECTION, selection);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+        try { startActivity(i); } catch (Exception e) { toast("Couldn't open Write with AI"); }
+    }
+
+    /** Puts the text picked in the AI sheet into the box, once the chat has focus again. */
+    private void applyAiResult(int attempt) {
+        final String res = WriteActivity.pendingResult, orig = WriteActivity.pendingOriginal;
+        if (res == null || orig == null) return;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) { if (attempt < 5) handler.postDelayed(() -> applyAiResult(attempt + 1), 150); return; }
+        boolean done = false;
+        ic.beginBatchEdit();
+        if (WriteActivity.pendingSelection) {
+            CharSequence sel = ic.getSelectedText(0);
+            if (sel != null && sel.toString().equals(orig)) { ic.commitText(res, 1); done = true; }
+        } else {
+            ExtractedText et = ic.getExtractedText(new ExtractedTextRequest(), 0);
+            if (et != null && et.text != null && et.text.toString().equals(orig)) {
+                ic.setSelection(0, et.text.length());
+                ic.commitText(res, 1);
+                done = true;
+            }
+        }
+        ic.endBatchEdit();
+        if (done || attempt >= 5) { WriteActivity.pendingResult = null; WriteActivity.pendingOriginal = null; }
+        else handler.postDelayed(() -> applyAiResult(attempt + 1), 150);
+        if (done) updateStrip();
+    }
+
     /** Shortcut -> word from Android's personal dictionary (e.g. "omw" -> "On my way"). */
     private volatile java.util.Map<String, String> sysShortcuts = new java.util.HashMap<>();
 
@@ -1571,6 +1630,7 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             cells.add(hud);
         }
         cells.add(StripView.Cell.icon(GlassPainter.IC_CLIP, () -> showPanel(P_CLIP)));
+        if (Build.VERSION.SDK_INT >= 26 && !isPassword) cells.add(StripView.Cell.icon(GlassPainter.IC_SPARKLE, this::openWriteWithAi));
         cells.add(StripView.Cell.icon(GlassPainter.IC_SNIPPET, () -> showPanel(P_SNIP)));
         cells.add(StripView.Cell.icon(GlassPainter.IC_CALC, () -> showPanel(P_CALC)));
         cells.add(StripView.Cell.icon(GlassPainter.IC_EDIT, () -> showPanel(P_EDIT)));

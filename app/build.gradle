@@ -76,4 +76,7 @@ android {
 dependencies {
     // installs the startup profile (src/main/baseline-prof.txt), so the keyboard opens from cold without waiting on the JIT
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
+    // Write with AI: proofreading and rewriting with Gemini Nano, on the phone (no internet)
+    implementation 'com.google.mlkit:genai-proofreading:1.0.0-beta1'
+    implementation 'com.google.mlkit:genai-rewriting:1.0.0-beta1'
 }
