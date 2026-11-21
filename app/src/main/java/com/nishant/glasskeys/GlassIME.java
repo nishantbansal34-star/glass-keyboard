@@ -2935,6 +2935,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         }
         commitComposing();
         stopVoice();
+        voiceSession = true;
+        voiceMisses = 0;
+        lastVoiceChunk = null;
         recognizer = SpeechRecognizer.createSpeechRecognizer(this);
         recognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle b) { }
@@ -2943,25 +2946,24 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
             @Override public void onBufferReceived(byte[] bytes) { }
             @Override public void onEndOfSpeech() { }
             @Override public void onError(int e) {
+                boolean quiet = e == SpeechRecognizer.ERROR_NO_MATCH || e == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+                // keep listening through a pause; stop after two silent rounds in a row
+                if (quiet && voiceSession && ++voiceMisses < 2 && recognizer != null) { listenAgain(); return; }
                 listening = false;
-                if (e == SpeechRecognizer.ERROR_NO_MATCH || e == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) toast("Didn't catch that");
+                voiceSession = false;
+                if (quiet && lastVoiceChunk == null) toast("Didn't catch that");
                 updateStrip();
             }
             @Override public void onResults(Bundle b) {
                 List<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                listening = false;
                 partialVoice = "";
                 if (r != null && !r.isEmpty()) {
+                    voiceMisses = 0;
                     InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) {
-                        String text = r.get(0);
-                        CharSequence before = ic.getTextBeforeCursor(1, 0);
-                        if (before != null && before.length() > 0 && !Character.isWhitespace(before.charAt(0))) text = " " + text;
-                        if (keyboard.shiftState() != KeyboardView.SHIFT_OFF && text.length() > 0)
-                            text = Character.toUpperCase(text.charAt(0)) + text.substring(1);
-                        ic.commitText(text, 1);
-                    }
+                    if (ic != null) insertDictation(ic, r.get(0));
                 }
+                if (voiceSession && recognizer != null) { listenAgain(); return; }   // continuous: keep going until you tap stop
+                listening = false;
                 updateStrip();
             }
             @Override public void onPartialResults(Bundle b) {
@@ -2975,15 +2977,71 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         it.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang != 0 ? "hi-IN" : prefs.voiceLang());
         it.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         it.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        if (prefs.bool("voiceoffline", false)) it.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        // give you time to think mid-sentence (services may cap this)
+        it.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
+        it.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+        voiceIntent = it;
         listening = true;
         partialVoice = "";
         updateStrip();
         recognizer.startListening(it);
     }
 
+    private Intent voiceIntent;
+    private boolean voiceSession;
+    private int voiceMisses;
+    /** What the last dictated phrase put in the box (for "delete that"). */
+    private String lastVoiceChunk;
+
+    private void listenAgain() {
+        try { recognizer.startListening(voiceIntent); listening = true; updateStrip(); }
+        catch (Exception e) { listening = false; voiceSession = false; updateStrip(); }
+    }
+
+    private static final String[][] SPOKEN = {
+            {"new paragraph", "\n\n"}, {"new line", "\n"}, {"next line", "\n"},
+            {"full stop", "."}, {"comma", ","}, {"question mark", "?"},
+            {"exclamation mark", "!"}, {"exclamation point", "!"}, {"colon", ":"}, {"semicolon", ";"},
+            {"hyphen", "-"}, {"open bracket", "("}, {"close bracket", ")"}, {"smiley face", "🙂"}, {"heart emoji", "❤️"}};
+
+    /** Spoken punctuation ("comma", "new line"), "delete that", sentence capitals, spacing. */
+    private void insertDictation(InputConnection ic, String said) {
+        String t = said.trim();
+        String low = t.toLowerCase();
+        if (low.equals("delete that") || low.equals("scratch that") || low.equals("undo that")) {
+            if (lastVoiceChunk != null) {
+                CharSequence b = ic.getTextBeforeCursor(lastVoiceChunk.length(), 0);
+                if (b != null && b.toString().equals(lastVoiceChunk)) ic.deleteSurroundingText(lastVoiceChunk.length(), 0);
+                lastVoiceChunk = null;
+            }
+            return;
+        }
+        if (!prefs.voiceLang().startsWith("hi") && lang == 0) {
+            for (String[] p : SPOKEN) t = t.replaceAll("(?i)\\s*\\b" + java.util.regex.Pattern.quote(p[0]) + "\\b\\s*", p[1].equals("\n") || p[1].equals("\n\n") || p[1].equals("(") ? " " + p[1] : p[1] + " ");
+            t = t.replaceAll(" +([.,?!:;)])", "$1").replaceAll(" *\n *", "\n").replaceAll(" {2,}", " ").trim();
+            // capital after . ? ! inside the phrase
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("([.?!]\\s+|\n)([a-z])").matcher(t);
+            StringBuffer sb = new StringBuffer();
+            while (m.find()) m.appendReplacement(sb, m.group(1) + m.group(2).toUpperCase());
+            m.appendTail(sb);
+            t = sb.toString();
+        }
+        if (t.isEmpty()) return;
+        CharSequence before = ic.getTextBeforeCursor(3, 0);
+        String bs = before == null ? "" : before.toString();
+        boolean startOfSentence = bs.trim().isEmpty() || bs.trim().matches(".*[.?!]$") || bs.endsWith("\n");
+        if (startOfSentence && Character.isLetter(t.charAt(0))) t = Character.toUpperCase(t.charAt(0)) + t.substring(1);
+        boolean punctFirst = ".,?!:;)".indexOf(t.charAt(0)) >= 0;
+        if (!bs.isEmpty() && !Character.isWhitespace(bs.charAt(bs.length() - 1)) && !punctFirst && t.charAt(0) != '\n') t = " " + t;
+        ic.commitText(t, 1);
+        lastVoiceChunk = t;
+    }
+
     private void stopVoice() {
         boolean was = listening;
         listening = false;
+        voiceSession = false;
         if (recognizer != null) {
             try { recognizer.cancel(); recognizer.destroy(); } catch (Exception ignored) { }
             recognizer = null;

@@ -398,6 +398,7 @@ public class SettingsActivity extends Activity {
         LinearLayout voice = card("Voice typing language");
         voice.addView(choice(new String[]{"English (India)", "Hindi", "English (US)"}, new String[]{"en-IN", "hi-IN", "en-US"},
                 prefs.voiceLang(), v -> prefs.setStr("voicelang", v)));
+        voice.addView(toggle("Voice typing keeps listening until you tap stop. Say \"comma\", \"full stop\", \"question mark\", \"new line\" for punctuation, or \"delete that\" to remove the last phrase.\nUse on-device speech only (works offline; download the language in Google app → Settings → Voice → Offline speech recognition)", "voiceoffline", false));
 
         LinearLayout calc = card("Calculator GST rate");
         calc.addView(choice(new String[]{"5%", "12%", "18%", "28%"}, new String[]{"5", "12", "18", "28"},
