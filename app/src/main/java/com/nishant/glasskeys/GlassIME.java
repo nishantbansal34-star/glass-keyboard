@@ -461,9 +461,10 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         keyboard.capsLabels = prefs.capsLabels();
         lang = prefs.lang();
         hiPicks = prefs.hiPicks();
-        boolean showLang = prefs.bool("hindi", true), stop = lang == 2;
-        if (showLang != Layouts.showLang || stop != Layouts.hindiStop) {
+        boolean showLang = prefs.bool("hindi", true), stop = lang == 2, comma = prefs.bool("commakey", true);
+        if (showLang != Layouts.showLang || stop != Layouts.hindiStop || comma != Layouts.showComma) {
             Layouts.showLang = showLang;
+            Layouts.showComma = comma;
             Layouts.hindiStop = stop;
             keyboard.reload();
         }

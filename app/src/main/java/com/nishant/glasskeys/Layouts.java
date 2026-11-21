@@ -13,6 +13,8 @@ public class Layouts {
     public static boolean showLang = false;
     /** Hindi keys page: the full-stop key types the Hindi full stop । */
     public static boolean hindiStop = false;
+    /** Comma key between emoji and space on the letter pages. */
+    public static boolean showComma = true;
 
     private static final Map<String, String> ALTS = new HashMap<>();
     static {
@@ -101,7 +103,7 @@ public class Layouts {
                 r.add(new Key("", Key.DELETE, 1f, null, null));
                 rows.add(r);
             }
-            rows.add(bottomRow("?123", Key.SYMBOLS, ",", "।"));
+            rows.add(bottomRow("?123", Key.SYMBOLS, showComma ? "," : null, "।"));
             return rows;
         }
         if (page == ALPHA) {
@@ -125,7 +127,7 @@ public class Layouts {
             r3.addAll(chars("z x c v b n m"));
             r3.add(new Key("", Key.DELETE, 1.5f, null, null));
             rows.add(r3);
-            rows.add(bottomRow("?123", Key.SYMBOLS, ",", "."));
+            rows.add(bottomRow("?123", Key.SYMBOLS, showComma ? "," : null, "."));
         } else if (page == SYM1) {
             rows.add(chars("1 2 3 4 5 6 7 8 9 0"));
             rows.add(chars("@ # ₹ _ & - + ( ) /"));
@@ -134,7 +136,7 @@ public class Layouts {
             r.addAll(chars("* \" ' : ; ! ? ,"));
             r.add(new Key("", Key.DELETE, 1.5f, null, null));
             rows.add(r);
-            rows.add(bottomRow("ABC", Key.ALPHA, ",", "."));
+            rows.add(bottomRow("ABC", Key.ALPHA, null, "."));
         } else {
             rows.add(chars("~ ` | • √ π ÷ × ¶ ∆"));
             rows.add(chars("£ $ € ¥ ^ ° = { } \\"));
@@ -143,20 +145,20 @@ public class Layouts {
             r.addAll(chars("% © ® ™ ✓ [ ]"));
             r.add(new Key("", Key.DELETE, 1.5f, null, null));
             rows.add(r);
-            rows.add(bottomRow("ABC", Key.ALPHA, "<", ">"));
+            rows.add(bottomRow("ABC", Key.ALPHA, null, ">"));
         }
         return rows;
     }
 
     private static List<Key> bottomRow(String modeLabel, int modeCode, String left, String right) {
         List<Key> r = new ArrayList<>();
-        // Modern layout: 123 · emoji · wide space · . · return  (comma lives on long-press of ".")
+        // 123 · emoji · [,] · [globe] · wide space · . · return  (comma is also on long-press of ".")
         r.add(new Key(modeLabel.equals("?123") ? "123" : modeLabel, modeCode, 1.35f, null, null));
         r.add(new Key("", Key.EMOJI, 1.1f, null, null));
-        if (showLang) {
-            r.add(new Key("", Key.LANG, 1f, null, null));
-            r.add(new Key("", Key.SPACE, 4.1f, null, null));
-        } else r.add(new Key("", Key.SPACE, 5.1f, null, null));
+        float space = 5.1f;
+        if (left != null) { r.add(ch(left)); space -= 1f; }
+        if (showLang) { r.add(new Key("", Key.LANG, 1f, null, null)); space -= 1f; }
+        r.add(new Key("", Key.SPACE, space, null, null));
         r.add(ch(right.equals(">") ? ">" : right.equals("।") ? "।" : "."));
         r.add(new Key("", Key.ENTER, 1.75f, null, null));
         return r;

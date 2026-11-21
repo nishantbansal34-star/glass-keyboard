@@ -375,6 +375,7 @@ public class SettingsActivity extends Activity {
         typing.addView(toggle("Capitalise the first letter of sentences", "autocaps", true));
         typing.addView(toggle("Double-tap space for a full stop", "dblspace", true));
         typing.addView(toggle("Always-visible number row", "numrow", false));
+        typing.addView(toggle("Comma key next to the space bar (hold it for ! ? ; : and quotes)", "commakey", true));
         typing.addView(toggle("Learn words I type (off = always incognito)", "learn", true));
         Switch names = toggle("Suggest names from my contacts (read on this phone only, never shared)", "contactnames", false);
         names.setOnCheckedChangeListener((b, on) -> {
