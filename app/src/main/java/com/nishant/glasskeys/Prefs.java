@@ -16,6 +16,24 @@ public class Prefs {
     public static final String FILE = "glasskeys";
     private final SharedPreferences sp;
 
+    /** Copies on/off and number settings (never text: no clips, words or business details) to storage
+     *  that can be read right after a restart, before the phone is unlocked. */
+    public void mirrorToDeviceStorage(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 24) return;
+        try {
+            android.content.SharedPreferences de = c.createDeviceProtectedStorageContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor e = de.edit().clear();
+            for (java.util.Map.Entry<String, ?> en : sp.getAll().entrySet()) {
+                Object v = en.getValue();
+                if (v instanceof Boolean) e.putBoolean(en.getKey(), (Boolean) v);
+                else if (v instanceof Integer) e.putInt(en.getKey(), (Integer) v);
+                else if (v instanceof Float) e.putFloat(en.getKey(), (Float) v);
+                else if (v instanceof Long) e.putLong(en.getKey(), (Long) v);
+            }
+            e.apply();
+        } catch (Exception ignored) { }
+    }
+
     public Prefs(Context c) {
         sp = c.getSharedPreferences(FILE, Context.MODE_PRIVATE);
     }
@@ -65,7 +83,11 @@ public class Prefs {
 
     /** 0 = English, 1 = Hinglish → हिंदी (type in English letters), 2 = हिंदी keys */
     public int lang() { return bool("hindi", true) ? integer("lang", 0) : 0; }
-    public boolean incognito() { return bool("incognito", false); }
+    /** Phone not unlocked since restart: settings come from a small unencrypted copy, nothing is learned or kept. */
+    public boolean locked;
+    public boolean incognito() { return locked || bool("incognito", false); }
+    /** Unpinned clipboard items older than this many hours are cleared (0 = keep). */
+    public int clipExpiryHours() { return integer("clipexpire", 0); }
 
     /** Hinglish choices you made: "roman\u0001हिंदी" -> times picked */
     public Map<String, Integer> hiPicks() { return readMap("hiPicks"); }
@@ -220,6 +242,8 @@ public class Prefs {
                 Clip c = new Clip(o.getString("t"), o.optBoolean("p"), o.optLong("m"));
                 String im = o.optString("i", "");
                 c.img = im.isEmpty() ? null : im;
+                int exp = clipExpiryHours();
+                if (exp > 0 && !c.pinned && c.time > 0 && System.currentTimeMillis() - c.time > exp * 3600_000L) continue;
                 out.add(c);
             }
         } catch (Exception ignored) { }
@@ -253,7 +277,7 @@ public class Prefs {
         saveClips(list);
     }
 
-    /** Adds a clip at the top; keeps pinned items forever and the latest 60 unpinned ones. */
+    /** Adds a clip at the top; keeps pinned items forever and the latest 100 unpinned ones. */
     public void addClip(String text) {
         if (text == null) return;
         text = text.toString();
@@ -266,7 +290,7 @@ public class Prefs {
         list.add(0, new Clip(text, pinned, System.currentTimeMillis()));
         int unpinned = 0;
         for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).img == null && !list.get(i).pinned && ++unpinned > 60) { list.remove(i); i--; }
+            if (list.get(i).img == null && !list.get(i).pinned && ++unpinned > 100) { list.remove(i); i--; }
         }
         saveClips(list);
     }

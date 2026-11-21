@@ -48,6 +48,7 @@ public class SettingsActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         prefs = new Prefs(this);
+        Theme.initDynamic(this);
         dp = getResources().getDisplayMetrics().density;
         getWindow().setStatusBarColor(0xFF000000);
         getWindow().setNavigationBarColor(0xFF000000);
@@ -382,6 +383,9 @@ public class SettingsActivity extends Activity {
                 requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS);
         });
         typing.addView(names);
+        typing.addView(label("Clear clipboard history (pinned items are always kept)"));
+        typing.addView(choice(new String[]{"Never", "After 1 hour", "After 1 day", "After 1 week"}, new String[]{"0", "1", "24", "168"},
+                String.valueOf(prefs.clipExpiryHours()), v -> prefs.setInt("clipexpire", Integer.parseInt(v))));
         typing.addView(toggle("Incognito now — don't learn or keep clipboard history (also: hold the ✦ orb in the keyboard)", "incognito", false));
         typing.addView(button("Forget all learned words", v -> { prefs.clearLearned(); toast("Learned words cleared"); if (insights != null) renderInsights(); }));
 
@@ -448,6 +452,20 @@ public class SettingsActivity extends Activity {
             renderSnippets(list);
             toast("Added");
         }));
+
+        // --- Updates (the keyboard has no internet, so the check happens in your browser)
+        LinearLayout up = card("Updates");
+        TextView uh = text("You have build " + BuildConfig.VERSION_CODE + ". Glass Keys has no internet access, so it can't download updates by itself — this opens the download page in your browser. If the newest build number is higher, download the .apk and open it to update (your words and settings stay).", 13, false);
+        uh.setAlpha(0.7f);
+        up.addView(uh);
+        up.addView(button("Check for a new version", v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/nishantbansal34-star/glass-keyboard/releases/latest")));
+            } catch (Exception e) { toast("No browser found"); }
+        }));
+        TextView dh = text("Words and shortcuts you saved in Android's personal dictionary (Settings → System → Languages → Personal dictionary) work here too — e.g. a shortcut \"omw\" for \"On my way\" expands when you press space.", 13, false);
+        dh.setAlpha(0.7f);
+        up.addView(dh);
 
         // --- Backup
         LinearLayout bk = card("Backup & restore");

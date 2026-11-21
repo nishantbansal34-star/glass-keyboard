@@ -27,8 +27,13 @@ public class Dictionary {
     /** Your own dictionary: lowercase -> your spelling. */
     private volatile Map<String, String> userWords = new HashMap<>();
 
+    /** Words saved in Android's personal dictionary (Settings → Languages → Personal dictionary). */
+    private volatile Map<String, String> sysWords = new HashMap<>();
+
+    public void setSystemWords(Map<String, String> m) { sysWords = m == null ? new HashMap<>() : m; loadUserWords(); }
+
     private void loadUserWords() {
-        Map<String, String> m = new HashMap<>();
+        Map<String, String> m = new HashMap<>(sysWords);
         if (prefs != null) for (String w : prefs.userWords()) m.put(w.toLowerCase(), w);
         userWords = m;
     }

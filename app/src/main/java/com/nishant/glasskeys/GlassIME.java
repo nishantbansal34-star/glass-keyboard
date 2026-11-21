@@ -99,6 +99,9 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     private ClipboardManager cm;
     private long lastClipTime;
     private String lastClipText;
+    /** Phone got unlocked while we ran in locked mode: restart (the system brings the keyboard back) to load your data. */
+    private boolean unlockedRestart;
+    private long lastMirror, lastSysDict;
     private boolean reducedMotion;
     private android.widget.HorizontalScrollView autofillBar;
     private LinearLayout autofillRow;
@@ -119,7 +122,23 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void onCreate() {
         super.onCreate();
-        prefs = new Prefs(this);
+        Theme.initDynamic(this);
+        // Right after a restart (before the first unlock) your data is still encrypted: run with the
+        // settings copy and learn nothing; restart cleanly once the phone is unlocked.
+        boolean locked = Build.VERSION.SDK_INT >= 24 && !((android.os.UserManager) getSystemService(USER_SERVICE)).isUserUnlocked();
+        prefs = new Prefs(locked ? createDeviceProtectedStorageContext() : this);
+        prefs.locked = locked;
+        if (locked) {
+            registerReceiver(new android.content.BroadcastReceiver() {
+                @Override public void onReceive(Context c, Intent i) {
+                    unlockedRestart = true;
+                    if (keyboard == null || !keyboard.isShown()) android.os.Process.killProcess(android.os.Process.myPid());
+                }
+            }, new android.content.IntentFilter(Intent.ACTION_USER_UNLOCKED));
+        } else {
+            prefs.mirrorToDeviceStorage(this);
+            loadSystemDictionary();
+        }
         if (!prefs.bool("wallMigrated3", false)) {
             // back to the look you liked: glass lit by your wallpaper's colours
             if (prefs.bgMode() == 5) prefs.setInt("bgmode", 4);
@@ -504,6 +523,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
+        Theme.initDynamic(this);   // Material You follows wallpaper / dark-mode changes
+        if (!prefs.locked && SystemClock.uptimeMillis() - lastSysDict > 600_000) { lastSysDict = SystemClock.uptimeMillis(); loadSystemDictionary(); }
         dict.reloadLearned();
         applySettings();
         composing.setLength(0);
@@ -547,6 +568,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     @Override
     public void onFinishInputView(boolean finishing) {
         super.onFinishInputView(finishing);
+        if (unlockedRestart) { android.os.Process.killProcess(android.os.Process.myPid()); return; }
+        if (!prefs.locked && SystemClock.uptimeMillis() - lastMirror > 60_000) { lastMirror = SystemClock.uptimeMillis(); prefs.mirrorToDeviceStorage(this); }
         hideAutofill();
         stopVoice();
         dict.flush();
@@ -1038,6 +1061,30 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         return false;
     }
 
+    /** Shortcut -> word from Android's personal dictionary (e.g. "omw" -> "On my way"). */
+    private volatile java.util.Map<String, String> sysShortcuts = new java.util.HashMap<>();
+
+    /** Reads Android's personal dictionary (only the active keyboard is allowed to). */
+    private void loadSystemDictionary() {
+        new Thread(() -> {
+            java.util.Map<String, String> words = new java.util.HashMap<>(), shortcuts = new java.util.HashMap<>();
+            try (android.database.Cursor c = getContentResolver().query(android.provider.UserDictionary.Words.CONTENT_URI,
+                    new String[]{android.provider.UserDictionary.Words.WORD, android.provider.UserDictionary.Words.SHORTCUT},
+                    null, null, null)) {
+                if (c == null) return;
+                while (c.moveToNext()) {
+                    String w = c.getString(0), sc = c.getString(1);
+                    if (w == null || w.trim().isEmpty()) continue;
+                    w = w.trim();
+                    if (sc != null && sc.trim().length() >= 2) shortcuts.put(sc.trim().toLowerCase(), w);
+                    else if (!w.contains(" ")) words.put(w.toLowerCase(), w);
+                }
+            } catch (Exception ignored) { return; }
+            sysShortcuts = shortcuts;
+            dict.setSystemWords(words);
+        }).start();
+    }
+
     private Prefs.Snippet snippetForToken() {
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return null;
@@ -1049,6 +1096,8 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
         if (token.length() < 2) return null;
         for (Prefs.Snippet s : prefs.snippets())
             if (!s.shortcut.isEmpty() && s.shortcut.equalsIgnoreCase(token)) return s;
+        String sys = sysShortcuts.get(token.toLowerCase());
+        if (sys != null) return new Prefs.Snippet(sys, sys, token);
         return null;
     }
 
