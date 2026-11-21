@@ -37,6 +37,10 @@ public class KeyboardView extends View {
         void onTouchPoint(float x, float y);
         void onGlide(List<String> words);
         void onGlidePreview(List<String> words);
+        /** The word being typed (lowercase), or null when letters shouldn't be guessed (passwords, URLs, Hindi…). */
+        String typingPrefix();
+        /** See Dictionary.prefixZipf. */
+        float prefixZipf(String prefix);
     }
 
     public static final int SHIFT_OFF = 0, SHIFT_ON = 1, SHIFT_LOCK = 2;
@@ -124,6 +128,7 @@ public class KeyboardView extends View {
     private static class Ptr {
         Key key;
         float downX, downY, lastX, lastY;
+        long downTime;
         boolean consumed, popup, spaceSwipe, delSwipe;
         int popupIndex, cursorSteps, delWords;
     }
@@ -953,6 +958,47 @@ public class KeyboardView extends View {
         return bestD < (30 * dp) * (30 * dp) ? best : null;
     }
 
+    private static boolean isLetterKey(Key k) {
+        return k != null && k.isChar() && k.label.length() == 1 && k.label.charAt(0) >= 'a' && k.label.charAt(0) <= 'z';
+    }
+
+    /**
+     * A tap near the line between two letters goes to the one that continues a real word
+     * ("th" + a tap between E and R -> E), like Gboard. Uses where you personally press each key.
+     * A tap clearly inside a key always gives that key.
+     */
+    private Key smartLetter(Key base, float x, float y) {
+        if (page != Layouts.ALPHA || !isLetterKey(base) || listener == null || keyUnit <= 1) return base;
+        String pre = listener.typingPrefix();
+        if (pre == null) return base;
+        final float SIG2 = 2f * 0.38f * 0.38f;
+        Key[] cand = new Key[6];
+        float[] d2s = new float[6], zs = new float[6];
+        int n = 0;
+        float zmax = -9f;
+        for (List<Key> row : rows) for (Key k : row) {
+            if (!isLetterKey(k) || n >= cand.length) continue;
+            int li = k.label.charAt(0) - 'a';
+            float ux = k.rect.width() + 5 * dp, uy = k.rect.height() + 8 * dp;
+            float dxn = (x - (k.rect.centerX() + TapModel.offX(li) * keyUnit)) / ux;
+            float dyn = (y - (k.rect.centerY() + TapModel.offY(li) * keyUnit)) / uy;
+            float d2 = dxn * dxn + dyn * dyn;
+            if (k != base && d2 > 0.85f * 0.85f) continue;
+            float z = listener.prefixZipf(pre + k.label);
+            cand[n] = k; d2s[n] = d2; zs[n] = z; n++;
+            if (z > zmax) zmax = z;
+        }
+        if (n < 2) return base;
+        Key best = base;
+        float bestS = -Float.MAX_VALUE;
+        for (int i = 0; i < n; i++) {
+            // the word guess can only outweigh the outer part of a key near the line (~1/5 of its width)
+            float s = -d2s[i] / SIG2 + Math.max(-1.6f, 0.6f * (zs[i] - zmax));
+            if (s > bestS) { bestS = s; best = cand[i]; }
+        }
+        return best;
+    }
+
     private final Runnable longPress = new Runnable() {
         @Override public void run() {
             Ptr p = longPressTarget;
@@ -1030,8 +1076,10 @@ public class KeyboardView extends View {
                 }
                 Key k = keyAt(x, y);
                 if (k == null) return true;
+                k = smartLetter(k, x, y);
                 Ptr p = new Ptr();
                 p.key = k; p.downX = x; p.downY = y; p.lastX = x; p.lastY = y;
+                p.downTime = SystemClock.uptimeMillis();
                 ptrs.put(e.getPointerId(idx), p);
                 if (ptrs.size() == 1) { gn = 0; glideEnd = -1; addGlidePoint(x, y, SystemClock.uptimeMillis()); }
                 listener.feedback(false);
@@ -1147,6 +1195,19 @@ public class KeyboardView extends View {
                 Ptr p = ptrs.get(e.getPointerId(idx));
                 ptrs.remove(e.getPointerId(idx));
                 h.removeCallbacks(longPress);
+                if (gliding && e.getPointerId(idx) == glidePointer && p != null && p.key != null
+                        && SystemClock.uptimeMillis() - p.downTime < 180
+                        && Math.hypot(e.getX(idx) - p.downX, e.getY(idx) - p.downY) < keyUnit * 1.05f) {
+                    // a fast tap that slid a little: type the key, don't decode a swipe
+                    gliding = false;
+                    glidePointer = -1;
+                    gn = 0;
+                    p.consumed = false;
+                    pressOf(p.key).target = 0f;
+                    release(p);
+                    invalidateAll();
+                    return true;
+                }
                 if (gliding && e.getPointerId(idx) == glidePointer) {
                     addGlidePoint(e.getX(idx), e.getY(idx), SystemClock.uptimeMillis());
                     gliding = false;

@@ -735,6 +735,16 @@ public class GlassIME extends InputMethodService implements KeyboardView.Listene
     }
 
     @Override
+    public String typingPrefix() {
+        if (noSuggest || isPassword || lang != 0 || composing.length() > 24) return null;
+        for (int i = 0; i < composing.length(); i++) if (!Character.isLetter(composing.charAt(i))) return null;
+        return composing.toString().toLowerCase();
+    }
+
+    @Override
+    public float prefixZipf(String prefix) { return dict.prefixZipf(prefix); }
+
+    @Override
     public void onGlidePreview(List<String> words) {
         glidePreview = words;
         updateStrip();

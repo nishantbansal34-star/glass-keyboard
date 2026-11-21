@@ -45,6 +45,9 @@ final class TapModel {
         }
     }
 
+    static float offX(int i) { return i >= 0 && i < 26 ? ox[i] : 0f; }
+    static float offY(int i) { return i >= 0 && i < 26 ? oy[i] : 0f; }
+
     private static float clamp(float v) { return Math.max(-MAX_OFF, Math.min(MAX_OFF, v)); }
 
     static String offsets() {

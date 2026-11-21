@@ -147,6 +147,24 @@ public class Dictionary {
     public Map<String, Integer> learnedMap() { return learned; }
     public boolean isDictWord(String w) { return index.containsKey(w); }
 
+    /**
+     * How likely a word starting with `prefix` is, in zipf units (about 1 = rare … 7.5 = "the");
+     * -1 when no known word starts like this. Used to pick between two keys when a tap lands on the line.
+     */
+    public float prefixZipf(String prefix) {
+        if (!loaded || prefix.isEmpty()) return 0f;
+        String[] w = words;
+        int i = Arrays.binarySearch(w, prefix);
+        if (i < 0) i = -i - 1;
+        int best = -100;
+        for (int n = 0; i < w.length && n < 3000 && w[i].startsWith(prefix); i++, n++) if (freq[i] > best) best = freq[i];
+        if (best == -100) {
+            for (String u : userWords.keySet()) if (u.startsWith(prefix)) return 5f;
+            return -1f;
+        }
+        return best / 100f;
+    }
+
     /** [start, end) range of words beginning with c (words are sorted). */
     public synchronized int[] bucket(char c) {
         if (!loaded) return null;
